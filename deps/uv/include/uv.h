@@ -1103,6 +1103,10 @@ typedef enum {
   UV_FS_CHOWN,
   UV_FS_FCHOWN,
   UV_FS_REALPATH
+#ifdef UWP_DLL
+  , UV_FS_UWPINSTALLDIR,
+  UV_FS_UWPSTORAGEDIR
+#endif
 } uv_fs_type;
 
 /* uv_fs_t is a subclass of uv_req_t. */
@@ -1231,6 +1235,14 @@ UV_EXTERN int uv_fs_link(uv_loop_t* loop,
                          const char* path,
                          const char* new_path,
                          uv_fs_cb cb);
+#ifdef UWP_DLL
+UV_EXTERN int uv_fs_uwpinstalldir(uv_loop_t* loop,
+                                  uv_fs_t* req,
+                                  uv_fs_cb cb);
+UV_EXTERN int uv_fs_uwpstoragedir(uv_loop_t* loop,
+                                  uv_fs_t* req,
+                                  uv_fs_cb cb);
+#endif
 
 /*
  * This flag can be used with uv_fs_symlink() on Windows to specify whether

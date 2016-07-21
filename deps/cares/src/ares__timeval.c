@@ -26,7 +26,11 @@ struct timeval ares__tvnow(void)
   ** increases monotonically and wraps once 49.7 days have elapsed.
   */
   struct timeval now;
+#ifdef UWP_DLL
+  DWORD milliseconds = (DWORD)GetTickCount64();
+#else
   DWORD milliseconds = GetTickCount();
+#endif
   now.tv_sec = milliseconds / 1000;
   now.tv_usec = (milliseconds % 1000) * 1000;
   return now;

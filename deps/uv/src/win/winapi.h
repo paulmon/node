@@ -4684,6 +4684,8 @@ typedef DWORD (WINAPI* sGetFinalPathNameByHandleW)
               DWORD cchFilePath,
               DWORD dwFlags);
 
+#ifndef UWP_DLL
+
 /* Ntdll function pointers */
 extern sRtlNtStatusToDosError pRtlNtStatusToDosError;
 extern sNtDeviceIoControlFile pNtDeviceIoControlFile;
@@ -4693,6 +4695,7 @@ extern sNtQueryVolumeInformationFile pNtQueryVolumeInformationFile;
 extern sNtQueryDirectoryFile pNtQueryDirectoryFile;
 extern sNtQuerySystemInformation pNtQuerySystemInformation;
 
+#endif
 
 /* Kernel32 function pointers */
 extern sGetQueuedCompletionStatusEx pGetQueuedCompletionStatusEx;

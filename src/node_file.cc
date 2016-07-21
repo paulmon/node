@@ -168,6 +168,11 @@ static void After(uv_fs_t *req) {
     // All have at least two args now.
     argc = 2;
 
+#ifdef UWP_DLL
+    std::wstring wstr;
+    std::string str;
+#endif
+
     switch (req->fs_type) {
       // These all have no data to pass.
       case UV_FS_ACCESS:
@@ -224,6 +229,17 @@ static void After(uv_fs_t *req) {
           argv[1] = link;
         }
         break;
+
+#ifdef UWP_DLL
+      case UV_FS_UWPINSTALLDIR:
+      case UV_FS_UWPSTORAGEDIR:
+        wstr.assign(req->file.pathw);
+        str.assign(wstr.begin(), wstr.end());
+        argv[1] = StringBytes::Encode(env->isolate(),
+                                      static_cast<const char*>(str.c_str()),
+                                      req_wrap->encoding_);
+        break;
+#endif
 
       case UV_FS_READLINK:
         link = StringBytes::Encode(env->isolate(),
@@ -1438,6 +1454,37 @@ void FSInitialize(const FunctionCallbackInfo<Value>& args) {
   env->set_fs_stats_constructor_function(stats_constructor);
 }
 
+#ifdef UWP_DLL
+static void UWPinstalldir(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+
+  
+  if (args[0]->IsObject()) {
+    ASYNC_CALL(uwpinstalldir, args[0], UTF8);
+  } else {
+    SYNC_CALL(uwpinstalldir, 0);
+    std::wstring wstr(SYNC_REQ.file.pathw);
+    std::string str(wstr.begin(), wstr.end());
+    Local<Value> rc = StringBytes::Encode(env->isolate(), str.c_str(), UTF8);
+    args.GetReturnValue().Set(rc);
+  }
+}
+
+static void UWPstoragedir(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+
+  if (args[0]->IsObject()) {
+    ASYNC_CALL(uwpstoragedir, args[0], UTF8);
+  } else {
+    SYNC_CALL(uwpstoragedir, 0);
+    std::wstring wstr(SYNC_REQ.file.pathw);
+    std::string str(wstr.begin(), wstr.end());
+    Local<Value> rc = StringBytes::Encode(env->isolate(), str.c_str(), UTF8);
+    args.GetReturnValue().Set(rc);
+  }
+}
+#endif
+
 void InitFs(Local<Object> target,
             Local<Value> unused,
             Local<Context> context,
@@ -1485,6 +1532,11 @@ void InitFs(Local<Object> target,
   env->SetMethod(target, "futimes", FUTimes);
 
   env->SetMethod(target, "mkdtemp", Mkdtemp);
+
+#ifdef UWP_DLL
+  env->SetMethod(target, "uwpinstalldir", UWPinstalldir);
+  env->SetMethod(target, "uwpstoragedir", UWPstoragedir);
+#endif
 
   StatWatcher::Initialize(env, target);
 

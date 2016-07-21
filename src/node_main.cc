@@ -4,11 +4,13 @@
 #include <VersionHelpers.h>
 
 int wmain(int argc, wchar_t *wargv[]) {
+#ifndef WINONECORE
   if (!IsWindows7OrGreater()) {
     fprintf(stderr, "This application is only supported on Windows 7, "
                     "Windows Server 2008 R2, or higher.");
     exit(1);
   }
+#endif
 
   // Convert argv to to UTF8
   char** argv = new char*[argc + 1];

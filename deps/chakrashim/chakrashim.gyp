@@ -34,6 +34,44 @@
             'chakracore.gyp:chakracore#host',
           ],
         }],
+        [ 'node_win_onecore=="true"', {
+          'libraries': [
+            '<@(node_engine_libs)',
+          ],
+        }],
+        [ 'node_win_onecore!="true"', {
+        'libraries': [
+          '-lole32.lib',
+          '-lversion.lib',
+          '<@(node_engine_libs)',
+          ],
+        }],
+        [ 'node_uwp_dll=="true"', {
+          'defines': [
+            'UWP_DLL=1',
+            'WINAPI_FAMILY=WINAPI_FAMILY_APP',
+            '_WIN32_WINNT=0x0A00'
+          ],
+          'msvs_enable_winrt': 1,
+          'msvs_application_type_revision': '10.0',
+          'msvs_windows_target_platform_version':'v10.0',
+          'configurations': {
+            'Release': {
+              'msvs_settings': {
+                'VCCLCompilerTool': {
+                  'RuntimeLibrary': '2',
+               }
+              },
+            },
+            'Debug': {
+              'msvs_settings': {
+                'VCCLCompilerTool': {
+                  'RuntimeLibrary': '3',
+                }
+              },
+            }
+          }
+        }],
       ],
       'msvs_use_library_dependency_inputs': 1,
 
@@ -44,14 +82,21 @@
         'defines': [
           'BUILDING_CHAKRASHIM=1',
         ],
-        'libraries': [
-          '-lole32.lib',
-          '-lversion.lib',
-          '<@(node_engine_libs)',
-        ],
         'conditions': [
           [ 'target_arch=="arm"', {
             'defines': [ '__arm__=1' ]
+          }],
+          [ 'node_win_onecore=="true"', {
+            'libraries': [
+              '<@(node_engine_libs)',
+            ],
+          }],
+          [ 'node_win_onecore!="true"', {
+          'libraries': [
+            '-lole32.lib',
+            '-lversion.lib',
+            '<@(node_engine_libs)',
+            ],
           }],
         ],
       },

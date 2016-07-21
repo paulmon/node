@@ -126,6 +126,9 @@ static BOOL WINAPI uv__signal_control_handler(DWORD type) {
 
 
 static int uv__signal_register_control_handler() {
+#ifdef UWP_DLL
+    return ERROR_NOT_SUPPORTED;
+#else
   /* When this function is called, the uv__signal_lock must be held. */
 
   /* If the console control handler has already been hooked, just add a */
@@ -141,11 +144,13 @@ static int uv__signal_register_control_handler() {
   uv__signal_control_handler_refs++;
 
   return 0;
+#endif
 }
 
 
 static void uv__signal_unregister_control_handler() {
-  /* When this function is called, the uv__signal_lock must be held. */
+#ifndef UWP_DLL
+    /* When this function is called, the uv__signal_lock must be held. */
   BOOL r;
 
   /* Don't unregister if the number of console control handlers exceeds one. */
@@ -162,6 +167,7 @@ static void uv__signal_unregister_control_handler() {
   assert(r);
 
   uv__signal_control_handler_refs--;
+#endif
 }
 
 

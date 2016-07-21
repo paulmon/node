@@ -42,9 +42,13 @@
 
 #define REQ_SUCCESS(req)                                                \
   (NT_SUCCESS(GET_REQ_STATUS((req))))
-
+#ifdef UWP_DLL
+#define GET_REQ_ERROR(req)                                              \
+  (GET_REQ_STATUS((req))==0?ERROR_SUCCESS:ERROR_NOT_SUPPORTED)
+#else
 #define GET_REQ_ERROR(req)                                              \
   (pRtlNtStatusToDosError(GET_REQ_STATUS((req))))
+#endif
 
 #define GET_REQ_SOCK_ERROR(req)                                         \
   (uv_ntstatus_to_winsock_error(GET_REQ_STATUS((req))))

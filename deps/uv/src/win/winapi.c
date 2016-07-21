@@ -25,6 +25,7 @@
 #include "internal.h"
 
 
+#ifndef UWP_DLL
 /* Ntdll function pointers */
 sRtlNtStatusToDosError pRtlNtStatusToDosError;
 sNtDeviceIoControlFile pNtDeviceIoControlFile;
@@ -33,7 +34,7 @@ sNtSetInformationFile pNtSetInformationFile;
 sNtQueryVolumeInformationFile pNtQueryVolumeInformationFile;
 sNtQueryDirectoryFile pNtQueryDirectoryFile;
 sNtQuerySystemInformation pNtQuerySystemInformation;
-
+#endif
 
 /* Kernel32 function pointers */
 sGetQueuedCompletionStatusEx pGetQueuedCompletionStatusEx;
@@ -50,6 +51,20 @@ sGetFinalPathNameByHandleW pGetFinalPathNameByHandleW;
 
 
 void uv_winapi_init() {
+
+#ifdef UWP_DLL
+    pGetQueuedCompletionStatusEx = &GetQueuedCompletionStatusEx;
+    pSetFileCompletionNotificationModes = NULL;
+    pCreateSymbolicLinkW = NULL;
+    pCancelIoEx = &CancelIoEx;
+    pInitializeConditionVariable = &InitializeConditionVariable;
+    pSleepConditionVariableCS = &SleepConditionVariableCS;
+    pSleepConditionVariableSRW = &SleepConditionVariableSRW;
+    pWakeAllConditionVariable = &WakeAllConditionVariable;
+    pWakeConditionVariable = &WakeConditionVariable;
+    pCancelSynchronousIo = NULL;
+    pGetFinalPathNameByHandleW = NULL;
+#else
   HMODULE ntdll_module;
   HMODULE kernel32_module;
 
@@ -105,7 +120,11 @@ void uv_winapi_init() {
     uv_fatal_error(GetLastError(), "GetProcAddress");
   }
 
+#ifdef WINONECORE
+  kernel32_module = GetModuleHandleA("kernelbase.dll");
+#else
   kernel32_module = GetModuleHandleA("kernel32.dll");
+#endif
   if (kernel32_module == NULL) {
     uv_fatal_error(GetLastError(), "GetModuleHandleA");
   }
@@ -143,4 +162,5 @@ void uv_winapi_init() {
 
   pGetFinalPathNameByHandleW = (sGetFinalPathNameByHandleW)
     GetProcAddress(kernel32_module, "GetFinalPathNameByHandleW");
+#endif
 }

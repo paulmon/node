@@ -55,7 +55,7 @@
 #define USE_EDGEMODE_JSRT     // Only works with edge JSRT
 #endif
 
-#include "chakracore.h"
+#include <jsrt.h>
 
 #include <stdio.h>
 #include <stdint.h>

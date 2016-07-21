@@ -40,7 +40,11 @@ int uv_dlopen(const char* filename, uv_lib_t* lib) {
     return uv__dlerror(lib, GetLastError());
   }
 
+#ifdef UWP_DLL
+  lib->handle = LoadPackagedLibrary(filename_w, 0);
+#else
   lib->handle = LoadLibraryExW(filename_w, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+#endif
   if (lib->handle == NULL) {
     return uv__dlerror(lib, GetLastError());
   }

@@ -29,6 +29,10 @@
 
 
 uv_handle_type uv_guess_handle(uv_file file) {
+#ifdef UWP_DLL
+  // Only TTY is needed for node
+  return UV_TTY;
+#else
   HANDLE handle;
   DWORD mode;
 
@@ -55,6 +59,7 @@ uv_handle_type uv_guess_handle(uv_file file) {
     default:
       return UV_UNKNOWN_HANDLE;
   }
+#endif
 }
 
 

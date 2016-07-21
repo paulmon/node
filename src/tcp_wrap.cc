@@ -132,7 +132,7 @@ void TCPWrap::New(const FunctionCallbackInfo<Value>& args) {
   // normal function.
   CHECK(args.IsConstructCall());
   Environment* env = Environment::GetCurrent(args);
-  TCPWrap* wrap;
+  TCPWrap* wrap = NULL;
   if (args.Length() == 0) {
     wrap = new TCPWrap(env, args.This(), nullptr);
   } else if (args[0]->IsExternal()) {

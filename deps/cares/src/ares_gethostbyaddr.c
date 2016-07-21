@@ -178,7 +178,10 @@ static int file_lookup(struct ares_addr *addr, struct hostent **host)
   int status;
   int error;
 
-#ifdef WIN32
+#ifdef UWP_DLL
+  char* PATH_HOSTS = NULL; // Dummy variable to prevent compiler error below.
+  return ARES_ENOTFOUND;
+#elif defined(WIN32)
   char PATH_HOSTS[MAX_PATH];
   win_platform platform;
 

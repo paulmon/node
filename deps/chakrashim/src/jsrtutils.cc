@@ -1040,6 +1040,7 @@ JsValueRef CALLBACK CollectGarbage(
 }
 
 void IdleGC(uv_timer_t *timerHandler) {
+#ifndef NODE_ENGINE_CHAKRA
   unsigned int nextIdleTicks;
   CHAKRA_VERIFY(JsIdle(&nextIdleTicks) == JsNoError);
   DWORD currentTicks = GetTickCount();
@@ -1060,9 +1061,11 @@ void IdleGC(uv_timer_t *timerHandler) {
   } else {
     IsolateShim::GetCurrent()->ResetIsIdleGcScheduled();
   }
+#endif
 }
 
 void PrepareIdleGC(uv_prepare_t* prepareHandler) {
+#ifndef NODE_ENGINE_CHAKRA
   // If there were no scripts executed, return
   if (!IsolateShim::GetCurrent()->IsJsScriptExecuted()) {
     return;
@@ -1074,12 +1077,15 @@ void PrepareIdleGC(uv_prepare_t* prepareHandler) {
   }
 
   ScheduleIdleGcTask();
+#endif
 }
 
 void ScheduleIdleGcTask(uint64_t timeoutInMilliSeconds) {
+#ifndef NODE_ENGINE_CHAKRA
   uv_timer_start(IsolateShim::GetCurrent()->idleGc_timer_handle(),
                  IdleGC, timeoutInMilliSeconds, 0);
   IsolateShim::GetCurrent()->SetIsIdleGcScheduled();
+#endif
 }
 }  // namespace jsrt
 

@@ -19,6 +19,12 @@
 # include <sys/utsname.h>
 #endif  // __MINGW32__
 
+#ifdef UWP_DLL
+#include <windows.system.profile.h>
+#include <wrl/client.h>
+#include <wrl/wrappers/corewrappers.h>
+#endif
+
 // Add Windows fallback.
 #ifndef MAXHOSTNAMELEN
 # define MAXHOSTNAMELEN 256
@@ -75,6 +81,76 @@ static void GetOSType(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(OneByteString(env->isolate(), rval));
 }
 
+#ifdef UWP_DLL
+static HRESULT GetOSReleaseUWP(int* major,
+                               int* minor,
+                               int* buildNumber,
+                               int* revision) {
+  using Microsoft::WRL::ComPtr;
+  using Microsoft::WRL::Wrappers::HString;
+  using Microsoft::WRL::Wrappers::HStringReference;
+  using Windows::Foundation::GetActivationFactory;
+  using ABI::Windows::System::Profile::IAnalyticsInfoStatics;
+  using ABI::Windows::System::Profile::IAnalyticsVersionInfo;
+
+  if (major) {
+    *major = 0;
+  }
+  if (minor) {
+    *minor = 0;
+  }
+  if (buildNumber) {
+    *buildNumber = 0;
+  }
+  if (revision) {
+    *revision = 0;
+  }
+
+  HStringReference classId(RuntimeClass_Windows_System_Profile_AnalyticsInfo);
+  ComPtr<IAnalyticsInfoStatics> analyticsInfo;
+  HRESULT hr = GetActivationFactory(classId.Get(),
+                                    analyticsInfo.GetAddressOf());
+  if (FAILED(hr)) {
+    return hr;
+  }
+
+  ComPtr<IAnalyticsVersionInfo> versionInfo;
+  hr = analyticsInfo->get_VersionInfo(versionInfo.GetAddressOf());
+  if (FAILED(hr)) {
+    return hr;
+  }
+
+  HString deviceFamilyVerion;
+  hr = versionInfo->get_DeviceFamilyVersion(deviceFamilyVerion.GetAddressOf());
+  if (FAILED(hr)) {
+    return hr;
+  }
+
+  ULONG64 version = wcstoull(deviceFamilyVerion.GetRawBuffer(nullptr),
+                             nullptr, 10);
+  if (version == ULLONG_MAX) {
+    return E_FAIL;
+  }
+
+  if (major) {
+    *major = (version & 0xFFFF000000000000ull) >> 48;
+  }
+
+  if (minor) {
+    *minor = (version & 0x0000FFFF00000000ull) >> 32;
+  }
+
+  if (buildNumber) {
+    *buildNumber = (version & 0x0000000FFFF0000ull) >> 16;
+  }
+
+  if (revision) {
+    *revision = (version & 0x0000000000FFFFull);
+  }
+
+  return S_OK;
+}
+#endif
 
 static void GetOSRelease(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
@@ -86,6 +162,22 @@ static void GetOSRelease(const FunctionCallbackInfo<Value>& args) {
     return env->ThrowErrnoException(errno, "uname");
   }
   rval = info.release;
+#elif defined(UWP_DLL)
+  char release[256];
+  int major;
+  int minor;
+  int buildNumber;
+  if (FAILED(GetOSReleaseUWP(&major, &minor, &buildNumber, nullptr))) {
+    return;
+  }
+
+  snprintf(release,
+           sizeof(release),
+           "%d.%d.%d",
+           static_cast<int>(major),
+           static_cast<int>(minor),
+           static_cast<int>(buildNumber));
+  rval = release;
 #else  // Windows
   char release[256];
   OSVERSIONINFOW info;
