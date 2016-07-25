@@ -884,7 +884,7 @@ void uv_process_proc_exit(uv_loop_t* loop, uv_process_t* handle) {
 
   /* Unregister from process notification. */
   if (handle->wait_handle != INVALID_HANDLE_VALUE) {
-#ifndef WINONECORE
+#ifndef UWP_DLL
     UnregisterWait(handle->wait_handle);
     handle->wait_handle = INVALID_HANDLE_VALUE;
 #endif
@@ -915,7 +915,7 @@ void uv_process_close(uv_loop_t* loop, uv_process_t* handle) {
   if (handle->wait_handle != INVALID_HANDLE_VALUE) {
     /* This blocks until either the wait was cancelled, or the callback has */
     /* completed. */
-#ifndef WINONECORE
+#ifndef UWP_DLL
     BOOL r = UnregisterWaitEx(handle->wait_handle, INVALID_HANDLE_VALUE);
     if (!r) {
       /* This should never happen, and if it happens, we can't recover... */
@@ -1154,7 +1154,7 @@ int uv_spawn(uv_loop_t* loop,
   }
 
   /* Setup notifications for when the child process exits. */
-#ifdef WINONECORE
+#ifdef UWP_DLL
   uv_fatal_error(ERROR_NOT_SUPPORTED, "RegisterWaitForSingleObject"); // Fail
 #else
   result = RegisterWaitForSingleObject(&process->wait_handle,

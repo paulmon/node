@@ -20,7 +20,6 @@
     'node_enable_v8_vtunejit%': 'false',
     'node_engine%': 'v8',
     'node_core_target_name%': 'node',
-    'node_win_onecore%': 'false',
     'node_uwp_dll%': 'false',
     'library_files': [
       'lib/internal/bootstrap_node.js',
@@ -519,13 +518,8 @@
             '_UNICODE=1',
           ],
           'conditions' : [
-            [ 'node_win_onecore!="true"', {
+            [ 'node_uwp_dll!="true"', {
               'libraries': [ '-lpsapi.lib' ],
-            }],
-            ['node_win_onecore=="true"', {
-              'sources': [
-                'tools/win/patch/stubs.cc',
-              ],
             }],
             [ 'node_uwp_dll=="true"', {
               'type': 'loadable_module',
@@ -533,6 +527,9 @@
                 'UWP_DLL=1',
                 'WINAPI_FAMILY=WINAPI_FAMILY_APP',
                 '_WIN32_WINNT=0x0A00'
+              ],
+              'sources': [
+                'tools/win/patch/stubs.cc',
               ],
               'include_dirs': [ 'deps/logger/include' ],
               'dependencies': [ 'deps/logger/logger.gyp:logger' ],

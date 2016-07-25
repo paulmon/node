@@ -455,11 +455,6 @@ parser.add_option('--without-bundled-v8',
     help='do not use V8 includes from the bundled deps folder. ' +
          '(This mode is not officially supported for regular applications)')
 
-parser.add_option("--win-onecore",
-    action="store_true",
-    dest="win_onecore",
-    help="Build Node.js for Windows OneCore based platforms")
-
 parser.add_option("--uwp-dll",
     action="store_true",
     dest="uwp_dll",
@@ -846,7 +841,6 @@ def configure_node(o):
 
   # Assign variables for to support Universal Windows Platform
   if flavor == 'win':
-    o['variables']['node_win_onecore'] = b(options.win_onecore)
     o['variables']['node_uwp_dll'] = b(options.uwp_dll)
 
   if options.tag:

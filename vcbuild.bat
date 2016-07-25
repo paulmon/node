@@ -135,10 +135,9 @@ if "%i18n_arg%"=="full-icu" set configure_flags=%configure_flags% --with-intl=fu
 if "%i18n_arg%"=="small-icu" set configure_flags=%configure_flags% --with-intl=small-icu
 if "%i18n_arg%"=="intl-none" set configure_flags=%configure_flags% --with-intl=none
 if "%i18n_arg%"=="without-intl" set configure_flags=%configure_flags% --without-intl
-if "%engine%"=="chakra" set configure_flags=%configure_flags% --without-intl --without-inspector --without-v8-platform --without-bundled-v8
+if "%engine%"=="chakra" set configure_flags=%configure_flags% --without-intl --without-inspector --without-v8-platform --without-bundled-v8 --without-perfctr
 if "%target_type%"=="uwp-dll" (
   set target_type_arg=--uwp-dll
-  set winplat_arg=--win-onecore --without-perfctr
 )
 
 if defined config_flags set configure_flags=%configure_flags% %config_flags%
@@ -214,8 +213,8 @@ goto run
 if defined noprojgen goto msbuild
 
 @rem Generate the VS project.
-echo configure %configure_flags% --engine=%engine% %winplat_arg%  %target_type_arg% --dest-cpu=%target_arch% --tag=%TAG%
-python configure %configure_flags% --engine=%engine% %winplat_arg%  %target_type_arg% --dest-cpu=%target_arch% --tag=%TAG%
+echo configure %configure_flags% --engine=%engine% %target_type_arg% --dest-cpu=%target_arch% --tag=%TAG%
+python configure %configure_flags% --engine=%engine% %target_type_arg% --dest-cpu=%target_arch% --tag=%TAG%
 if errorlevel 1 goto create-msvs-files-failed
 if not exist node.sln goto create-msvs-files-failed
 echo Project files generated.

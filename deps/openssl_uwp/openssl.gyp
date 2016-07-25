@@ -144,7 +144,7 @@
     'include_dirs': ['<@(openssl_default_include_dirs)'],
     'defines': ['<@(openssl_default_defines_all)'],
     'conditions': [
-      ['OS=="win" and node_win_onecore!="true"', {
+      ['OS=="win" and node_uwp_dll!="true"', {
         'link_settings': {
           'libraries': ['<@(openssl_default_libraries_win)'],
         }

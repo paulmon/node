@@ -34,12 +34,7 @@
             'chakracore.gyp:chakracore#host',
           ],
         }],
-        [ 'node_win_onecore=="true"', {
-          'libraries': [
-            '<@(node_engine_libs)',
-          ],
-        }],
-        [ 'node_win_onecore!="true"', {
+        [ 'node_uwp_dll!="true"', {
         'libraries': [
           '-lole32.lib',
           '-lversion.lib',
@@ -55,6 +50,9 @@
           'msvs_enable_winrt': 1,
           'msvs_application_type_revision': '10.0',
           'msvs_windows_target_platform_version':'v10.0',
+          'libraries': [
+            '<@(node_engine_libs)',
+          ],
           'configurations': {
             'Release': {
               'msvs_settings': {
@@ -86,12 +84,12 @@
           [ 'target_arch=="arm"', {
             'defines': [ '__arm__=1' ]
           }],
-          [ 'node_win_onecore=="true"', {
+          [ 'node_uwp_dll=="true"', {
             'libraries': [
               '<@(node_engine_libs)',
             ],
           }],
-          [ 'node_win_onecore!="true"', {
+          [ 'node_uwp_dll!="true"', {
           'libraries': [
             '-lole32.lib',
             '-lversion.lib',

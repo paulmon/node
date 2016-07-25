@@ -204,7 +204,7 @@ static void close_pipe(uv_pipe_t* pipe) {
 }
 
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
 int uv_stdio_pipe_server(uv_loop_t* loop, uv_pipe_t* handle, DWORD access,
     char* name, size_t nameSize) {
   HANDLE pipeHandle;
@@ -289,7 +289,7 @@ static int uv_set_pipe_handle(uv_loop_t* loop,
        * But if the handle already has the desired wait and blocking modes
        * we can continue.
        */
-#ifdef WINONECORE
+#ifdef UWP_DLL
       SetLastError(ERROR_ACCESS_DENIED);
       return -1;
 #else
@@ -431,7 +431,7 @@ void uv_pipe_endgame(uv_loop_t* loop, uv_pipe_t* handle) {
     }
 
     /* Run FlushFileBuffers in the thread pool. */
-#ifdef WINONECORE
+#ifdef UWP_DLL
     result = 0;
     SetLastError(ERROR_NOT_SUPPORTED);
 #else
@@ -487,7 +487,7 @@ void uv_pipe_endgame(uv_loop_t* loop, uv_pipe_t* handle) {
 
       if (handle->flags & UV_HANDLE_EMULATE_IOCP) {
         if (handle->read_req.wait_handle != INVALID_HANDLE_VALUE) {
-#ifndef WINONECORE
+#ifndef UWP_DLL
           UnregisterWait(handle->read_req.wait_handle);
           handle->read_req.wait_handle = INVALID_HANDLE_VALUE;
 #endif
@@ -703,7 +703,7 @@ void uv_pipe_connect(uv_connect_t* req, uv_pipe_t* handle,
   if (pipeHandle == INVALID_HANDLE_VALUE) {
     if (GetLastError() == ERROR_PIPE_BUSY) {
       /* Wait for the server to make a pipe instance available. */
-#ifdef WINONECORE
+#ifdef UWP_DLL
       err = ERROR_NOT_SUPPORTED;
       goto error;
 #else
@@ -1152,7 +1152,7 @@ static void uv_pipe_queue_read(uv_loop_t* loop, uv_pipe_t* handle) {
   req = &handle->read_req;
 
   if (handle->flags & UV_HANDLE_NON_OVERLAPPED_PIPE) {
-#ifdef WINONECORE
+#ifdef UWP_DLL
     SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED);
     goto error;
 #else
@@ -1191,7 +1191,7 @@ static void uv_pipe_queue_read(uv_loop_t* loop, uv_pipe_t* handle) {
         }
       }
       if (req->wait_handle == INVALID_HANDLE_VALUE) {
-#ifdef WINONECORE
+#ifdef UWP_DLL
         SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED);
         goto error;
 #else
@@ -1277,7 +1277,7 @@ static uv_write_t* uv_remove_non_overlapped_write_req(uv_pipe_t* handle) {
 static void uv_queue_non_overlapped_write(uv_pipe_t* handle) {
   uv_write_t* req = uv_remove_non_overlapped_write_req(handle);
   if (req) {
-#ifdef WINONECORE
+#ifdef UWP_DLL
     uv_fatal_error(ERROR_NOT_SUPPORTED, "QueueUserWorkItem");
 #else
     if (!QueueUserWorkItem(&uv_pipe_writefile_thread_proc,
@@ -1533,7 +1533,7 @@ static int uv_pipe_write_impl(uv_loop_t* loop,
       if (!req->event_handle) {
         uv_fatal_error(GetLastError(), "CreateEvent");
       }
-#ifdef WINONECORE
+#ifdef UWP_DLL
       return ERROR_NOT_SUPPORTED;
 #else
       if (!RegisterWaitForSingleObject(&req->wait_handle,
@@ -1781,7 +1781,7 @@ void uv_process_pipe_write_req(uv_loop_t* loop, uv_pipe_t* handle,
 
   if (handle->flags & UV_HANDLE_EMULATE_IOCP) {
     if (req->wait_handle != INVALID_HANDLE_VALUE) {
-#ifndef WINONECORE
+#ifndef UWP_DLL
       UnregisterWait(req->wait_handle);
       req->wait_handle = INVALID_HANDLE_VALUE;
 #endif
@@ -2062,7 +2062,7 @@ int uv_pipe_open(uv_pipe_t* pipe, uv_file file) {
 
   uv_pipe_connection_init(pipe);
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
   if (pipe->ipc) {
     assert(!(pipe->flags & UV_HANDLE_NON_OVERLAPPED_PIPE));
     pipe->pipe.conn.ipc_pid = uv_parent_pid();

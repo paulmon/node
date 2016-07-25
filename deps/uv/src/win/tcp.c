@@ -257,7 +257,7 @@ void uv_tcp_endgame(uv_loop_t* loop, uv_tcp_t* handle) {
         for (i = 0; i < uv_simultaneous_server_accepts; i++) {
           req = &handle->tcp.serv.accept_reqs[i];
           if (req->wait_handle != INVALID_HANDLE_VALUE) {
-#ifndef WINONECORE
+#ifndef UWP_DLL
             UnregisterWait(req->wait_handle);
 #endif
             req->wait_handle = INVALID_HANDLE_VALUE;
@@ -276,7 +276,7 @@ void uv_tcp_endgame(uv_loop_t* loop, uv_tcp_t* handle) {
     if (handle->flags & UV_HANDLE_CONNECTION &&
         handle->flags & UV_HANDLE_EMULATE_IOCP) {
       if (handle->read_req.wait_handle != INVALID_HANDLE_VALUE) {
-#ifndef WINONECORE
+#ifndef UWP_DLL
         UnregisterWait(handle->read_req.wait_handle);
 #endif
         handle->read_req.wait_handle = INVALID_HANDLE_VALUE;
@@ -465,7 +465,7 @@ static void uv_tcp_queue_accept(uv_tcp_t* handle, uv_tcp_accept_t* req) {
     handle->reqs_pending++;
     if (handle->flags & UV_HANDLE_EMULATE_IOCP &&
         req->wait_handle == INVALID_HANDLE_VALUE &&
-#ifdef WINONECORE
+#ifdef UWP_DLL
         !WSAWaitForMultipleEvents(1, &req->event_handle,
           TRUE, WSA_INFINITE, TRUE)) {
 #else
@@ -553,7 +553,7 @@ static void uv_tcp_queue_read(uv_loop_t* loop, uv_tcp_t* handle) {
     handle->reqs_pending++;
     if (handle->flags & UV_HANDLE_EMULATE_IOCP &&
         req->wait_handle == INVALID_HANDLE_VALUE &&
-#ifdef WINONECORE
+#ifdef UWP_DLL
         !WSAWaitForMultipleEvents(1, &req->event_handle,
           TRUE, WSA_INFINITE, TRUE)) {
 #else
@@ -921,7 +921,7 @@ int uv_tcp_write(uv_loop_t* loop,
     REGISTER_HANDLE_REQ(loop, handle, req);
     handle->write_queue_size += req->u.io.queued_bytes;
     if (handle->flags & UV_HANDLE_EMULATE_IOCP &&
-#ifdef WINONECORE
+#ifdef UWP_DLL
         !WSAWaitForMultipleEvents(1, &req->event_handle,
           TRUE, WSA_INFINITE, TRUE)) {
 #else
@@ -1109,7 +1109,7 @@ void uv_process_tcp_write_req(uv_loop_t* loop, uv_tcp_t* handle,
 
   if (handle->flags & UV_HANDLE_EMULATE_IOCP) {
     if (req->wait_handle != INVALID_HANDLE_VALUE) {
-#ifndef WINONECORE
+#ifndef UWP_DLL
       UnregisterWait(req->wait_handle);
 #endif
       req->wait_handle = INVALID_HANDLE_VALUE;

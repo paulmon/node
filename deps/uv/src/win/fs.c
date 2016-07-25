@@ -850,7 +850,7 @@ void fs__mkdtemp(uv_fs_t* req) {
   WCHAR *cp, *ep;
   unsigned int tries, i;
   size_t len;
-#ifdef WINONECORE
+#ifdef UWP_DLL
   NTSTATUS ntstatus;
 #else
   HCRYPTPROV h_crypt_prov;
@@ -864,7 +864,7 @@ void fs__mkdtemp(uv_fs_t* req) {
     return;
   }
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
   if (!CryptAcquireContext(&h_crypt_prov, NULL, NULL, PROV_RSA_FULL,
                            CRYPT_VERIFYCONTEXT)) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
@@ -874,7 +874,7 @@ void fs__mkdtemp(uv_fs_t* req) {
 
   tries = TMP_MAX;
   do {
-#ifdef WINONECORE
+#ifdef UWP_DLL
     ntstatus = BCryptGenRandom(NULL, (PUCHAR)&v, sizeof(v), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     if (STATUS_SUCCESS != ntstatus) {
       SET_REQ_WIN32_ERROR(req, ntstatus);
@@ -904,7 +904,7 @@ void fs__mkdtemp(uv_fs_t* req) {
     }
   } while (--tries);
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
   BOOL released = CryptReleaseContext(h_crypt_prov, 0);
   assert(released);
 #endif

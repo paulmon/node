@@ -107,7 +107,7 @@
             'src/win/winsock.h',
           ],
           'conditions': [
-           [ 'node_win_onecore!="true"', {
+           [ 'node_uwp_dll!="true"', {
             'link_settings': {
               'libraries': [
                 '-ladvapi32',
@@ -181,9 +181,6 @@
               'product_extension': 'so.1',
             }],
           ],
-        }],
-        ['node_win_onecore=="true"', {
-          'defines': [ 'WINONECORE=1' ],
         }],
         ['node_uwp_dll=="true"', {
 		  'sources': [ 'src/win/uwp.cpp' ],

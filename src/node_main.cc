@@ -4,7 +4,7 @@
 #include <VersionHelpers.h>
 
 int wmain(int argc, wchar_t *wargv[]) {
-#ifndef WINONECORE
+#ifndef UWP_DLL
   if (!IsWindows7OrGreater()) {
     fprintf(stderr, "This application is only supported on Windows 7, "
                     "Windows Server 2008 R2, or higher.");

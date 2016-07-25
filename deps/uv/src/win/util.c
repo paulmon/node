@@ -39,7 +39,7 @@
 #include <tlhelp32.h>
 #include <windows.h>
 #include <userenv.h>
-#ifdef WINONECORE
+#ifdef UWP_DLL
 #define SECURITY_WIN32
 #include <security.h>
 #endif
@@ -328,7 +328,7 @@ uint64_t uv_get_total_memory(void) {
 }
 
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
 int uv_parent_pid() {
   int parent_pid = -1;
   HANDLE handle;
@@ -506,16 +506,14 @@ uint64_t uv__hrtime(double scale) {
 }
 
 #ifndef UWP_DLL
-#ifdef WINONECORE
 BOOL WINAPI K32GetProcessMemoryInfo(HANDLE Process, PPROCESS_MEMORY_COUNTERS ppsmemCounters, DWORD cb);
 #define GetProcessMemoryInfo K32GetProcessMemoryInfo
-#endif
 #endif
 
 int uv_resident_set_memory(size_t* rss) {
 #ifdef UWP_DLL
-    (rss);
-    return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
+  (rss);
+  return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
 #else
   HANDLE current_process;
   PROCESS_MEMORY_COUNTERS pmc;
@@ -829,7 +827,6 @@ static int is_windows_version_or_greater(DWORD os_major,
         return 0;
     }
 #else
-#ifndef WINONECORE
   OSVERSIONINFOEX osvi;
   DWORDLONG condition_mask = 0;
   int op = VER_GREATER_EQUAL;
@@ -854,18 +851,6 @@ static int is_windows_version_or_greater(DWORD os_major,
     VER_MAJORVERSION | VER_MINORVERSION |
     VER_SERVICEPACKMAJOR | VER_SERVICEPACKMINOR,
     condition_mask);
-#else
-  OSVERSIONINFO info;
-  info.dwOSVersionInfoSize = sizeof(info);
-  if (GetVersionEx(&info)) {
-    if ((info.dwMajorVersion > os_major) ||
-       (info.dwMajorVersion == os_major && info.dwMinorVersion >= os_minor)) {
-      return 1;
-    } else {
-      return 0;
-    }
-  }
-#endif
 #endif
 }
 

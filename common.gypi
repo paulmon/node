@@ -273,20 +273,6 @@
           'BUILDING_UV_SHARED=1',
         ],
       }],
-      ['node_win_onecore=="true"', {
-        'defines': [ 'WINONECORE=1' ],
-        'msvs_settings': {
-          'VCLinkerTool': {
-            'IgnoreDefaultLibraryNames' : [
-              'kernel32.lib',
-              'advapi32.lib',
-            ],
-          }
-        },
-        'libraries': [
-          '-lonecore.lib',
-        ],
-      }],
       ['node_uwp_dll=="true"', {
         'target_conditions': [
           ['_type!="none"', {
@@ -298,6 +284,9 @@
             'msvs_enable_winrt': 1,
             'msvs_application_type_revision': '10.0',
             'msvs_windows_target_platform_version':'v10.0',
+            'libraries': [
+              '-lonecore.lib',
+            ],
             'configurations': {
               'Release': {
                 'msvs_settings': {
@@ -315,6 +304,12 @@
               }
             },
             'msvs_settings': {
+              'VCLinkerTool': {
+                'IgnoreDefaultLibraryNames' : [
+                  'kernel32.lib',
+                  'advapi32.lib',
+                ],
+              },
               'VCCLCompilerTool': {
                 'CompileAsWinRT': 'false',
               }

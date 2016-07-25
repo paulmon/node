@@ -326,7 +326,7 @@ void uv__fs_poll_endgame(uv_loop_t* loop, uv_fs_poll_t* handle);
 void uv__util_init();
 
 uint64_t uv__hrtime(double scale);
-#ifndef WINONECORE
+#ifndef UWP_DLL
 int uv_parent_pid();
 int uv_current_pid();
 #endif

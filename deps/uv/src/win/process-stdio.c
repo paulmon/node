@@ -99,7 +99,7 @@ void uv_disable_stdio_inheritance(void) {
 }
 
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
 static int uv__create_stdio_pipe_pair(uv_loop_t* loop,
     uv_pipe_t* server_pipe, HANDLE* child_pipe_ptr, unsigned int flags) {
   char pipe_name[64];
@@ -332,7 +332,7 @@ int uv__stdio_create(uv_loop_t* loop,
         }
         break;
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
       case UV_CREATE_PIPE: {
         /* Create a pair of two connected pipe ends; one end is turned into */
         /* an uv_pipe_t for use by the parent. The other one is given to */

@@ -421,7 +421,7 @@ static void CALLBACK uv_tty_post_raw_read(void* data, BOOLEAN didTimeout) {
   handle = (uv_tty_t*) req->data;
   loop = handle->loop;
 
-#ifndef WINONECORE
+#ifndef UWP_DLL
   UnregisterWait(handle->tty.rd.read_raw_wait);
 #endif
   handle->tty.rd.read_raw_wait = NULL;
@@ -445,7 +445,7 @@ static void uv_tty_queue_read_raw(uv_loop_t* loop, uv_tty_t* handle) {
   req = &handle->read_req;
   memset(&req->u.io.overlapped, 0, sizeof(req->u.io.overlapped));
 
-#ifdef WINONECORE
+#ifdef UWP_DLL
   r = 0;
   SetLastError(ERROR_NOT_SUPPORTED);
 #else
@@ -586,7 +586,7 @@ static void uv_tty_queue_read_line(uv_loop_t* loop, uv_tty_t* handle) {
   uv__restore_screen_state = FALSE;
   uv__read_console_status = NOT_STARTED;
 
-#ifdef WINONECORE
+#ifdef UWP_DLL
   r = 0;
   SetLastError(ERROR_NOT_SUPPORTED);
 #else
