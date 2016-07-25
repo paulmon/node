@@ -1,43 +1,42 @@
-Node.js on ChakraCore
+Node.js on Chakra and Universal Windows Platform
 ===
-This project enables Node.js to optionally use the ChakraCore JavaScript engine. This project is still **work in progress** and not an officially supported Node.js branch. Please refer to the original [PR](https://github.com/nodejs/node/pull/4765).
+This project enables Node.js to optionally use the Chakra JavaScript engine and be loaded as a module in a UWP (Universal Windows Platform) application.
+This project is still **work in progress** and not an officially supported Node.js branch.
+
 
 ### How it works
 
-To enable building and running Node.js with the ChakraCore JavaScript engine, a V8 API shim (ChakraShim) is created on top of the ChakraCore runtime hosting API ([JSRT]
-(https://msdn.microsoft.com/en-us/library/dn249673(v=vs.94).aspx)). ChakraShim implements the most essential V8 APIs so that the underlying JavaScript engine change is transparent to Node.js and other native addon modules written for V8.
+To enable building and running Node.js with the Chakra JavaScript engine, a V8 API shim (ChakraShim) is created on top of the Chakra runtime hosting API ([JSRT]
+(https://msdn.microsoft.com/en-us/library/dn249673(v=vs.94).aspx)). ChakraShim implements the most essential V8 APIs so that the underlying JavaScript engine change 
+is transparent to Node.js and other native addon modules written for V8.
+To enable running in a [UWP application]((https://msdn.microsoft.com/en-us/windows/uwp/get-started/whats-a-uwp), code that isn't supported (i.e. doesn't pass 
+[WACK (Windows App Certification Kit)](https://developer.microsoft.com/en-us/windows/develop/app-certification-kit) tests) has either been removed or replaced 
+(`node_uwp_dll` in gyp files and the `UWP_DLL` macro in source files can be used to identify the changes).
 
-A rebuild node.exe and native addon modules with ChakraCore is required for this to work.
-
-### Issues
-Please report all issues related to Node-ChakraCore on this separate [issue page](https://github.com/nodejs/node-chakracore/issues).
-
-### Prebuilt Node binaries
-You can download and install prebuilt Node-ChakraCore from [here](https://github.com/nodejs/node-chakracore/releases).
 
 ### How to build
-If you are looking to build this yourself. Here's what you will need.
 
-Prerequisites:
-* Windows 7 SP1 or higher (Windows 8.1 or higher for ARM builds)
+If you are looking to build this yourself. Here's what you will need:
+* Windows 10
 * [Python 2.6 or 2.7](https://www.python.org)
-* [Visual
-Studio](https://www.visualstudio.com/en-us/downloads/download-visual-studio-vs.aspx)
+* [Visual Studio 2015](https://www.visualstudio.com/en-us/downloads/download-visual-studio-vs.aspx)
 
-Build Command:
+Build Command for node.dll - Node.js (Chakra) for UWP
 ```batch
-vcbuild chakracore nosign [x86|x64|arm]
+vcbuild chakra uwp-dll nosign [x86|x64|arm]
 ```
 
-### How to test
-
+Build Command for node.exe - Node.js (Chakra)
 ```batch
-vcbuild chakracore nobuild test [x86|x64|arm]
+vcbuild chakra nosign [x86|x64|arm]
 ```
 
-To test if Node.js was built correctly with ChakraCore:
+### How to test node.exe
 
 ```batch
-C:\>node -e "console.log('Hello from Node.js ' + process.jsEngine)"
-Hello from Node.js chakracore
+vcbuild chakra nobuild test [x86|x64|arm]
 ```
+
+### How to test node.dll
+
+See [this](https://github.com/ms-iot/node-uwp-wrapper#testing)
