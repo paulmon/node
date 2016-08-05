@@ -82,7 +82,9 @@ if /i "%1"=="download-all"  set download_arg="--download=all"&goto arg-ok
 if /i "%1"=="ignore-flaky"  set test_args=%test_args% --flaky-tests=dontcare&goto arg-ok
 if /i "%1"=="enable-vtune"  set enable_vtune_arg=1&goto arg-ok
 if /i "%1"=="v8"            set engine=v8&goto arg-ok
-if /i "%1"=="chakracore"    set engine=chakracore&set chakra_jslint=deps\chakrashim\lib&goto arg-ok
+if /i "%1"=="chakra"        set engine=chakra&set chakra_jslint=deps\chakrashim\lib&goto arg-ok
+if /i "%1"=="sdk"           set sdk=1&goto arg-ok
+if /i "%1"=="uwp-dll"       set target_type=uwp-dll&goto arg-ok
 
 echo Warning: ignoring invalid command line option `%1`.
 
@@ -102,6 +104,22 @@ if defined build_release (
   set i18n_arg=small-icu
 )
 
+if defined sdk (
+  if "%target_arch%"=="x86" (
+    @rem gyp target_arch and process.arch are still ia32
+    set sdk_target_arch=ia32
+  ) else (
+    set sdk_target_arch=%target_arch%
+  )
+
+  if not defined msi (
+    set save_release=1
+  ) else (
+    set noprojgen=1
+    set nobuild=1
+  )
+)
+
 :: assign path to node_exe
 set "node_exe=%config%\node.exe"
 
@@ -117,7 +135,10 @@ if "%i18n_arg%"=="full-icu" set configure_flags=%configure_flags% --with-intl=fu
 if "%i18n_arg%"=="small-icu" set configure_flags=%configure_flags% --with-intl=small-icu
 if "%i18n_arg%"=="intl-none" set configure_flags=%configure_flags% --with-intl=none
 if "%i18n_arg%"=="without-intl" set configure_flags=%configure_flags% --without-intl
-if "%engine%"=="chakracore" set configure_flags=%configure_flags% --without-intl --without-inspector --without-v8-platform --without-bundled-v8
+if "%engine%"=="chakra" set configure_flags=%configure_flags% --without-intl --without-inspector --without-v8-platform --without-bundled-v8 --without-perfctr
+if "%target_type%"=="uwp-dll" (
+  set target_type_arg=--uwp-dll
+)
 
 if defined config_flags set configure_flags=%configure_flags% %config_flags%
 
@@ -192,8 +213,8 @@ goto run
 if defined noprojgen goto msbuild
 
 @rem Generate the VS project.
-echo configure %configure_flags% --engine=%engine% --dest-cpu=%target_arch% --tag=%TAG%
-python configure %configure_flags% --engine=%engine% --dest-cpu=%target_arch% --tag=%TAG%
+echo configure %configure_flags% --engine=%engine% %target_type_arg% --dest-cpu=%target_arch% --tag=%TAG%
+python configure %configure_flags% --engine=%engine% %target_type_arg% --dest-cpu=%target_arch% --tag=%TAG%
 if errorlevel 1 goto create-msvs-files-failed
 if not exist node.sln goto create-msvs-files-failed
 echo Project files generated.
@@ -209,6 +230,15 @@ if "%target_arch%"=="arm" set "msbplatform=ARM"
 msbuild node.sln /m /t:%target% /p:Configuration=%config% /p:Platform=%msbplatform% /clp:NoSummary;NoItemAndPropertyList;Verbosity=minimal /nologo
 if errorlevel 1 goto exit
 if "%target%" == "Clean" goto exit
+
+:save_release
+@rem Save a copy of .exe/.lib for release
+if not defined save_release goto licensertf
+
+robocopy "%~dp0%config%" "%~dp0%config%\%sdk_target_arch%" node.exe node.pdb
+if errorlevel 8 echo Failed to save built binaries&goto exit
+robocopy "%~dp0%config%" "%~dp0%config%\sdk\%sdk_target_arch%" node.lib
+if errorlevel 8 echo Failed to save libs&goto exit
 
 :sign
 @rem Skip signing if the `nosign` option was specified.
@@ -277,8 +307,22 @@ exit /b 1
 if not defined msi goto run
 
 :msibuild
-echo Building node-v%FULLVERSION%-%target_arch%.msi
-msbuild "%~dp0tools\msvs\msi\nodemsi.sln" /m /t:Clean,Build /p:PlatformToolset=%PLATFORM_TOOLSET% /p:GypMsvsVersion=%GYP_MSVS_VERSION% /p:Configuration=%config% /p:Platform=%target_arch% /p:NodeVersion=%NODE_VERSION% /p:FullVersion=%FULLVERSION% /p:DistTypeDir=%DISTTYPEDIR% %noetw_msi_arg% %noperfctr_msi_arg% /clp:NoSummary;NoItemAndPropertyList;Verbosity=minimal /nologo
+if defined NODE_VERSION_TAG (
+  set NODE_FULL_VERSION=%NODE_VERSION%.%NODE_VERSION_TAG%
+) else (
+  set NODE_FULL_VERSION=%NODE_VERSION%
+)
+if not defined sdk (
+  set NODE_NAME=Node.js
+  set NODE_SHORTNAME=nodejs
+  set NODE_MSIOUTPUT=node-v%FULLVERSION%-%target_arch%
+) else (
+  set NODE_NAME=Node.js (%engine%^)
+  set NODE_SHORTNAME=nodejs (%engine%^)
+  set NODE_MSIOUTPUT=node-%engine%-v%FULLVERSION%-%target_arch%
+)
+echo Building %NODE_MSIOUTPUT%
+msbuild "%~dp0tools\msvs\msi\nodemsi.sln" /m /t:Clean,Build /p:PlatformToolset=%PLATFORM_TOOLSET% /p:GypMsvsVersion=%GYP_MSVS_VERSION% /p:Configuration=%config% /p:Platform=%target_arch% /p:SdkTargetArch=%sdk_target_arch% /p:NodeMsiOutput="%NODE_MSIOUTPUT%" /p:NodeEngine=%engine% /p:NodeName="%NODE_NAME%" /p:NodeShortName="%NODE_SHORTNAME%" /p:NodeUseSdk=%sdk% /p:NodeFullVersion=%NODE_FULL_VERSION% /p:NodeVersion=%NODE_VERSION% /p:FullVersion=%FULLVERSION% /p:DistTypeDir=%DISTTYPEDIR% %noetw_msi_arg% %noperfctr_msi_arg% /clp:NoSummary;NoItemAndPropertyList;Verbosity=minimal /nologo
 if errorlevel 1 goto exit
 
 if defined nosign goto upload

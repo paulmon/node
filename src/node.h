@@ -42,6 +42,10 @@
 #include "v8.h"  // NOLINT(build/include_order)
 #include "node_version.h"  // NODE_MODULE_VERSION
 
+#ifdef UWP_DLL
+#include "logger_wrap.h"
+#endif
+
 #define NODE_MAKE_VERSION(major, minor, patch)                                \
   ((major) * 0x1000 + (minor) * 0x100 + (patch))
 
@@ -185,6 +189,9 @@ NODE_EXTERN extern bool force_fips_crypto;
 #endif
 
 NODE_EXTERN int Start(int argc, char *argv[]);
+#ifdef UWP_DLL
+NODE_EXTERN int Start(int argc, char *argv[], const logger::ILogger* logger);
+#endif
 NODE_EXTERN void Init(int* argc,
                       const char** argv,
                       int* exec_argc,

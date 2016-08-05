@@ -31,6 +31,13 @@
 #include "stream-inl.h"
 #include "req-inl.h"
 
+#ifdef UWP_DLL
+#ifndef HasOverlappedIoCompleted
+#define HasOverlappedIoCompleted(lpOverlapped) (((DWORD)(lpOverlapped)->Internal) != STATUS_PENDING)
+#endif
+#endif
+
+
 typedef struct uv__ipc_queue_item_s uv__ipc_queue_item_t;
 
 struct uv__ipc_queue_item_s {
@@ -123,6 +130,11 @@ static void uv_pipe_connection_init(uv_pipe_t* handle) {
 
 
 static HANDLE open_named_pipe(const WCHAR* name, DWORD* duplex_flags) {
+#ifdef UWP_DLL
+    (name);
+    (duplex_flags);
+    return INVALID_HANDLE_VALUE;
+#else
   HANDLE pipeHandle;
 
   /*
@@ -175,8 +187,8 @@ static HANDLE open_named_pipe(const WCHAR* name, DWORD* duplex_flags) {
       return pipeHandle;
     }
   }
-
   return INVALID_HANDLE_VALUE;
+#endif
 }
 
 
@@ -192,6 +204,7 @@ static void close_pipe(uv_pipe_t* pipe) {
 }
 
 
+#ifndef UWP_DLL
 int uv_stdio_pipe_server(uv_loop_t* loop, uv_pipe_t* handle, DWORD access,
     char* name, size_t nameSize) {
   HANDLE pipeHandle;
@@ -240,6 +253,7 @@ int uv_stdio_pipe_server(uv_loop_t* loop, uv_pipe_t* handle, DWORD access,
 
   return err;
 }
+#endif
 
 
 static int uv_set_pipe_handle(uv_loop_t* loop,
@@ -247,6 +261,14 @@ static int uv_set_pipe_handle(uv_loop_t* loop,
                               HANDLE pipeHandle,
                               int fd,
                               DWORD duplex_flags) {
+#ifdef UWP_DLL
+    (loop);
+    (handle);
+    (pipeHandle);
+    (fd);
+    (duplex_flags);
+    return -1;
+#else
   NTSTATUS nt_status;
   IO_STATUS_BLOCK io_status;
   FILE_MODE_INFORMATION mode_info;
@@ -267,6 +289,10 @@ static int uv_set_pipe_handle(uv_loop_t* loop,
        * But if the handle already has the desired wait and blocking modes
        * we can continue.
        */
+#ifdef UWP_DLL
+      SetLastError(ERROR_ACCESS_DENIED);
+      return -1;
+#else
       if (!GetNamedPipeHandleState(pipeHandle, &current_mode, NULL, NULL,
                                    NULL, NULL, 0)) {
         return -1;
@@ -274,6 +300,7 @@ static int uv_set_pipe_handle(uv_loop_t* loop,
         SetLastError(ERROR_ACCESS_DENIED);
         return -1;
       }
+#endif
     } else {
       /* If this returns ERROR_INVALID_PARAMETER we probably opened
        * something that is not a pipe. */
@@ -313,6 +340,7 @@ static int uv_set_pipe_handle(uv_loop_t* loop,
   handle->flags |= duplex_flags;
 
   return 0;
+#endif
 }
 
 
@@ -338,6 +366,10 @@ static DWORD WINAPI pipe_shutdown_thread_proc(void* parameter) {
 
 
 void uv_pipe_endgame(uv_loop_t* loop, uv_pipe_t* handle) {
+#ifdef UWP_DLL
+    (loop);
+    (handle);
+#else
   int err;
   DWORD result;
   uv_shutdown_t* req;
@@ -399,9 +431,14 @@ void uv_pipe_endgame(uv_loop_t* loop, uv_pipe_t* handle) {
     }
 
     /* Run FlushFileBuffers in the thread pool. */
+#ifdef UWP_DLL
+    result = 0;
+    SetLastError(ERROR_NOT_SUPPORTED);
+#else
     result = QueueUserWorkItem(pipe_shutdown_thread_proc,
                                req,
                                WT_EXECUTELONGFUNCTION);
+#endif
     if (result) {
       return;
 
@@ -450,8 +487,10 @@ void uv_pipe_endgame(uv_loop_t* loop, uv_pipe_t* handle) {
 
       if (handle->flags & UV_HANDLE_EMULATE_IOCP) {
         if (handle->read_req.wait_handle != INVALID_HANDLE_VALUE) {
+#ifndef UWP_DLL
           UnregisterWait(handle->read_req.wait_handle);
           handle->read_req.wait_handle = INVALID_HANDLE_VALUE;
+#endif
         }
         if (handle->read_req.event_handle) {
           CloseHandle(handle->read_req.event_handle);
@@ -468,6 +507,7 @@ void uv_pipe_endgame(uv_loop_t* loop, uv_pipe_t* handle) {
 
     uv__handle_close(handle);
   }
+#endif
 }
 
 
@@ -481,6 +521,11 @@ void uv_pipe_pending_instances(uv_pipe_t* handle, int count) {
 
 /* Creates a pipe server. */
 int uv_pipe_bind(uv_pipe_t* handle, const char* name) {
+#ifdef UWP_DLL
+    (handle);
+    (name);
+    return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
+#else
   uv_loop_t* loop = handle->loop;
   int i, err, nameSize;
   uv_pipe_accept_t* req;
@@ -576,10 +621,15 @@ error:
   }
 
   return uv_translate_sys_error(err);
+#endif
 }
 
 
 static DWORD WINAPI pipe_connect_thread_proc(void* parameter) {
+#ifdef UWP_DLL
+    (parameter);
+    return 0;
+#else
   uv_loop_t* loop;
   uv_pipe_t* handle;
   uv_connect_t* req;
@@ -616,6 +666,7 @@ static DWORD WINAPI pipe_connect_thread_proc(void* parameter) {
   POST_COMPLETION_FOR_REQ(loop, req);
 
   return 0;
+#endif
 }
 
 
@@ -652,12 +703,17 @@ void uv_pipe_connect(uv_connect_t* req, uv_pipe_t* handle,
   if (pipeHandle == INVALID_HANDLE_VALUE) {
     if (GetLastError() == ERROR_PIPE_BUSY) {
       /* Wait for the server to make a pipe instance available. */
+#ifdef UWP_DLL
+      err = ERROR_NOT_SUPPORTED;
+      goto error;
+#else
       if (!QueueUserWorkItem(&pipe_connect_thread_proc,
                              req,
                              WT_EXECUTELONGFUNCTION)) {
         err = GetLastError();
         goto error;
       }
+#endif
 
       REGISTER_HANDLE_REQ(loop, handle, req);
       handle->reqs_pending++;
@@ -718,7 +774,8 @@ void uv__pipe_pause_read(uv_pipe_t* handle) {
         /* spinlock: we expect this to finish quickly,
            or we are probably about to deadlock anyways
            (in the kernel), so it doesn't matter */
-        pCancelSynchronousIo(h);
+        if (pCancelSynchronousIo)
+          pCancelSynchronousIo(h);
         SwitchToThread(); /* yield thread control briefly */
         h = handle->pipe.conn.readfile_thread;
       }
@@ -799,6 +856,11 @@ void uv_pipe_close(uv_loop_t* loop, uv_pipe_t* handle) {
 
 static void uv_pipe_queue_accept(uv_loop_t* loop, uv_pipe_t* handle,
     uv_pipe_accept_t* req, BOOL firstInstance) {
+#ifdef UWP_DLL
+    return;
+#else
+
+
   assert(handle->flags & UV_HANDLE_LISTENING);
 
   if (!firstInstance) {
@@ -847,6 +909,7 @@ static void uv_pipe_queue_accept(uv_loop_t* loop, uv_pipe_t* handle,
   }
 
   handle->reqs_pending++;
+#endif
 }
 
 
@@ -1089,6 +1152,10 @@ static void uv_pipe_queue_read(uv_loop_t* loop, uv_pipe_t* handle) {
   req = &handle->read_req;
 
   if (handle->flags & UV_HANDLE_NON_OVERLAPPED_PIPE) {
+#ifdef UWP_DLL
+    SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED);
+    goto error;
+#else
     if (!QueueUserWorkItem(&uv_pipe_zero_readfile_thread_proc,
                            req,
                            WT_EXECUTELONGFUNCTION)) {
@@ -1096,6 +1163,7 @@ static void uv_pipe_queue_read(uv_loop_t* loop, uv_pipe_t* handle) {
       SET_REQ_ERROR(req, GetLastError());
       goto error;
     }
+#endif
   } else {
     memset(&req->u.io.overlapped, 0, sizeof(req->u.io.overlapped));
     if (handle->flags & UV_HANDLE_EMULATE_IOCP) {
@@ -1123,12 +1191,17 @@ static void uv_pipe_queue_read(uv_loop_t* loop, uv_pipe_t* handle) {
         }
       }
       if (req->wait_handle == INVALID_HANDLE_VALUE) {
+#ifdef UWP_DLL
+        SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED);
+        goto error;
+#else
         if (!RegisterWaitForSingleObject(&req->wait_handle,
             req->u.io.overlapped.hEvent, post_completion_read_wait, (void*) req,
             INFINITE, WT_EXECUTEINWAITTHREAD)) {
           SET_REQ_ERROR(req, GetLastError());
           goto error;
         }
+#endif
       }
     }
   }
@@ -1204,11 +1277,15 @@ static uv_write_t* uv_remove_non_overlapped_write_req(uv_pipe_t* handle) {
 static void uv_queue_non_overlapped_write(uv_pipe_t* handle) {
   uv_write_t* req = uv_remove_non_overlapped_write_req(handle);
   if (req) {
+#ifdef UWP_DLL
+    uv_fatal_error(ERROR_NOT_SUPPORTED, "QueueUserWorkItem");
+#else
     if (!QueueUserWorkItem(&uv_pipe_writefile_thread_proc,
                            req,
                            WT_EXECUTELONGFUNCTION)) {
       uv_fatal_error(GetLastError(), "QueueUserWorkItem");
     }
+#endif
   }
 }
 
@@ -1220,6 +1297,11 @@ static int uv_pipe_write_impl(uv_loop_t* loop,
                               unsigned int nbufs,
                               uv_stream_t* send_handle,
                               uv_write_cb cb) {
+#ifdef UWP_DLL
+    return ERROR_NOT_SUPPORTED;
+#else
+
+
   int err;
   int result;
   uv_tcp_t* tcp_send_handle;
@@ -1451,11 +1533,15 @@ static int uv_pipe_write_impl(uv_loop_t* loop,
       if (!req->event_handle) {
         uv_fatal_error(GetLastError(), "CreateEvent");
       }
+#ifdef UWP_DLL
+      return ERROR_NOT_SUPPORTED;
+#else
       if (!RegisterWaitForSingleObject(&req->wait_handle,
           req->u.io.overlapped.hEvent, post_completion_write_wait, (void*) req,
           INFINITE, WT_EXECUTEINWAITTHREAD)) {
         return GetLastError();
       }
+#endif
     }
   }
 
@@ -1464,6 +1550,7 @@ static int uv_pipe_write_impl(uv_loop_t* loop,
   handle->stream.conn.write_reqs_pending++;
 
   return 0;
+#endif
 }
 
 
@@ -1545,6 +1632,11 @@ void uv__pipe_insert_pending_socket(uv_pipe_t* handle,
 
 void uv_process_pipe_read_req(uv_loop_t* loop, uv_pipe_t* handle,
     uv_req_t* req) {
+#ifdef UWP_DLL
+    (loop);
+    (handle);
+    SET_REQ_ERROR(req, UV_ENOTSUP);
+#else
   DWORD bytes, avail;
   uv_buf_t buf;
   uv_ipc_frame_uv_stream ipc_frame;
@@ -1672,6 +1764,7 @@ void uv_process_pipe_read_req(uv_loop_t* loop, uv_pipe_t* handle,
   }
 
   DECREASE_PENDING_REQ_COUNT(handle);
+#endif
 }
 
 
@@ -1688,8 +1781,10 @@ void uv_process_pipe_write_req(uv_loop_t* loop, uv_pipe_t* handle,
 
   if (handle->flags & UV_HANDLE_EMULATE_IOCP) {
     if (req->wait_handle != INVALID_HANDLE_VALUE) {
+#ifndef UWP_DLL
       UnregisterWait(req->wait_handle);
       req->wait_handle = INVALID_HANDLE_VALUE;
+#endif
     }
     if (req->event_handle) {
       CloseHandle(req->event_handle);
@@ -1900,6 +1995,11 @@ static void eof_timer_close_cb(uv_handle_t* handle) {
 
 
 int uv_pipe_open(uv_pipe_t* pipe, uv_file file) {
+#ifdef UWP_DLL
+    (pipe);
+    (file);
+    return UV_ENOTSUP;
+#else
   HANDLE os_handle = uv__get_osfhandle(file);
   NTSTATUS nt_status;
   IO_STATUS_BLOCK io_status;
@@ -1962,16 +2062,25 @@ int uv_pipe_open(uv_pipe_t* pipe, uv_file file) {
 
   uv_pipe_connection_init(pipe);
 
+#ifndef UWP_DLL
   if (pipe->ipc) {
     assert(!(pipe->flags & UV_HANDLE_NON_OVERLAPPED_PIPE));
     pipe->pipe.conn.ipc_pid = uv_parent_pid();
     assert(pipe->pipe.conn.ipc_pid != -1);
   }
+#else
+  return UV_ENOTSUP;
+#endif
   return 0;
+#endif
 }
 
 
 static int uv__pipe_getname(const uv_pipe_t* handle, char* buffer, size_t* size) {
+#ifdef UWP_DLL
+    (handle), (buffer), (size);
+    return ERROR_NOT_SUPPORTED;
+#else
   NTSTATUS nt_status;
   IO_STATUS_BLOCK io_status;
   FILE_NAME_INFORMATION tmp_name_info;
@@ -2083,6 +2192,7 @@ error:
 cleanup:
   uv__pipe_unpause_read((uv_pipe_t*)handle); /* cast away const warning */
   return err;
+#endif
 }
 
 

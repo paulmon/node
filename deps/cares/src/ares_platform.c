@@ -23,7 +23,7 @@
 #include "ares_nowarn.h"
 #include "ares_private.h"
 
-#if defined(WIN32) && !defined(MSDOS)
+#if defined(WIN32) && !defined(MSDOS) && !defined(UWP_DLL)
 
 #define V_PLATFORM_WIN32s         0
 #define V_PLATFORM_WIN32_WINDOWS  1
@@ -63,7 +63,7 @@ win_platform ares__getplatform(void)
     }
 }
 
-#endif /* WIN32 && ! MSDOS */
+#endif /* WIN32 && ! MSDOS && ! UWP_DLL*/
 
 #if defined(_WIN32_WCE)
 

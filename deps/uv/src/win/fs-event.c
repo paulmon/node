@@ -31,6 +31,7 @@
 
 
 const unsigned int uv_directory_watcher_buffer_size = 4096;
+extern HANDLE fs__win_create_file(const WCHAR* fileName, DWORD access, DWORD share, DWORD disposition, DWORD attributes, DWORD flags);
 
 
 static void uv_fs_event_queue_readdirchanges(uv_loop_t* loop,
@@ -38,6 +39,9 @@ static void uv_fs_event_queue_readdirchanges(uv_loop_t* loop,
   assert(handle->dir_handle != INVALID_HANDLE_VALUE);
   assert(!handle->req_pending);
 
+#ifdef UWP_DLL
+  // TODO, investigate if we can read directory changes in UWP
+#else
   memset(&(handle->req.u.io.overlapped), 0,
          sizeof(handle->req.u.io.overlapped));
   if (!ReadDirectoryChangesW(handle->dir_handle,
@@ -61,6 +65,7 @@ static void uv_fs_event_queue_readdirchanges(uv_loop_t* loop,
   }
 
   handle->req_pending = 1;
+#endif
 }
 
 static void uv_relative_path(const WCHAR* filename,
@@ -196,11 +201,16 @@ int uv_fs_event_start(uv_fs_event_t* handle,
      * watch the dir directory.
      */
 
+#ifdef UWP_DLL
+    /* Short path doesn't exist in UWP, so use long path for both */
+      wcscpy_s(short_path, ARRAY_SIZE(short_path), pathw);
+#else
     /* Convert to short path. */
     if (!GetShortPathNameW(pathw, short_path, ARRAY_SIZE(short_path))) {
       last_error = GetLastError();
       goto error;
     }
+#endif
 
     if (uv_split_path(pathw, &dir, &handle->filew) != 0) {
       last_error = GetLastError();
@@ -217,15 +227,12 @@ int uv_fs_event_start(uv_fs_event_t* handle,
     pathw = NULL;
   }
 
-  handle->dir_handle = CreateFileW(dir_to_watch,
-                                   FILE_LIST_DIRECTORY,
-                                   FILE_SHARE_READ | FILE_SHARE_DELETE |
-                                     FILE_SHARE_WRITE,
-                                   NULL,
-                                   OPEN_EXISTING,
-                                   FILE_FLAG_BACKUP_SEMANTICS |
-                                     FILE_FLAG_OVERLAPPED,
-                                   NULL);
+  handle->dir_handle = fs__win_create_file(dir_to_watch,
+    FILE_LIST_DIRECTORY,
+    FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE,
+    OPEN_EXISTING,
+    0,
+    FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED);
 
   if (dir) {
     uv__free(dir);
@@ -254,7 +261,12 @@ int uv_fs_event_start(uv_fs_event_t* handle,
 
   memset(&(handle->req.u.io.overlapped), 0,
          sizeof(handle->req.u.io.overlapped));
-
+#ifdef UWP_DLL
+  // ReadDirectoryChangesW not allowed in UWP
+  // TODO, investigate if we can read directory changes in UWP
+  last_error = ERROR_NOT_SUPPORTED;
+  goto error;
+#else
   if (!ReadDirectoryChangesW(handle->dir_handle,
                              handle->buffer,
                              uv_directory_watcher_buffer_size,
@@ -273,6 +285,7 @@ int uv_fs_event_start(uv_fs_event_t* handle,
     last_error = GetLastError();
     goto error;
   }
+#endif
 
   handle->req_pending = 1;
   return 0;

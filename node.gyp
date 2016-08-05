@@ -20,6 +20,7 @@
     'node_enable_v8_vtunejit%': 'false',
     'node_engine%': 'v8',
     'node_core_target_name%': 'node',
+    'node_uwp_dll%': 'false',
     'library_files': [
       'lib/internal/bootstrap_node.js',
       'lib/_debug_agent.js',
@@ -342,14 +343,21 @@
               'defines': [ 'NODE_FIPS_MODE' ],
             }],
             [ 'node_shared_openssl=="false"', {
-              'dependencies': [
-                './deps/openssl/openssl.gyp:openssl',
-
-                # For tests
-                './deps/openssl/openssl.gyp:openssl-cli',
-              ],
               # Do not let unused OpenSSL symbols to slip away
               'conditions': [
+                ['node_uwp_dll!="true"', {
+                  'dependencies': [
+                    './deps/openssl/openssl.gyp:openssl',
+                    
+                    # For tests
+                    './deps/openssl/openssl.gyp:openssl-cli',
+                  ],
+                }],
+                ['node_uwp_dll=="true"', {
+                  'dependencies': [
+                    './deps/openssl_uwp/openssl.gyp:openssl',
+                  ],
+                }],
                 # -force_load or --whole-archive are not applicable for
                 # the static library
                 [ 'node_target_type!="static_library"', {
@@ -472,7 +480,7 @@
             'deps/v8/tools/gyp/v8.gyp:v8_libplatform'
           ],
         }],
-        ['node_engine=="chakracore"', {
+        ['node_engine=="chakra"', {
           'include_dirs': [
             'deps/chakrashim' # include/v8_platform.h
           ],
@@ -509,7 +517,45 @@
             'NODE_PLATFORM="win32"',
             '_UNICODE=1',
           ],
-          'libraries': [ '-lpsapi.lib' ]
+          'conditions' : [
+            [ 'node_uwp_dll!="true"', {
+              'libraries': [ '-lpsapi.lib' ],
+            }],
+            [ 'node_uwp_dll=="true"', {
+              'type': 'loadable_module',
+              'defines': [
+                'UWP_DLL=1',
+                'WINAPI_FAMILY=WINAPI_FAMILY_APP',
+                '_WIN32_WINNT=0x0A00'
+              ],
+              'sources': [
+                'tools/win/patch/stubs.cc',
+              ],
+              'include_dirs': [ 'deps/logger/include' ],
+              'dependencies': [ 'deps/logger/logger.gyp:logger' ],
+              'libraries': [ '-lchakrart' ],
+              'msvs_enable_winrt': 1,
+              'msvs_application_type_revision': '10.0',
+              'msvs_windows_target_platform_version':'v10.0',
+              'configurations': {
+                'Release': {
+                  'msvs_settings': {
+                    'VCCLCompilerTool': {
+                      'RuntimeLibrary': '2',
+                   }
+                  },
+                },
+                'Debug': {
+                  'msvs_settings': {
+                    'VCCLCompilerTool': {
+                      'RuntimeLibrary': '3',
+                    }
+                  },
+                }
+              },
+              'msvs_disabled_warnings': [4146],
+            }],
+          ],
         }, { # POSIX
           'defines': [ '__POSIX__' ],
           'sources': [ 'src/backtrace_posix.cc' ],
@@ -581,7 +627,7 @@
               '-X^_',
               '-X^private_',
             ],
-          },
+    },
           'conditions': [
             ['openssl_fips!=""', {
               'variables': { 'mkssldef_flags': ['-DOPENSSL_FIPS'] },
@@ -824,85 +870,6 @@
         } ],
       ]
     },
-    {
-      'target_name': 'cctest',
-      'type': 'executable',
-      'dependencies': [ 'deps/gtest/gtest.gyp:gtest' ],
-      'include_dirs': [
-        'src',
-      ],
-      'conditions': [
-        [ 'node_engine=="v8"', {
-          'include_dirs': [
-            'deps/v8/include'
-          ],
-          'dependencies': [
-            'deps/v8/tools/gyp/v8.gyp:v8',
-            'deps/v8/tools/gyp/v8.gyp:v8_libplatform'
-          ],
-          'conditions' : [
-              ['v8_inspector=="true"', {
-                'sources': [
-                    'src/inspector_socket.cc',
-                    'test/cctest/test_inspector_socket.cc'
-          ],
-          'conditions': [
-            [ 'node_shared_openssl=="false"', {
-              'dependencies': [
-                'deps/openssl/openssl.gyp:openssl'
-              ]
-            }],
-            [ 'node_shared_http_parser=="false"', {
-              'dependencies': [
-                'deps/http_parser/http_parser.gyp:http_parser'
-              ]
-            }],
-            [ 'node_shared_libuv=="false"', {
-              'dependencies': [
-                'deps/uv/uv.gyp:libuv'
-              ]
-            }]
-                ]
-              }],
-              ['node_use_v8_platform=="true"', {
-                 'dependencies': [
-                    'deps/v8/tools/gyp/v8.gyp:v8_libplatform',
-                ],
-              }],
-              ['node_use_bundled_v8=="true"', {
-                'dependencies': [
-                    'deps/v8/tools/gyp/v8.gyp:v8',
-                    'deps/v8/tools/gyp/v8.gyp:v8_libplatform'
-                ],
-              }],
-          ]
-        }],
-        ['node_engine=="chakracore"', {
-          'dependencies': [ 
-             'deps/chakrashim/chakrashim.gyp:chakrashim',
-             'deps/uv/uv.gyp:libuv'
-          ],
-        }],
-      ],
-      'msvs_settings': {
-        'VCLinkerTool': {
-          'SubSystem': 1, # /subsystem:console
-        },
-      },
-      'defines': [
-        # gtest's ASSERT macros conflict with our own.
-        'GTEST_DONT_DEFINE_ASSERT_EQ=1',
-        'GTEST_DONT_DEFINE_ASSERT_GE=1',
-        'GTEST_DONT_DEFINE_ASSERT_GT=1',
-        'GTEST_DONT_DEFINE_ASSERT_LE=1',
-        'GTEST_DONT_DEFINE_ASSERT_LT=1',
-        'GTEST_DONT_DEFINE_ASSERT_NE=1',
-        'NODE_WANT_INTERNALS=1',
-      ],
-      'sources': [
-        'test/cctest/util.cc',
-      ],
-    }
   ], # end targets
 
   'conditions': [
@@ -951,5 +918,88 @@
         }
       ], # end targets
     }], # end aix section
+    ['node_uwp_dll!="true"', {
+      'targets': [
+        {
+          'target_name': 'cctest',
+          'type': 'executable',
+          'dependencies': [ 'deps/gtest/gtest.gyp:gtest' ],
+          'include_dirs': [
+            'src',
+          ],
+          'conditions': [
+            [ 'node_engine=="v8"', {
+              'include_dirs': [
+                'deps/v8/include'
+              ],
+              'dependencies': [
+                'deps/v8/tools/gyp/v8.gyp:v8',
+                'deps/v8/tools/gyp/v8.gyp:v8_libplatform'
+              ],
+              'conditions' : [
+                ['v8_inspector=="true"', {
+                  'sources': [
+                    'src/inspector_socket.cc',
+                    'test/cctest/test_inspector_socket.cc'
+                   ],
+                   'conditions': [
+                     [ 'node_shared_openssl=="false"', {
+                       'dependencies': [
+                         'deps/openssl/openssl.gyp:openssl'
+                       ]
+                     }],
+                     [ 'node_shared_http_parser=="false"', {
+                       'dependencies': [
+                         'deps/http_parser/http_parser.gyp:http_parser'
+                       ]
+                     }],
+                     [ 'node_shared_libuv=="false"', {
+                       'dependencies': [
+                         'deps/uv/uv.gyp:libuv'
+                       ]
+                     }]
+                   ]
+                }],
+                ['node_use_v8_platform=="true"', {
+                   'dependencies': [
+                     'deps/v8/tools/gyp/v8.gyp:v8_libplatform',
+                  ],
+                }],
+                ['node_use_bundled_v8=="true"', {
+                  'dependencies': [
+                     'deps/v8/tools/gyp/v8.gyp:v8',
+                     'deps/v8/tools/gyp/v8.gyp:v8_libplatform'
+                  ],
+                }],
+              ]
+            }],
+            ['node_engine=="chakra"', {
+              'dependencies': [ 
+                 'deps/chakrashim/chakrashim.gyp:chakrashim',
+                 'deps/uv/uv.gyp:libuv'
+              ],
+            }],
+          ],
+          'msvs_settings': {
+            'VCLinkerTool': {
+              'SubSystem': 1, # /subsystem:console
+            },
+          },
+          'defines': [
+            # gtest's ASSERT macros conflict with our own.
+            'GTEST_DONT_DEFINE_ASSERT_EQ=1',
+            'GTEST_DONT_DEFINE_ASSERT_GE=1',
+            'GTEST_DONT_DEFINE_ASSERT_GT=1',
+            'GTEST_DONT_DEFINE_ASSERT_LE=1',
+            'GTEST_DONT_DEFINE_ASSERT_LT=1',
+            'GTEST_DONT_DEFINE_ASSERT_NE=1',
+            'NODE_WANT_INTERNALS=1',
+          ],
+          'sources': [
+            'test/cctest/util.cc',
+          ],
+        }
+      ], # end targets
+    }], # end cctest section
   ], # end conditions block
 }

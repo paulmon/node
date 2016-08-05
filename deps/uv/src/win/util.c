@@ -33,11 +33,16 @@
 #include <winsock2.h>
 #include <winperf.h>
 #include <iphlpapi.h>
+#ifndef UWP_DLL
 #include <psapi.h>
+#endif
 #include <tlhelp32.h>
 #include <windows.h>
 #include <userenv.h>
-
+#ifdef UWP_DLL
+#define SECURITY_WIN32
+#include <security.h>
+#endif
 
 /*
  * Max title length; the only thing MSDN tells us about the maximum length
@@ -53,6 +58,10 @@
 
 /* The number of nanoseconds in one second. */
 #define UV__NANOSEC 1000000000
+
+#ifndef IF_TYPE_SOFTWARE_LOOPBACK
+#define IF_TYPE_SOFTWARE_LOOPBACK 24
+#endif
 
 
 /* Cached copy of the process title, plus a mutex guarding it. */
@@ -124,7 +133,7 @@ int uv_exepath(char* buffer, size_t* size_ptr) {
                                  utf16_buffer,
                                  -1,
                                  buffer,
-                                 (int) *size_ptr,
+                                 *size_ptr > INT_MAX ? INT_MAX : (int) *size_ptr,
                                  NULL,
                                  NULL);
   if (utf8_len == 0) {
@@ -211,7 +220,9 @@ int uv_cwd(char* buffer, size_t* size) {
 int uv_chdir(const char* dir) {
   WCHAR utf16_buffer[MAX_PATH];
   size_t utf16_len;
+#ifndef UWP_DLL
   WCHAR drive_letter, env_var[4];
+#endif
 
   if (dir == NULL) {
     return UV_EINVAL;
@@ -256,6 +267,7 @@ int uv_chdir(const char* dir) {
     utf16_buffer[utf16_len] = L'\0';
   }
 
+#ifndef UWP_DLL
   if (utf16_len < 2 || utf16_buffer[1] != L':') {
     /* Doesn't look like a drive letter could be there - probably an UNC */
     /* path. TODO: Need to handle win32 namespaces like \\?\C:\ ? */
@@ -281,7 +293,7 @@ int uv_chdir(const char* dir) {
       return uv_translate_sys_error(GetLastError());
     }
   }
-
+#endif
   return 0;
 }
 
@@ -316,6 +328,7 @@ uint64_t uv_get_total_memory(void) {
 }
 
 
+#ifndef UWP_DLL
 int uv_parent_pid() {
   int parent_pid = -1;
   HANDLE handle;
@@ -337,6 +350,7 @@ int uv_parent_pid() {
   CloseHandle(handle);
   return parent_pid;
 }
+#endif
 
 
 int uv_current_pid() {
@@ -354,6 +368,10 @@ char** uv_setup_args(int argc, char** argv) {
 
 int uv_set_process_title(const char* title) {
   int err;
+#ifdef UWP_DLL
+    (title);
+    err = ERROR_NOT_SUPPORTED;
+#else
   int length;
   WCHAR* title_w = NULL;
 
@@ -397,20 +415,47 @@ int uv_set_process_title(const char* title) {
 
 done:
   uv__free(title_w);
+#endif
   return uv_translate_sys_error(err);
 }
 
 
 static int uv__get_process_title() {
+#ifdef UWP_DLL
+    return -1;
+#else
   WCHAR title_w[MAX_TITLE_LENGTH];
+  int length;
 
   if (!GetConsoleTitleW(title_w, sizeof(title_w) / sizeof(WCHAR))) {
     return -1;
   }
 
-  if (uv__convert_utf16_to_utf8(title_w, -1, &process_title) != 0)
+  /* Find out what the size of the buffer is that we need */
+  length = WideCharToMultiByte(CP_UTF8, 0, title_w, -1, NULL, 0, NULL, NULL);
+  if (!length) {
     return -1;
+  }
 
+  assert(!process_title);
+  process_title = (char*)uv__malloc(length);
+  if (!process_title) {
+    uv_fatal_error(ERROR_OUTOFMEMORY, "uv__malloc");
+  }
+
+  /* Do utf16 -> utf8 conversion here */
+  if (!WideCharToMultiByte(CP_UTF8,
+                           0,
+                           title_w,
+                           -1,
+                           process_title,
+                           length,
+                           NULL,
+                           NULL)) {
+    uv__free(process_title);
+    return -1;
+  }
+#endif
   return 0;
 }
 
@@ -460,8 +505,16 @@ uint64_t uv__hrtime(double scale) {
   return (uint64_t) ((double) counter.QuadPart * hrtime_interval_ * scale);
 }
 
+#ifndef UWP_DLL
+BOOL WINAPI K32GetProcessMemoryInfo(HANDLE Process, PPROCESS_MEMORY_COUNTERS ppsmemCounters, DWORD cb);
+#define GetProcessMemoryInfo K32GetProcessMemoryInfo
+#endif
 
 int uv_resident_set_memory(size_t* rss) {
+#ifdef UWP_DLL
+  (rss);
+  return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
+#else
   HANDLE current_process;
   PROCESS_MEMORY_COUNTERS pmc;
 
@@ -474,10 +527,16 @@ int uv_resident_set_memory(size_t* rss) {
   *rss = pmc.WorkingSetSize;
 
   return 0;
+#endif
 }
 
-
 int uv_uptime(double* uptime) {
+#ifdef UWP_DLL
+    ULONGLONG upTime100NS = 0;
+    QueryUnbiasedInterruptTime(&upTime100NS);
+    *uptime = upTime100NS / (double)1e7;
+    return 0;
+#else
   BYTE stack_buffer[4096];
   BYTE* malloced_buffer = NULL;
   BYTE* buffer = (BYTE*) stack_buffer;
@@ -575,10 +634,14 @@ int uv_uptime(double* uptime) {
   uv__free(malloced_buffer);
   *uptime = 0;
   return UV_EIO;
+#endif
 }
 
 
 int uv_cpu_info(uv_cpu_info_t** cpu_infos_ptr, int* cpu_count_ptr) {
+#ifdef UWP_DLL
+    return ERROR_NOT_SUPPORTED;
+#else
   uv_cpu_info_t* cpu_infos;
   SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION* sppi;
   DWORD sppi_size;
@@ -681,9 +744,43 @@ int uv_cpu_info(uv_cpu_info_t** cpu_infos_ptr, int* cpu_count_ptr) {
     cpu_info->cpu_times.irq = sppi[i].InterruptTime.QuadPart / 10000;
     cpu_info->cpu_times.nice = 0;
 
-    uv__convert_utf16_to_utf8(cpu_brand,
+
+    len = WideCharToMultiByte(CP_UTF8,
+                              0,
+                              cpu_brand,
                               cpu_brand_size / sizeof(WCHAR),
-                              &(cpu_info->model));
+                              NULL,
+                              0,
+                              NULL,
+                              NULL);
+    if (len == 0) {
+      err = GetLastError();
+      goto error;
+    }
+
+    assert(len > 0);
+
+    /* Allocate 1 extra byte for the null terminator. */
+    cpu_info->model = uv__malloc(len + 1);
+    if (cpu_info->model == NULL) {
+      err = ERROR_OUTOFMEMORY;
+      goto error;
+    }
+
+    if (WideCharToMultiByte(CP_UTF8,
+                            0,
+                            cpu_brand,
+                            cpu_brand_size / sizeof(WCHAR),
+                            cpu_info->model,
+                            len,
+                            NULL,
+                            NULL) == 0) {
+      err = GetLastError();
+      goto error;
+    }
+
+    /* Ensure that cpu_info->model is null terminated. */
+    cpu_info->model[len] = '\0';
   }
 
   uv__free(sppi);
@@ -702,6 +799,7 @@ int uv_cpu_info(uv_cpu_info_t** cpu_infos_ptr, int* cpu_count_ptr) {
   uv__free(sppi);
 
   return uv_translate_sys_error(err);
+#endif
 }
 
 
@@ -720,6 +818,15 @@ static int is_windows_version_or_greater(DWORD os_major,
                                          DWORD os_minor,
                                          WORD service_pack_major,
                                          WORD service_pack_minor) {
+#ifdef UWP_DLL
+    // TODO: use proper Windows version support
+    if (10 >= os_major) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+#else
   OSVERSIONINFOEX osvi;
   DWORDLONG condition_mask = 0;
   int op = VER_GREATER_EQUAL;
@@ -744,6 +851,7 @@ static int is_windows_version_or_greater(DWORD os_major,
     VER_MAJORVERSION | VER_MINORVERSION |
     VER_SERVICEPACKMAJOR | VER_SERVICEPACKMINOR,
     condition_mask);
+#endif
 }
 
 
@@ -1059,9 +1167,13 @@ void uv_free_interface_addresses(uv_interface_address_t* addresses,
 
 
 int uv_getrusage(uv_rusage_t *uv_rusage) {
+#ifdef UWP_DLL
+    (uv_rusage);
+    return ERROR_NOT_SUPPORTED;
+#else
+
   FILETIME createTime, exitTime, kernelTime, userTime;
   SYSTEMTIME kernelSystemTime, userSystemTime;
-  PROCESS_MEMORY_COUNTERS memCounters;
   int ret;
 
   ret = GetProcessTimes(GetCurrentProcess(), &createTime, &exitTime, &kernelTime, &userTime);
@@ -1079,13 +1191,6 @@ int uv_getrusage(uv_rusage_t *uv_rusage) {
     return uv_translate_sys_error(GetLastError());
   }
 
-  ret = GetProcessMemoryInfo(GetCurrentProcess(),
-                             &memCounters,
-                             sizeof(memCounters));
-  if (ret == 0) {
-    return uv_translate_sys_error(GetLastError());
-  }
-
   memset(uv_rusage, 0, sizeof(*uv_rusage));
 
   uv_rusage->ru_utime.tv_sec = userSystemTime.wHour * 3600 +
@@ -1098,14 +1203,17 @@ int uv_getrusage(uv_rusage_t *uv_rusage) {
                                kernelSystemTime.wSecond;
   uv_rusage->ru_stime.tv_usec = kernelSystemTime.wMilliseconds * 1000;
 
-  uv_rusage->ru_majflt = (uint64_t) memCounters.PageFaultCount;
-  uv_rusage->ru_maxrss = (uint64_t) memCounters.PeakWorkingSetSize / 1024;
-
   return 0;
+#endif
 }
 
 
 int uv_os_homedir(char* buffer, size_t* size) {
+#ifdef UWP_DLL
+  (buffer);
+  (size);
+  return -1;
+#else
   uv_passwd_t pwd;
   wchar_t path[MAX_PATH];
   DWORD bufsize;
@@ -1175,6 +1283,7 @@ int uv_os_homedir(char* buffer, size_t* size) {
   uv_os_free_passwd(&pwd);
 
   return 0;
+#endif
 }
 
 
@@ -1298,6 +1407,10 @@ int uv__convert_utf16_to_utf8(const WCHAR* utf16, int utf16len, char** utf8) {
 
 
 int uv__getpwuid_r(uv_passwd_t* pwd) {
+#ifdef UWP_DLL
+  (pwd);
+  return -1;
+#else
   HANDLE token;
   wchar_t username[UNLEN + 1];
   wchar_t path[MAX_PATH];
@@ -1356,6 +1469,7 @@ int uv__getpwuid_r(uv_passwd_t* pwd) {
   pwd->gid = -1;
 
   return 0;
+#endif
 }
 
 

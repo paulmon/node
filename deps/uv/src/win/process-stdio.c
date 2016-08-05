@@ -72,6 +72,9 @@
  * does a perfect job.
  */
 void uv_disable_stdio_inheritance(void) {
+
+#ifndef UWP_DLL
+
   HANDLE handle;
   STARTUPINFOW si;
 
@@ -92,9 +95,11 @@ void uv_disable_stdio_inheritance(void) {
   GetStartupInfoW(&si);
   if (uv__stdio_verify(si.lpReserved2, si.cbReserved2))
     uv__stdio_noinherit(si.lpReserved2);
+#endif
 }
 
 
+#ifndef UWP_DLL
 static int uv__create_stdio_pipe_pair(uv_loop_t* loop,
     uv_pipe_t* server_pipe, HANDLE* child_pipe_ptr, unsigned int flags) {
   char pipe_name[64];
@@ -188,6 +193,7 @@ static int uv__create_stdio_pipe_pair(uv_loop_t* loop,
 
   return err;
 }
+#endif
 
 
 static int uv__duplicate_handle(uv_loop_t* loop, HANDLE handle, HANDLE* dup) {
@@ -238,6 +244,9 @@ static int uv__duplicate_fd(uv_loop_t* loop, int fd, HANDLE* dup) {
 
 int uv__create_nul_handle(HANDLE* handle_ptr,
     DWORD access) {
+#ifdef UWP_DLL
+    return ERROR_NOT_SUPPORTED;
+#else
   HANDLE handle;
   SECURITY_ATTRIBUTES sa;
 
@@ -258,6 +267,7 @@ int uv__create_nul_handle(HANDLE* handle_ptr,
 
   *handle_ptr = handle;
   return 0;
+#endif
 }
 
 
@@ -322,6 +332,7 @@ int uv__stdio_create(uv_loop_t* loop,
         }
         break;
 
+#ifndef UWP_DLL
       case UV_CREATE_PIPE: {
         /* Create a pair of two connected pipe ends; one end is turned into */
         /* an uv_pipe_t for use by the parent. The other one is given to */
@@ -346,6 +357,7 @@ int uv__stdio_create(uv_loop_t* loop,
         CHILD_STDIO_CRT_FLAGS(buffer, i) = FOPEN | FPIPE;
         break;
       }
+#endif
 
       case UV_INHERIT_FD: {
         /* Inherit a raw FD. */
@@ -462,7 +474,7 @@ void uv__stdio_destroy(BYTE* buffer) {
   uv__free(buffer);
 }
 
-
+#ifndef UWP_DLL
 void uv__stdio_noinherit(BYTE* buffer) {
   int i, count;
 
@@ -474,7 +486,7 @@ void uv__stdio_noinherit(BYTE* buffer) {
     }
   }
 }
-
+#endif
 
 int uv__stdio_verify(BYTE* buffer, WORD size) {
   unsigned int count;

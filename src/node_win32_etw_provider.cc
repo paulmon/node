@@ -8,7 +8,9 @@ namespace node {
 using v8::JitCodeEvent;
 using v8::V8;
 
+#ifndef UWP_DLL
 HMODULE advapi;
+#endif
 REGHANDLE node_provider;
 EventRegisterFunc event_register;
 EventUnregisterFunc event_unregister;
@@ -146,6 +148,7 @@ void NTAPI etw_events_enable_callback(
 void init_etw() {
   events_enabled = 0;
 
+#ifndef UWP_DLL
   advapi = LoadLibraryW(L"advapi32.dll");
   if (advapi) {
     event_register = (EventRegisterFunc)
@@ -155,6 +158,11 @@ void init_etw() {
     event_write = (EventWriteFunc)GetProcAddress(advapi, "EventWrite");
 
     // create async object used to invoke main thread from callback
+#else
+    event_register = EventRegister;
+    event_unregister = EventUnregister;
+    event_write = EventWrite;
+#endif
     CHECK_EQ(0, uv_async_init(uv_default_loop(),
                               &dispatch_etw_events_change_async,
                               etw_events_change_async));
@@ -167,12 +175,18 @@ void init_etw() {
                                     &node_provider);
       CHECK_EQ(status, ERROR_SUCCESS);
     }
+#ifndef UWP_DLL
   }
+#endif
 }
 
 
 void shutdown_etw() {
-  if (advapi && event_unregister && node_provider) {
+  if (
+#ifndef UWP_DLL
+      advapi &&
+#endif
+      event_unregister && node_provider) {
     event_unregister(node_provider);
     node_provider = 0;
   }
@@ -182,10 +196,13 @@ void shutdown_etw() {
       v8::kJitCodeEventDefault,
       nullptr);
 
+#ifndef UWP_DLL
   if (advapi) {
     FreeLibrary(advapi);
     advapi = nullptr;
   }
+#endif
 }
+
 
 }  // namespace node

@@ -592,6 +592,7 @@ _Same(_compile, 'UndefinePreprocessorDefinitions', _string_list)  # /U
 _Same(_compile, 'UseFullPaths', _boolean)  # /FC
 _Same(_compile, 'WholeProgramOptimization', _boolean)  # /GL
 _Same(_compile, 'XMLDocumentationFileName', _file_name)
+_Same(_compile, 'CompileAsWinRT', _boolean)  # /ZW
 
 _Same(_compile, 'AssemblerOutput',
       _Enumeration(['NoListing',
@@ -928,6 +929,7 @@ _Same(_rc, 'ShowProgress', _boolean)  # /v
 # completeness, as they are very likely to have the same usage pattern.
 _Same(_rc, 'SuppressStartupBanner', _boolean)  # /nologo
 _Same(_rc, 'UndefinePreprocessorDefinitions', _string_list)  # /u
+
 
 # MSBuild options not found in MSVS.
 _MSBuildOnly(_rc, 'NullTerminateStrings', _boolean)  # /n

@@ -94,6 +94,10 @@ typedef int mode_t;
 extern char **environ;
 #endif
 
+#ifdef UWP_DLL
+#include "node_logger.h"
+#endif
+
 namespace node {
 
 using v8::Array;
@@ -129,6 +133,10 @@ using v8::Uint32;
 using v8::Uint32Array;
 using v8::V8;
 using v8::Value;
+
+#ifdef UWP_DLL
+using namespace node::logger;
+#endif
 
 static bool print_eval = false;
 static bool force_repl = false;
@@ -234,6 +242,7 @@ static void PrintErrorString(const char* format, ...) {
   va_list ap;
   va_start(ap, format);
 #ifdef _WIN32
+#ifndef UWP_DLL
   HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
 
   // Check if stderr is something other than a tty/console
@@ -245,17 +254,22 @@ static void PrintErrorString(const char* format, ...) {
     return;
   }
 
+#endif
   // Fill in any placeholders
   int n = _vscprintf(format, ap);
   std::vector<char> out(n + 1);
   vsprintf(out.data(), format, ap);
 
+#ifndef UWP_DLL
   // Get required wide buffer size
   n = MultiByteToWideChar(CP_UTF8, 0, out.data(), -1, nullptr, 0);
 
   std::vector<wchar_t> wbuf(n);
   MultiByteToWideChar(CP_UTF8, 0, out.data(), -1, wbuf.data(), n);
   WriteConsoleW(stderr_handle, wbuf.data(), n, nullptr, nullptr);
+#else
+  NODE_LOGGER_LOG(node::logger::ILogger::Error, out.data());
+#endif
 #else
   vfprintf(stderr, format, ap);
 #endif
@@ -894,7 +908,11 @@ inline const char* secure_getenv(const char* key) {
   if (getuid() != geteuid() || getgid() != getegid())
     return nullptr;
 #endif
+#ifndef UWP_DLL
   return getenv(key);
+#else
+  return nullptr;
+#endif
 }
 
 
@@ -2641,6 +2659,7 @@ static void ProcessTitleSetter(Local<Name> property,
 }
 
 
+#ifndef UWP_DLL
 static void EnvGetter(Local<String> property,
                       const PropertyCallbackInfo<Value>& info) {
   Isolate* isolate = info.GetIsolate();
@@ -2807,6 +2826,7 @@ static void EnvEnumerator(const PropertyCallbackInfo<Array>& info) {
 
   info.GetReturnValue().Set(envarr);
 }
+#endif
 
 
 static Local<Object> GetFeatures(Environment* env) {
@@ -3122,6 +3142,7 @@ void SetupProcessObject(Environment* env,
   process->Set(env->exec_argv_string(), exec_arguments);
 
   // create process.env
+#ifndef UWP_DLL
   Local<ObjectTemplate> process_env_template =
       ObjectTemplate::New(env->isolate());
   process_env_template->SetNamedPropertyHandler(EnvGetter,
@@ -3132,6 +3153,11 @@ void SetupProcessObject(Environment* env,
                                                 env->as_external());
   Local<Object> process_env =
       process_env_template->NewInstance(env->context()).ToLocalChecked();
+#else
+  // Since there are no environment variables in UWP, process.env will be an
+  // empty object.
+  Local<Object> process_env = Object::New(env->isolate());
+#endif
   process->Set(env->env_string(), process_env);
 
   READONLY_PROPERTY(process, "pid", Integer::New(env->isolate(), getpid()));
@@ -3219,6 +3245,13 @@ void SetupProcessObject(Environment* env,
   if (debug_wait_connect) {
     READONLY_PROPERTY(process, "_debugWaitConnect", True(env->isolate()));
   }
+#if defined(UWP_DLL) && !defined(_DEBUG)
+  READONLY_PROPERTY(process, "hasConsole", False(env->isolate()));
+  READONLY_PROPERTY(process, "uwpDLL", True(env->isolate()));
+#else
+  READONLY_PROPERTY(process, "hasConsole", True(env->isolate()));
+  READONLY_PROPERTY(process, "uwpDLL", False(env->isolate()));
+#endif
 
   // --security-revert flags
 #define V(code, _, __)                                                        \
@@ -3764,29 +3797,29 @@ static void StartDebug(Environment* env, bool wait) {
     v8_platform.StartInspector(env, inspector_port, wait);
     debugger_running = true;
   } else {
-    env->debugger_agent()->set_dispatch_handler(
-          DispatchMessagesDebugAgentCallback);
-#if defined(NODE_ENGINE_CHAKRACORE)
+  env->debugger_agent()->set_dispatch_handler(
+        DispatchMessagesDebugAgentCallback);
+#if defined(NODE_ENGINE_CHAKRA)
   // ChakraShim does not support debugger_agent
   debugger_running = v8::Debug::EnableAgent();
 #else
    debugger_running =
         env->debugger_agent()->Start(debug_host, debug_port, wait);
 #endif
-    if (debugger_running == false) {
+  if (debugger_running == false) {
       fprintf(stderr, "Starting debugger on %s:%d failed\n",
               debug_host.c_str(), debug_port);
-      fflush(stderr);
-      return;
-    }
+    fflush(stderr);
+    return;
   }
+}
 }
 
 
 // Called from the main thread.
 static void EnableDebug(Environment* env) {
   CHECK(debugger_running);
-
+  
   if (use_inspector) {
     return;
   }
@@ -3822,19 +3855,19 @@ static void TryStartDebugger() {
 static void DispatchDebugMessagesAsyncCallback(uv_async_t* handle) {
   Mutex::ScopedLock scoped_lock(node_isolate_mutex);
   if (auto isolate = node_isolate) {
-    if (debugger_running == false) {
-      fprintf(stderr, "Starting debugger agent.\n");
+  if (debugger_running == false) {
+    fprintf(stderr, "Starting debugger agent.\n");
 
-      HandleScope scope(isolate);
-      Environment* env = Environment::GetCurrent(isolate);
-      Context::Scope context_scope(env->context());
+    HandleScope scope(isolate);
+    Environment* env = Environment::GetCurrent(isolate);
+    Context::Scope context_scope(env->context());
 
-      StartDebug(env, false);
-      EnableDebug(env);
-    }
+    StartDebug(env, false);
+    EnableDebug(env);
+  }
 
-    Isolate::Scope isolate_scope(isolate);
-    v8::Debug::ProcessDebugMessages(isolate);
+  Isolate::Scope isolate_scope(isolate);
+  v8::Debug::ProcessDebugMessages(isolate);
   }
 }
 
@@ -3986,6 +4019,7 @@ static int RegisterDebugSignalHandler() {
 
 static void DebugProcess(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
+#ifndef UWP_DLL
   Isolate* isolate = args.GetIsolate();
   DWORD pid;
   HANDLE process = nullptr;
@@ -4070,6 +4104,9 @@ static void DebugProcess(const FunctionCallbackInfo<Value>& args) {
     UnmapViewOfFile(handler);
   if (mapping != nullptr)
     CloseHandle(mapping);
+#else
+  env->ThrowError("_debugProcess not supported.");
+#endif
 }
 #endif  // _WIN32
 
@@ -4087,7 +4124,7 @@ static void DebugEnd(const FunctionCallbackInfo<Value>& args) {
       env->inspector_agent()->Stop();
     } else {
 #endif
-      env->debugger_agent()->Stop();
+    env->debugger_agent()->Stop();
 #if HAVE_INSPECTOR
     }
 #endif
@@ -4172,7 +4209,7 @@ void Init(int* argc,
   // init async debug messages dispatching
   // Main thread uses uv_default_loop
   CHECK_EQ(0, uv_async_init(uv_default_loop(),
-                            &dispatch_debug_messages_async,
+                &dispatch_debug_messages_async,
                             DispatchDebugMessagesAsyncCallback));
   uv_unref(reinterpret_cast<uv_handle_t*>(&dispatch_debug_messages_async));
 
@@ -4378,14 +4415,14 @@ static void StartNodeInstance(void* arg) {
     Locker locker(isolate);
     Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope(isolate);
-#ifndef NODE_ENGINE_CHAKRACORE
+#ifndef NODE_ENGINE_CHAKRA
     IsolateData isolate_data(isolate, instance_data->event_loop(),
                              array_buffer_allocator.zero_fill_field());
 #endif
     Local<Context> context = Context::New(isolate);
     Context::Scope context_scope(context);
     // CHAKRA-TODO : fix this to create isolate_data before setting context
-#if defined(NODE_ENGINE_CHAKRACORE)
+#if defined(NODE_ENGINE_CHAKRA)
     IsolateData isolate_data(isolate, instance_data->event_loop(),
                              array_buffer_allocator.zero_fill_field());
 
@@ -4509,5 +4546,11 @@ int Start(int argc, char** argv) {
   return exit_code;
 }
 
+#ifdef UWP_DLL
+int _cdecl Start(int argc, char *argv[], const logger::ILogger* logger) {
+  node::logger::SetLogger(logger);
+  return Start(argc, argv);
+}
+#endif
 
 }  // namespace node

@@ -25,14 +25,18 @@
 #include <iphlpapi.h>
 #include <ares_iphlpapi.h>
 
+#ifndef UWP_DLL
 typedef DWORD (WINAPI *fpGetNetworkParams_t) (FIXED_INFO*, DWORD*);
+#endif
 typedef BOOLEAN (APIENTRY *fpSystemFunction036_t) (void*, ULONG);
 typedef ULONG (WINAPI *fpGetAdaptersAddresses_t) ( ULONG, ULONG, void*, IP_ADAPTER_ADDRESSES*, ULONG* );
 
 /* Forward-declaration of variables defined in ares_library_init.c */
 /* that are global and unique instances for whole c-ares library.  */
 
+#ifndef UWP_DLL
 extern fpGetNetworkParams_t ares_fpGetNetworkParams;
+#endif
 extern fpSystemFunction036_t ares_fpSystemFunction036;
 extern fpGetAdaptersAddresses_t ares_fpGetAdaptersAddresses;
 

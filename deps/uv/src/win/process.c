@@ -66,6 +66,7 @@ static uv_once_t uv_global_job_handle_init_guard_ = UV_ONCE_INIT;
 
 
 static void uv__init_global_job_handle(void) {
+#ifndef UWP_DLL
   /* Create a job object and set it up to kill all contained processes when
    * it's closed. Since this handle is made non-inheritable and we're not
    * giving it to anyone, we're the only process holding a reference to it.
@@ -103,6 +104,7 @@ static void uv__init_global_job_handle(void) {
                                &info,
                                sizeof info))
     uv_fatal_error(GetLastError(), "SetInformationJobObject");
+#endif
 }
 
 
@@ -609,6 +611,9 @@ error:
 
 
 int env_strncmp(const wchar_t* a, int na, const wchar_t* b) {
+#ifdef UWP_DLL
+  return -1;
+#else
   wchar_t* a_eq;
   wchar_t* b_eq;
   wchar_t* A;
@@ -648,6 +653,7 @@ int env_strncmp(const wchar_t* a, int na, const wchar_t* b) {
       return 0;
     }
   }
+#endif
 }
 
 
@@ -675,6 +681,11 @@ static int qsort_wcscmp(const void *a, const void *b) {
  *
  */
 int make_program_env(char* env_block[], WCHAR** dst_ptr) {
+#ifdef UWP_DLL
+    (env_block);
+    (dst_ptr);
+    return ERROR_NOT_SUPPORTED;
+#else
   WCHAR* dst;
   WCHAR* ptr;
   char** env;
@@ -815,6 +826,7 @@ int make_program_env(char* env_block[], WCHAR** dst_ptr) {
   uv__free(dst_copy);
   *dst_ptr = dst;
   return 0;
+#endif;
 }
 
 /*
@@ -853,8 +865,12 @@ static void CALLBACK exit_wait_callback(void* data, BOOLEAN didTimeout) {
 
 /* Called on main thread after a child process has exited. */
 void uv_process_proc_exit(uv_loop_t* loop, uv_process_t* handle) {
-  int64_t exit_code;
+#ifdef UWP_DLL
+    (loop);
+    (handle);
+#else
   DWORD status;
+  int64_t exit_code;
 
   assert(handle->exit_cb_pending);
   handle->exit_cb_pending = 0;
@@ -868,8 +884,10 @@ void uv_process_proc_exit(uv_loop_t* loop, uv_process_t* handle) {
 
   /* Unregister from process notification. */
   if (handle->wait_handle != INVALID_HANDLE_VALUE) {
+#ifndef UWP_DLL
     UnregisterWait(handle->wait_handle);
     handle->wait_handle = INVALID_HANDLE_VALUE;
+#endif
   }
 
   /* Set the handle to inactive: no callbacks will be made after the exit */
@@ -887,6 +905,7 @@ void uv_process_proc_exit(uv_loop_t* loop, uv_process_t* handle) {
   if (handle->exit_cb) {
     handle->exit_cb(handle, exit_code, handle->exit_signal);
   }
+#endif
 }
 
 
@@ -896,11 +915,13 @@ void uv_process_close(uv_loop_t* loop, uv_process_t* handle) {
   if (handle->wait_handle != INVALID_HANDLE_VALUE) {
     /* This blocks until either the wait was cancelled, or the callback has */
     /* completed. */
+#ifndef UWP_DLL
     BOOL r = UnregisterWaitEx(handle->wait_handle, INVALID_HANDLE_VALUE);
     if (!r) {
       /* This should never happen, and if it happens, we can't recover... */
       uv_fatal_error(GetLastError(), "UnregisterWaitEx");
     }
+#endif
 
     handle->wait_handle = INVALID_HANDLE_VALUE;
   }
@@ -926,6 +947,10 @@ void uv_process_endgame(uv_loop_t* loop, uv_process_t* handle) {
 int uv_spawn(uv_loop_t* loop,
              uv_process_t* process,
              const uv_process_options_t* options) {
+#ifdef UWP_DLL
+    return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
+#else
+
   int i;
   int err = 0;
   WCHAR* path = NULL, *alloc_path = NULL;
@@ -1129,12 +1154,16 @@ int uv_spawn(uv_loop_t* loop,
   }
 
   /* Setup notifications for when the child process exits. */
+#ifdef UWP_DLL
+  uv_fatal_error(ERROR_NOT_SUPPORTED, "RegisterWaitForSingleObject"); // Fail
+#else
   result = RegisterWaitForSingleObject(&process->wait_handle,
       process->process_handle, exit_wait_callback, (void*)process, INFINITE,
       WT_EXECUTEINWAITTHREAD | WT_EXECUTEONLYONCE);
   if (!result) {
     uv_fatal_error(GetLastError(), "RegisterWaitForSingleObject");
   }
+#endif
 
   CloseHandle(info.hThread);
 
@@ -1160,10 +1189,17 @@ int uv_spawn(uv_loop_t* loop,
   }
 
   return uv_translate_sys_error(err);
+#endif
 }
 
 
 static int uv__kill(HANDLE process_handle, int signum) {
+#ifdef UWP_DLL
+    (signum);
+    (process_handle);
+    return UV_ENOSYS;
+#else
+
   switch (signum) {
     case SIGTERM:
     case SIGKILL:
@@ -1205,6 +1241,7 @@ static int uv__kill(HANDLE process_handle, int signum) {
       /* Unsupported signal. */
       return UV_ENOSYS;
   }
+#endif
 }
 
 

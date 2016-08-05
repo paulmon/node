@@ -20,7 +20,7 @@
 
 #include "ares_setup.h"
 
-#if defined(WIN32) && !defined(MSDOS)
+#if defined(WIN32) && !defined(MSDOS) && !defined(UWP_DLL)
 
 typedef enum {
   WIN_UNKNOWN,

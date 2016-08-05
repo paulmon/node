@@ -278,9 +278,11 @@ static SOCKET uv__fast_poll_create_peer_socket(HANDLE iocp,
     return INVALID_SOCKET;
   }
 
+#ifndef UWP_DLL
   if (!SetHandleInformation((HANDLE) sock, HANDLE_FLAG_INHERIT, 0)) {
     goto error;
   };
+#endif
 
   if (CreateIoCompletionPort((HANDLE) sock,
                              iocp,
@@ -417,6 +419,10 @@ static void uv__slow_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
     return;
   }
 
+#ifdef UWP_DLL
+  SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED);
+  uv_insert_pending_req(loop, req);
+#else
   if (!QueueUserWorkItem(uv__slow_poll_thread_proc,
                          (void*) req,
                          WT_EXECUTELONGFUNCTION)) {
@@ -424,6 +430,7 @@ static void uv__slow_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
     SET_REQ_ERROR(req, GetLastError());
     uv_insert_pending_req(loop, req);
   }
+#endif
 }
 
 

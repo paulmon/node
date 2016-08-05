@@ -23,19 +23,22 @@
 #include "jsrtutils.h"
 #include "v8-debug.h"
 #include <algorithm>
+#ifdef UWP_DLL
+#include "..\..\src\node_version.h"
+#endif
 
 namespace v8 {
 
 bool g_disposed = false;
 bool g_exposeGC = false;
 bool g_useStrict = false;
-bool g_disableIdleGc = false;
 ArrayBuffer::Allocator* g_arrayBufferAllocator = nullptr;
 
 const char *V8::GetVersion() {
   static char versionStr[32] = {};
 
   if (versionStr[0] == '\0') {
+#ifndef UWP_DLL
     HMODULE hModule;
     if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                           TEXT(NODE_ENGINE), &hModule)) {
@@ -61,6 +64,13 @@ const char *V8::GetVersion() {
         }
       }
     }
+#else
+    sprintf_s(versionStr, "%d.%d.%d.%d",
+	    NODE_MAJOR_VERSION,
+	    NODE_MINOR_VERSION,
+	    NODE_PATCH_VERSION,
+	    NODE_TAG);
+#endif
   }
 
   return versionStr;
@@ -138,9 +148,9 @@ void V8::SetFlagsFromCommandLine(int *argc, char **argv, bool remove_flags) {
 
 bool V8::Initialize() {
   if (g_disposed) {
-    return false;  // Can no longer Initialize if Disposed
+    return false; // Can no longer Initialize if Disposed
   }
-#ifndef NODE_ENGINE_CHAKRACORE
+#ifndef NODE_ENGINE_CHAKRA
   if (g_EnableDebug && JsStartDebugging() != JsNoError) {
     return false;
   }
