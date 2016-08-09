@@ -19,10 +19,6 @@
  * IN THE SOFTWARE.
  */
 
-#if defined(_DEBUG) && defined (UWP_DLL)
-#undef WINAPI_FAMILY 
-#endif
-
 #include <assert.h>
 #include <io.h>
 #include <string.h>
@@ -153,7 +149,7 @@ void uv_console_init() {
 
 
 int uv_tty_init(uv_loop_t* loop, uv_tty_t* tty, uv_file fd, int readable) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (loop);
     (tty);
     (fd);
@@ -307,7 +303,7 @@ static void uv_tty_capture_initial_style(CONSOLE_SCREEN_BUFFER_INFO* info) {
 
 
 int uv_tty_set_mode(uv_tty_t* tty, uv_tty_mode_t mode) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (tty);
     (mode);
     return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
@@ -373,7 +369,7 @@ int uv_tty_set_mode(uv_tty_t* tty, uv_tty_mode_t mode) {
 
 
 int uv_is_tty(uv_file file) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (file);
     return 0;
 #else
@@ -384,7 +380,7 @@ int uv_is_tty(uv_file file) {
 
 
 int uv_tty_get_winsize(uv_tty_t* tty, int* width, int* height) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (tty);
     (width);
     (height);
@@ -504,7 +500,7 @@ static DWORD CALLBACK uv_tty_line_read_thread(void* data) {
     POST_COMPLETION_FOR_REQ(loop, req);
     return 0;
   }
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
   SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED );
 #else
 
@@ -681,7 +677,7 @@ static const char* get_vt100_fn_key(DWORD code, char shift, char ctrl,
 
 void uv_process_tty_read_raw_req(uv_loop_t* loop, uv_tty_t* handle,
     uv_req_t* req) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (loop);
     (handle);
     SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED);
@@ -1056,7 +1052,7 @@ int uv_tty_read_start(uv_tty_t* handle, uv_alloc_cb alloc_cb,
 
 
 int uv_tty_read_stop(uv_tty_t* handle) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
   return ERROR_NOT_SUPPORTED;
 #else
   INPUT_RECORD record;
@@ -1090,7 +1086,7 @@ int uv_tty_read_stop(uv_tty_t* handle) {
 
 
 static int uv__cancel_read_console(uv_tty_t* handle) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
   return ERROR_NOT_SUPPORTED;
 #else
   HANDLE active_screen_buffer = INVALID_HANDLE_VALUE;
@@ -1217,7 +1213,7 @@ static COORD uv_tty_make_real_coord(uv_tty_t* handle,
 
 static int uv_tty_emit_text(uv_tty_t* handle, WCHAR buffer[], DWORD length,
     DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
   (handle), (buffer), (length);
   *error = ERROR_NOT_SUPPORTED;
   return -1;
@@ -1244,7 +1240,7 @@ static int uv_tty_emit_text(uv_tty_t* handle, WCHAR buffer[], DWORD length,
 
 static int uv_tty_move_caret(uv_tty_t* handle, int x, unsigned char x_relative,
     int y, unsigned char y_relative, DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (handle), (x), (y), (x_relative), (y_relative);
     *error = ERROR_NOT_SUPPORTED;
     return -1;
@@ -1280,7 +1276,7 @@ static int uv_tty_move_caret(uv_tty_t* handle, int x, unsigned char x_relative,
 
 
 static int uv_tty_reset(uv_tty_t* handle, DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (handle);
     *error = ERROR_NOT_SUPPORTED;
     return -1;
@@ -1345,7 +1341,7 @@ static int uv_tty_reset(uv_tty_t* handle, DWORD* error) {
 
 static int uv_tty_clear(uv_tty_t* handle, int dir, char entire_screen,
     DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (handle), (dir), (entire_screen);
     *error = ERROR_NOT_SUPPORTED;
     return -1;
@@ -1439,7 +1435,7 @@ static int uv_tty_clear(uv_tty_t* handle, int dir, char entire_screen,
     } while (0)
 
 static int uv_tty_set_style(uv_tty_t* handle, DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (handle);
     *error = ERROR_NOT_SUPPORTED;
     return -1;
@@ -1602,7 +1598,7 @@ static int uv_tty_set_style(uv_tty_t* handle, DWORD* error) {
 
 static int uv_tty_save_state(uv_tty_t* handle, unsigned char save_attributes,
     DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
   (handle), (save_attributes);
   *error = ERROR_NOT_SUPPORTED;
   return -1;
@@ -1637,7 +1633,7 @@ static int uv_tty_save_state(uv_tty_t* handle, unsigned char save_attributes,
 
 static int uv_tty_restore_state(uv_tty_t* handle,
     unsigned char restore_attributes, DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (handle), (restore_attributes);
     *error = ERROR_NOT_SUPPORTED;
     return -1;
@@ -1685,7 +1681,7 @@ static int uv_tty_restore_state(uv_tty_t* handle,
 static int uv_tty_set_cursor_visibility(uv_tty_t* handle,
                                         BOOL visible,
                                         DWORD* error) {
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
     (handle);
     (visible);
     *error = ERROR_NOT_SUPPORTED;
