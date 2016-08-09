@@ -3245,7 +3245,7 @@ void SetupProcessObject(Environment* env,
   if (debug_wait_connect) {
     READONLY_PROPERTY(process, "_debugWaitConnect", True(env->isolate()));
   }
-#if defined(UWP_DLL) && !defined(_DEBUG)
+#if defined(UWP_DLL)
   READONLY_PROPERTY(process, "hasConsole", False(env->isolate()));
   READONLY_PROPERTY(process, "uwpDLL", True(env->isolate()));
 #else
