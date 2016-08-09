@@ -19,10 +19,6 @@
  * IN THE SOFTWARE.
  */
 
-#if defined (UWP_DLL)
-#undef WINAPI_FAMILY 
-#endif
-
 #include <assert.h>
 #include <io.h>
 #include <string.h>
