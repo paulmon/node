@@ -70,7 +70,6 @@
   // check package.json to see if the package to install
   // needs uwp and target architecture options.
   if('install' == npm.command) {
-	console.log('hello');
     var localJsonPath = path.join(process.cwd(), '\package.json');
     if(fs.existsSync(localJsonPath)) {
       var j = parseJSON(fs.readFileSync(localJsonPath + ''));
