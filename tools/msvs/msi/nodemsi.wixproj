@@ -54,7 +54,11 @@
     </WixExtension>
   </ItemGroup>
   <ItemGroup>
-    <!-- <EmbeddedResource Include="i18n\de-de.wxl" /> -->
+    <!--
+    <EmbeddedResource Include="i18n\de-de.wxl" />
+    <EmbeddedResource Include="i18n\it-it.wxl" />
+    <EmbeddedResource Include="i18n\zh-cn.wxl" />
+    -->
     <EmbeddedResource Include="i18n\en-us.wxl" />
   </ItemGroup>
   <ItemGroup>

@@ -184,8 +184,7 @@ int SigintWatchdogHelper::Start() {
 #ifdef UWP_DLL
   return ERROR_NOT_SUPPORTED;
 #else
-  int ret = 0;
-  uv_mutex_lock(&mutex_);
+  Mutex::ScopedLock lock(mutex_);
 
   if (start_stop_count_++ > 0) {
     return 0;
@@ -211,10 +210,9 @@ int SigintWatchdogHelper::Start() {
   SetConsoleCtrlHandler(WinCtrlCHandlerRoutine, TRUE);
 #endif
 
- dont_start:
-  uv_mutex_unlock(&mutex_);
-  return ret;
 #endif
+
+  return 0;
 }
 
 
@@ -222,8 +220,8 @@ bool SigintWatchdogHelper::Stop() {
 #ifdef UWP_DLL
   return false;
 #else
-  uv_mutex_lock(&mutex_);
-  uv_mutex_lock(&list_mutex_);
+  bool had_pending_signal;
+  Mutex::ScopedLock lock(mutex_);
 
   {
     Mutex::ScopedLock list_lock(list_mutex_);
