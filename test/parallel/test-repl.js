@@ -51,7 +51,7 @@ function strict_mode_error_test() {
     { client: client_unix, send: 'ref = 1',
       expect: common.engineSpecificMessage({
         v8: /^ReferenceError:\sref\sis\snot\sdefined\n\s+at\srepl:1:5/,
-        chakracore: /^ReferenceError: Variable undefined in strict mode/
+        chakra: /^ReferenceError: Variable undefined in strict mode/
       })},
   ]);
 }
@@ -129,7 +129,7 @@ function error_test() {
     { client: client_unix, send: 'eval("function test_func() {")',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Unexpected end of input/,
-        chakracore: /^SyntaxError: Expected '}'/})
+        chakra: /^SyntaxError: Expected '}'/})
     },
     // Can handle multiline template literals
     { client: client_unix, send: '`io.js',
@@ -161,65 +161,65 @@ function error_test() {
     { client: client_unix, send: 'JSON.parse(\'{invalid: \\\'json\\\'}\');',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Unexpected token i/,
-        chakracore: /^SyntaxError: Invalid character/})
+        chakra: /^SyntaxError: Invalid character/})
     },
     // end of input to JSON.parse error is special case of syntax error,
     // should throw
     { client: client_unix, send: 'JSON.parse(\'066\');',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Unexpected number/,
-        chakracore:  /^SyntaxError: Invalid number/})
+        chakra:  /^SyntaxError: Invalid number/})
     },
     // should throw
     { client: client_unix, send: 'JSON.parse(\'{\');',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Unexpected end of JSON input/,
-        chakracore: /^SyntaxError: Syntax error/})
+        chakra: /^SyntaxError: Syntax error/})
     },
     // invalid RegExps are a special case of syntax error,
     // should throw
     { client: client_unix, send: '/(/;',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Invalid regular expression\:/,
-        chakracore: /^SyntaxError: Expected '\)' in regular expression/})
+        chakra: /^SyntaxError: Expected '\)' in regular expression/})
     },
     // invalid RegExp modifiers are a special case of syntax error,
     // should throw (GH-4012)
     { client: client_unix, send: 'new RegExp("foo", "wrong modifier");',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Invalid flags supplied to RegExp constructor/,
-        chakracore: /^SyntaxError: Syntax error in regular expression/})
+        chakra: /^SyntaxError: Syntax error in regular expression/})
     },
     // strict mode syntax errors should be caught (GH-5178)
     { client: client_unix, send: '(function() { "use strict"; return 0755; })()',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Octal literals are not allowed in strict mode/,
-        chakracore: /^SyntaxError: Octal numeric literals and escape characters not allowed in strict mode/})
+        chakra: /^SyntaxError: Octal numeric literals and escape characters not allowed in strict mode/})
     },
     { client: client_unix, send: '(function(a, a, b) { "use strict"; return a + b + c; })()',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Duplicate parameter name not allowed in this context/,
-        chakracore: /^SyntaxError: Duplicate formal parameter names not allowed in strict mode/})
+        chakra: /^SyntaxError: Duplicate formal parameter names not allowed in strict mode/})
     },
     { client: client_unix, send: '(function() { "use strict"; with (this) {} })()',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Strict mode code may not include a with statement/,
-        chakracore: /^SyntaxError: 'with' statements are not allowed in strict mode/})
+        chakra: /^SyntaxError: 'with' statements are not allowed in strict mode/})
     },
     { client: client_unix, send: '(function() { "use strict"; var x; delete x; })()',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Delete of an unqualified identifier in strict mode/,
-        chakracore: /^SyntaxError: Calling delete on expression not allowed in strict mode/})
+        chakra: /^SyntaxError: Calling delete on expression not allowed in strict mode/})
     },
     { client: client_unix, send: '(function() { "use strict"; eval = 17; })()',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Unexpected eval or arguments in strict mode/,
-        chakracore: /^SyntaxError: Invalid usage of 'eval' in strict mode/})
+        chakra: /^SyntaxError: Invalid usage of 'eval' in strict mode/})
     },
     { client: client_unix, send: '(function() { "use strict"; if (true) function f() { } })()',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: In strict mode code, functions can only be declared at top level or inside a block./,
-        chakracore: /^SyntaxError: Syntax error/})
+        chakra: /^SyntaxError: Syntax error/})
     },
     // Named functions can be used:
     { client: client_unix, send: 'function blah() { return 1; }',
@@ -246,13 +246,13 @@ function error_test() {
     // Multiline function call
     { client: client_unix, send: 'function f(){}; f(f(1,',
       expect: prompt_multiline,
-      chakracore: 'https://github.com/Microsoft/ChakraCore/issues/767' },
+      chakra: 'https://github.com/Microsoft/ChakraCore/issues/767' },
     { client: client_unix, send: '2)',
       expect: prompt_multiline,
-      chakracore: 'skip' },
+      chakra: 'skip' },
     { client: client_unix, send: ')',
       expect: 'undefined\r\n' + prompt_unix,
-      chakracore: 'skip' },
+      chakra: 'skip' },
     // npm prompt error message
     { client: client_unix, send: 'npm install foobar',
       expect: expect_npm },
@@ -276,7 +276,7 @@ function error_test() {
     { client: client_unix, send: '[] \\',
       expect: common.engineSpecificMessage({
         v8: /\bSyntaxError: Invalid or unexpected token/,
-        chakracore: /^SyntaxError: Invalid character/})
+        chakra: /^SyntaxError: Invalid character/})
     },
     // do not fail when a String is created with line continuation
     { client: client_unix, send: '\'the\\\r\nfourth\\\r\neye\'',

@@ -114,7 +114,7 @@ for (const expected of expectedStrings) {
 
 var expectedFuncToString = common.engineSpecificMessage({
   v8: "{ foo: 'bar', inspect: [Function: inspect] }\n",
-  chakracore: "{ foo: 'bar', inspect: [Function: inspect] }\n"
+  chakra: "{ foo: 'bar', inspect: [Function: inspect] }\n"
 });
 
 assert.equal(expectedFuncToString, strings.shift());

@@ -37,7 +37,7 @@ try {
 } catch (e) {
   assert.equal(e.message, common.engineSpecificMessage({
     v8: 'Array buffer allocation failed',
-    chakracore: 'Invalid offset/length when creating typed array'
+    chakra: 'Invalid offset/length when creating typed array'
   }));
 }
 
