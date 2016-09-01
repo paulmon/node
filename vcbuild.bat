@@ -145,6 +145,11 @@ if "%target_type%"=="uwp-dll" (
 
 if defined config_flags set configure_flags=%configure_flags% %config_flags%
 
+if defined NODE_VERSION_TAG (
+  set DISTTYPE=custom
+  set CUSTOMTAG=%NODE_RELEASE_TAG%%NODE_VERSION_TAG%
+)
+
 if not exist "%~dp0deps\icu" goto no-depsicu
 if "%target%"=="Clean" echo deleting %~dp0deps\icu
 if "%target%"=="Clean" rmdir /S /Q %~dp0deps\icu
