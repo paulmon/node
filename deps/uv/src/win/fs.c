@@ -740,7 +740,9 @@ void fs__unlink(uv_fs_t* req) {
   const WCHAR* pathw = req->file.pathw;
 #ifdef UWP_DLL
   /* Remove read-only attribute before trying to delete */
-  SetFileAttributesW(pathw, GetFileAttributesW(pathw) & ~FILE_ATTRIBUTE_READONLY);
+  if (!SetFileAttributesW(pathw, GetFileAttributesW(pathw) & ~FILE_ATTRIBUTE_READONLY)) {
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+  }
 
   if (!DeleteFileW(pathw)) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
