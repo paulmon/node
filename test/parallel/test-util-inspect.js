@@ -27,7 +27,7 @@ assert.equal(util.inspect({}), '{}');
 assert.equal(util.inspect({a: 1}), '{ a: 1 }');
 assert.equal(util.inspect({a: function() {}}), common.engineSpecificMessage({
   v8: '{ a: [Function: a] }',
-  chakracore: '{ a: [Function: a] }'
+  chakra: '{ a: [Function: a] }'
 }));
 assert.equal(util.inspect({a: 1, b: 2}), '{ a: 1, b: 2 }');
 assert.equal(util.inspect({'a': {}}), '{ a: {} }');
@@ -230,7 +230,7 @@ value = function() {};
 value.aprop = 42;
 assert.equal(util.inspect(value), common.engineSpecificMessage({
   v8: '{ [Function: value] aprop: 42 }',
-  chakracore: '{ [Function: value] aprop: 42 }'
+  chakra: '{ [Function: value] aprop: 42 }'
 }));
 
 // Regular expressions with properties
@@ -292,7 +292,7 @@ assert.strictEqual(util.inspect(obj), 'Set { 1, 2 }');
 obj = require('vm').runInNewContext('fn=function(){};new Promise(fn,fn)', {});
 assert.strictEqual(util.inspect(obj), common.engineSpecificMessage({
   v8: 'Promise { <pending> }',
-  chakracore: 'Promise {}'
+  chakra: 'Promise {}'
 }));
 
 // test for property descriptors
@@ -559,22 +559,22 @@ assert.equal(util.inspect(set, true), 'Set { \'foo\', [size]: 1, bar: 42 }');
 // test Promise
 assert.equal(util.inspect(Promise.resolve(3)), common.engineSpecificMessage({
   v8: 'Promise { 3 }',
-  chakracore: 'Promise {}'
+  chakra: 'Promise {}'
 }));
 assert.equal(util.inspect(Promise.reject(3)), common.engineSpecificMessage({
   v8: 'Promise { <rejected> 3 }',
-  chakracore: 'Promise {}'
+  chakra: 'Promise {}'
 }));
 assert.equal(util.inspect(new Promise(function() {})),
   common.engineSpecificMessage({
     v8: 'Promise { <pending> }',
-    chakracore: 'Promise {}'
+    chakra: 'Promise {}'
   }));
 var promise = Promise.resolve('foo');
 promise.bar = 42;
 assert.equal(util.inspect(promise), common.engineSpecificMessage({
   v8: 'Promise { \'foo\', bar: 42 }',
-  chakracore: 'Promise { bar: 42 }'
+  chakra: 'Promise { bar: 42 }'
 }));
 
 // Make sure it doesn't choke on polyfills. Unlike Set/Map, there is no standard
@@ -584,7 +584,7 @@ var oldPromise = Promise;
 global.Promise = function() { this.bar = 42; };
 assert.equal(util.inspect(new Promise()), common.engineSpecificMessage({
   v8: '{ bar: 42 }',
-  chakracore: 'Promise { \'<unknown>\', bar: 42 }'
+  chakra: 'Promise { \'<unknown>\', bar: 42 }'
 }));
 global.Promise = oldPromise;
 
@@ -667,7 +667,7 @@ checkAlignment(new Map(big_array.map(function(y) { return [y, null]; })));
   assert.equal(util.inspect(new PromiseSubclass(function() {})),
     common.engineSpecificMessage({
       v8: 'PromiseSubclass { <pending> }',
-      chakracore: 'PromiseSubclass {}'
+      chakra: 'PromiseSubclass {}'
     }));
 }
 

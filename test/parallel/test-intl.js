@@ -6,7 +6,7 @@ var assert = require('assert');
 // for chakra i18n is enabled
 var enablei18n = common.engineSpecificMessage({
   v8: process.config.variables.v8_enable_i18n_support,
-  chakracore: true
+  chakra: true
 });
 
 if (enablei18n === undefined) {
@@ -62,7 +62,7 @@ if (!haveIntl) {
   var localeString = dtf.format(date0);
   assert.equal(localeString, common.engineSpecificMessage({
     v8: 'Jan 70',
-    chakracore: '\u200EJan\u200E \u200E70'
+    chakra: '\u200EJan\u200E \u200E70'
   }));
 
   // Options to request GMT
@@ -72,7 +72,7 @@ if (!haveIntl) {
   localeString = date0.toLocaleString(['en'], optsGMT);
   assert.equal(localeString, common.engineSpecificMessage({
     v8: '1/1/1970, 12:00:00 AM',
-    chakracore: '\u200E1\u200E/\u200E1\u200E/\u200E1970\u200E '
+    chakra: '\u200E1\u200E/\u200E1\u200E/\u200E1970\u200E '
       + '\u200E12\u200E:\u200E00\u200E:\u200E00\u200E \u200EAM'
   }));
 
