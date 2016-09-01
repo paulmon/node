@@ -2,24 +2,38 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
      xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
 
-  <?define ProductName = "Node.js" ?>
-  <?define ProductDescription = "Node.js" ?>
+  <?define ProductName = "$(var.NodeName)" ?>
+  <?define ProductDescription = "$(var.NodeName)" ?>
   <?define ProductAuthor = "Node.js Foundation" ?>
 
-  <?define RegistryKeyPath = "SOFTWARE\Node.js" ?>
+  <?define RegistryKeyPath = "SOFTWARE\$(var.ProductName)" ?>
 
   <?define RepoDir="$(var.ProjectDir)..\..\..\" ?>
   <?define SourceDir="$(var.RepoDir)\$(var.Configuration)\" ?>
 
+  <?if $(var.NodeUseSdk) = "" ?>
+  <?define NodeExeSource = "$(var.SourceDir)\node.exe" ?>
+  <?else?>
+  <?define NodeExeSource = "$(var.SourceDir)\$(var.SdkTargetArch)\node.exe" ?>
+  <?endif?>
+
+  <?if $(var.NodeEngine) = "v8" ?>
+  <?define UpgradeCode = "47c07a3a-42ef-4213-a85d-8f5a59077c28" ?>
+  <?elseif $(var.NodeEngine) = "chakra" ?>
+  <?define UpgradeCode = "621ed213-8ca3-4d8e-9265-6066534d7796" ?>
+  <?elseif $(var.NodeEngine) = "chakracore" ?>
+  <?define UpgradeCode = "e1648eea-9548-4dc4-936f-e8fec1b1020e" ?>
+  <?endif?>
+
   <Product Id="*"
            Name="$(var.ProductName)"
            Language="!(loc.LocaleId)"
-           Version="$(var.ProductVersion)"
+           Version="$(var.ProductFullVersion)"
            Manufacturer="$(var.ProductAuthor)"
-           UpgradeCode="47c07a3a-42ef-4213-a85d-8f5a59077c28">
+           UpgradeCode="$(var.UpgradeCode)">
 
     <Package Languages="!(loc.LocaleId)"
-             InstallerVersion="200"
+             InstallerVersion="301"
              Compressed="yes"
              InstallScope="perMachine"/>
 
@@ -32,6 +46,7 @@
     <MajorUpgrade AllowSameVersionUpgrades="yes"
                   DowngradeErrorMessage="!(loc.MajorUpgrade_DowngradeErrorMessage)"/>
 
+    <?if $(var.NodeEngine) = "v8" ?>
     <Upgrade Id="1d60944c-b9ce-4a71-a7c0-0384eb884baa">
       <UpgradeVersion Maximum="1.0.0"
                       IncludeMaximum="no"
@@ -40,27 +55,17 @@
                       IncludeMinimum="yes"
                       Property="EARLY_IO_DETECTED" />
     </Upgrade>
+    <?elseif $(var.NodeEngine) = "chakra" ?>
+    <Upgrade Id="68be990c-51ab-4822-b6d1-8a95f1e62c1b">
+      <UpgradeVersion Maximum="1.0.0"
+                      IncludeMaximum="no"
+                      Property="NODE_0X_DETECTED" />
+    </Upgrade>
+    <?endif?>
 
     <Icon Id="NodeIcon" SourceFile="$(var.RepoDir)\src\res\node.ico"/>
     <Property Id="ARPPRODUCTICON" Value="NodeIcon"/>
-    <Property Id="ApplicationFolderName" Value="nodejs"/>
-    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR"/>
-
-    <Property Id="INSTALLDIR">
-      <RegistrySearch Id="InstallPathRegistry"
-                      Type="raw"
-                      Root="HKLM"
-                      Key="$(var.RegistryKeyPath)"
-                      Name="InstallPath"/>
-      <!-- Also need to search under HKCU to support upgrading from old
-           versions. If we wanted to disable backward compatibility, this
-           second search could be deleted. -->
-      <RegistrySearch Id="InstallPathRegistryCU"
-                      Type="raw"
-                      Root="HKCU"
-                      Key="$(var.RegistryKeyPath)"
-                      Name="InstallPath"/>
-    </Property>
+    <Property Id="ApplicationFolderName" Value="$(var.NodeShortName)"/>
 
     <Feature Id="NodeRuntime"
              Level="1"
@@ -73,6 +78,19 @@
       <ComponentRef Id="NodeStartMenu"/>
       <ComponentRef Id="AppData" />
       <ComponentGroupRef Id="Product.Generated"/>
+
+      <?if $(var.NodeEngine) = "chakracore" ?>
+      <ComponentRef Id="ChakraCoreDLL"/>
+      <?endif?>
+
+      <?if $(var.NodeUseSdk) != "" ?>
+      <Feature Id="NodeNativeAddonSDK"
+               Level="1"
+               Title="Node.js native addon module SDK"
+               Description="Installs headers and libs for building Node.js native addon modules.">
+        <ComponentGroupRef Id="NodeSdkFiles"/>
+      </Feature>
+      <?endif?>
 
       <Feature Id="NodePerfCtrSupport"
                Level="1"
@@ -132,15 +150,22 @@
       </Directory>
 
       <Directory Id="$(var.ProgramFilesFolderId)">
-        <Directory Id="INSTALLDIR" Name="nodejs">
+        <Directory Id='NodejsUwp' Name='NodejsUwp'>
+          <Directory Id='INSTALLDIR' Name='Console'/>
         </Directory>
       </Directory>
     </Directory>
 
     <DirectoryRef Id="INSTALLDIR">
       <Component Id="NodeExecutable">
-        <File Id="node.exe" KeyPath="yes" Source="$(var.SourceDir)\node.exe"/>
+        <File Id="node.exe" KeyPath="yes" Source="$(var.NodeExeSource)"/>
       </Component>
+
+      <?if $(var.NodeEngine) = "chakracore" ?>
+      <Component Id="ChakraCoreDLL">
+        <File Id="chakracore.dll" KeyPath="yes" Source="$(var.SourceDir)\$(var.SdkTargetArch)\chakracore.dll"/>
+      </Component>
+      <?endif?>
 
       <Component Id="NodeRegistryEntries">
         <RegistryValue Root="HKLM"
@@ -188,17 +213,17 @@
                        Value="1"
                        KeyPath="yes"/>
         <Shortcut Id="NodeVarsScriptShortcut"
-                  Name="Node.js command prompt"
+                  Name="$(var.ProductName) command prompt"
                   Target="[%ComSpec]"
                   Arguments='/k "[INSTALLDIR]nodevars.bat"'
                   Show="normal"
                   WorkingDirectory="INSTALLDIR"/>
         <Shortcut Id="NodeExecutableShortcut"
-                  Name="Node.js"
+                  Name="$(var.ProductName)"
                   Target="[INSTALLDIR]node.exe"
                   WorkingDirectory="INSTALLDIR"/>
         <Shortcut Id="UninstallProduct"
-                  Name="Uninstall Node.js"
+                  Name="Uninstall $(var.ProductName)"
                   Target="[SystemFolder]msiexec.exe"
                   Arguments="/x [ProductCode]"/>
         <RemoveFolder Id="RemoveApplicationProgramsFolder"
@@ -327,19 +352,13 @@
       <DialogRef Id="UserExit"/>
       <DialogRef Id="WelcomeDlg"/>
       <DialogRef Id="LicenseAgreementDlg"/>
-      <DialogRef Id="InstallDirDlg"/>
       <DialogRef Id="BrowseDlg"/>
       <DialogRef Id="InvalidDirDlg"/>
 
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="LicenseAgreementDlg">NOT Installed</Publish>
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
       <Publish Dialog="LicenseAgreementDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
-      <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">LicenseAccepted = "1"</Publish>
-      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg" Order="20">1</Publish>
-      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="10">1</Publish>
-      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="10">1</Publish>
-      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="20">1</Publish>
+	  <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">LicenseAccepted = "1"</Publish>
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg" Order="1">NOT Installed OR WixUI_InstallMode = "Change"</Publish>
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
@@ -350,7 +369,7 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="1">Installed</Publish>
-      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="2">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg" Order="2">NOT Installed</Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
 
       <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" Value="!(loc.WIXUI_EXITDIALOGOPTIONALTEXT)"/>
