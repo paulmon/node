@@ -536,36 +536,12 @@
             }],
             [ 'node_uwp_dll=="true"', {
               'type': 'loadable_module',
-              'defines': [
-                'UWP_DLL=1',
-                'WINAPI_FAMILY=WINAPI_FAMILY_APP',
-                '_WIN32_WINNT=0x0A00'
-              ],
               'sources': [
                 'tools/win/patch/stubs.cc',
               ],
               'include_dirs': [ 'deps/logger/include' ],
               'dependencies': [ 'deps/logger/logger.gyp:logger' ],
               'libraries': [ '-lchakrart' ],
-              'msvs_enable_winrt': 1,
-              'msvs_application_type_revision': '10.0',
-              'msvs_windows_target_platform_version':'v10.0',
-              'configurations': {
-                'Release': {
-                  'msvs_settings': {
-                    'VCCLCompilerTool': {
-                      'RuntimeLibrary': '2',
-                   }
-                  },
-                },
-                'Debug': {
-                  'msvs_settings': {
-                    'VCCLCompilerTool': {
-                      'RuntimeLibrary': '3',
-                    }
-                  },
-                }
-              },
               'msvs_disabled_warnings': [4146],
             }],
           ],
