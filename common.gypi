@@ -77,11 +77,7 @@
         'defines': [
           'NODE_ENGINE_CHAKRA',
         ],
-        'conditions': [
-          ['node_engine=="chakra" or target_arch=="arm"', {
-            'msvs_windows_sdk_version': '<(msvs_windows_sdk_version)',
-          }],
-        ],
+        'msvs_windows_sdk_version': '<(msvs_windows_sdk_version)',
       },
       'variables': {
         'node_engine_include_dir%': 'deps/chakrashim/include',
