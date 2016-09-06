@@ -288,18 +288,17 @@ def _ConfigFullName(config_name, config_data):
 
 
 def _ConfigWindowsTargetPlatformVersion(config_data):
-  ver = config_data.get('msvs_windows_target_platform_version')
-  if not ver or re.match('^\d+', ver):
-    return ver
+  ver = config_data.get('msvs_windows_sdk_version')
+
   for key in [r'HKLM\Software\Microsoft\Microsoft SDKs\Windows\%s',
               r'HKLM\Software\Wow6432Node\Microsoft\Microsoft SDKs\Windows\%s']:
-    sdkdir = MSVSVersion._RegistryGetValue(key % ver, 'InstallationFolder')
-    if not sdkdir:
+    sdk_dir = MSVSVersion._RegistryGetValue(key % ver, 'InstallationFolder')
+    if not sdk_dir:
       continue
     version = MSVSVersion._RegistryGetValue(key % ver, 'ProductVersion') or ''
-    # find a matching entry in sdkdir\include
-    names = sorted([x for x in os.listdir(r'%s\include' % sdkdir) \
-                    if x.startswith(version)], reverse = True)
+    # Find a matching entry in sdk_dir\include.
+    names = sorted([x for x in os.listdir(r'%s\include' % sdk_dir)
+                    if x.startswith(version)], reverse=True)
     return names[0]
 
 
@@ -2681,20 +2680,19 @@ def _GetMSBuildGlobalProperties(spec, guid, gyp_file_name):
       properties[0].append(['ApplicationType', 'Windows Store'])
 
   platform_name = None
-  msvs_windows_target_platform_version = None
+  msvs_windows_sdk_version = None
   for configuration in spec['configurations'].itervalues():
     platform_name = platform_name or _ConfigPlatform(configuration)
-    msvs_windows_target_platform_version = \
-                    msvs_windows_target_platform_version or \
-                    _ConfigWindowsTargetPlatformVersion(configuration)
-    if platform_name and msvs_windows_target_platform_version:
+    msvs_windows_sdk_version = (msvs_windows_sdk_version or
+                    _ConfigWindowsTargetPlatformVersion(configuration))
+    if platform_name and msvs_windows_sdk_version:
       break
 
   if platform_name == 'ARM':
     properties[0].append(['WindowsSDKDesktopARMSupport', 'true'])
-  if msvs_windows_target_platform_version:
-    properties[0].append(['WindowsTargetPlatformVersion', \
-                          str(msvs_windows_target_platform_version)])
+  if msvs_windows_sdk_version:
+    properties[0].append(['WindowsTargetPlatformVersion',
+                          str(msvs_windows_sdk_version)])
 
   return properties
 

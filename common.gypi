@@ -11,7 +11,7 @@
     'msvs_multi_core_compile': '0',   # we do enable multicore compiles, but not using the V8 way
     'python%': 'python',
     'node_engine%': 'v8',
-    'msvs_windows_target_platform_version': 'v10.0', # used for node_engine=chakra
+    'msvs_windows_sdk_version': 'v10.0', # used for node_engine=chakra
     
     'node_shared%': 'false',
     'force_dynamic_crt%': 0,
@@ -77,11 +77,7 @@
         'defines': [
           'NODE_ENGINE_CHAKRA',
         ],
-        'conditions': [
-          ['node_engine=="chakra" or target_arch=="arm"', {
-            'msvs_windows_target_platform_version': '<(msvs_windows_target_platform_version)',
-          }],
-        ],
+        'msvs_windows_sdk_version': '<(msvs_windows_sdk_version)',
       },
       'variables': {
         'node_engine_include_dir%': 'deps/chakrashim/include',
@@ -308,9 +304,6 @@
               'WINAPI_FAMILY=WINAPI_FAMILY_APP',
               '_WIN32_WINNT=0x0A00'
             ],
-            'msvs_enable_winrt': 1,
-            'msvs_application_type_revision': '10.0',
-            'msvs_windows_target_platform_version':'v10.0',
             'libraries': [
               '-lonecore.lib',
             ],
@@ -337,9 +330,6 @@
                   'advapi32.lib',
                 ],
               },
-              'VCCLCompilerTool': {
-                'CompileAsWinRT': 'false',
-              }
             },
           }],
         ],
