@@ -246,7 +246,7 @@ function error_test() {
       expect: prompt_multiline,
       chakra: 'skip' },
     { client: client_unix, send: ')',
-      expect: 'undefined\r\n' + prompt_unix,
+      expect: 'undefined\n' + prompt_unix,
       chakra: 'skip' },
     // npm prompt error message
     { client: client_unix, send: 'npm install foobar',

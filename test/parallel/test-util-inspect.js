@@ -16,23 +16,24 @@ assert.strictEqual(util.inspect(new Date('Sun, 14 Feb 2010 11:48:40 GMT')),
   new Date('2010-02-14T12:48:40+01:00').toISOString());
 assert.strictEqual(util.inspect(new Date('')), (new Date('')).toString());
 
-assert.equal(util.inspect('\r\n\u0001'), "'\\r\\n\\u0001'");
+assert.strictEqual(util.inspect('\n\u0001'), "'\\n\\u0001'");
 
-assert.equal(util.inspect([]), '[]');
-assert.equal(util.inspect(Object.create([])), 'Array {}');
-assert.equal(util.inspect([1, 2]), '[ 1, 2 ]');
-assert.equal(util.inspect([1, [2, 3]]), '[ 1, [ 2, 3 ] ]');
+assert.strictEqual(util.inspect([]), '[]');
+assert.strictEqual(util.inspect(Object.create([])), 'Array {}');
+assert.strictEqual(util.inspect([1, 2]), '[ 1, 2 ]');
+assert.strictEqual(util.inspect([1, [2, 3]]), '[ 1, [ 2, 3 ] ]');
 
-assert.equal(util.inspect({}), '{}');
-assert.equal(util.inspect({a: 1}), '{ a: 1 }');
-assert.equal(util.inspect({a: function() {}}), common.engineSpecificMessage({
-  v8: '{ a: [Function: a] }',
-  chakra: '{ a: [Function: a] }'
-}));
-assert.equal(util.inspect({a: 1, b: 2}), '{ a: 1, b: 2 }');
-assert.equal(util.inspect({'a': {}}), '{ a: {} }');
-assert.equal(util.inspect({'a': {'b': 2}}), '{ a: { b: 2 } }');
-assert.equal(util.inspect({'a': {'b': { 'c': { 'd': 2 }}}}),
+assert.strictEqual(util.inspect({}), '{}');
+assert.strictEqual(util.inspect({a: 1}), '{ a: 1 }');
+assert.strictEqual(util.inspect({a: function() {}}),
+ common.engineSpecificMessage({
+   v8: '{ a: [Function: a] }',
+   chakra: '{ a: [Function: a] }'
+ }));
+assert.strictEqual(util.inspect({a: 1, b: 2}), '{ a: 1, b: 2 }');
+assert.strictEqual(util.inspect({'a': {}}), '{ a: {} }');
+assert.strictEqual(util.inspect({'a': {'b': 2}}), '{ a: { b: 2 } }');
+assert.strictEqual(util.inspect({'a': {'b': { 'c': { 'd': 2 }}}}),
   '{ a: { b: { c: [Object] } } }');
 assert.strictEqual(util.inspect({'a': {'b': { 'c': { 'd': 2 }}}}, false, null),
   '{ a: { b: { c: { d: 2 } } } }');
@@ -692,15 +693,17 @@ assert.strictEqual(
 }
 
 // test Promise
-assert.equal(util.inspect(Promise.resolve(3)), common.engineSpecificMessage({
-  v8: 'Promise { 3 }',
-  chakra: 'Promise {}'
-}));
-assert.equal(util.inspect(Promise.reject(3)), common.engineSpecificMessage({
-  v8: 'Promise { <rejected> 3 }',
-  chakra: 'Promise {}'
-}));
-assert.equal(util.inspect(new Promise(function() {})),
+assert.strictEqual(util.inspect(Promise.resolve(3)),
+ common.engineSpecificMessage({
+   v8: 'Promise { 3 }',
+   chakra: 'Promise {}'
+ }));
+assert.strictEqual(util.inspect(Promise.reject(3)),
+ common.engineSpecificMessage({
+   v8: 'Promise { <rejected> 3 }',
+   chakra: 'Promise {}'
+ }));
+assert.strictEqual(util.inspect(new Promise(function() {})),
   common.engineSpecificMessage({
     v8: 'Promise { <pending> }',
     chakra: 'Promise {}'
@@ -719,7 +722,7 @@ var oldPromise = Promise;
 global.Promise = function() { this.bar = 42; };
 assert.strictEqual(util.inspect(new Promise()), common.engineSpecificMessage({
   v8: '{ bar: 42 }',
-  chakra: 'Promise { \'<unknown>\', bar: 42 }'
+  chakra: 'Object { \'<unknown>\', bar: 42 }'
 }));
 global.Promise = oldPromise;
 
