@@ -323,6 +323,7 @@
                 },
               }
             },
+            'msvs_enable_winrt': 1,
             'msvs_settings': {
               'VCLinkerTool': {
                 'IgnoreDefaultLibraryNames' : [
@@ -330,6 +331,9 @@
                   'advapi32.lib',
                 ],
               },
+              'VCCLCompilerTool': {		
+                'CompileAsWinRT': 'false',		
+              }
             },
           }],
         ],
