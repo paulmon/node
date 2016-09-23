@@ -183,7 +183,7 @@
           ],
         }],
         ['node_uwp_dll=="true"', {
-		  'sources': [ 'src/win/uwp.cpp' ],
+          'sources': [ 'src/win/uwp.cpp' ],
           'msvs_settings': {
             'VCCLCompilerTool': {		
               'CompileAsWinRT': 'false',		
