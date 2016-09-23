@@ -21,6 +21,13 @@
             'BUILDING_CHAKRASHIM=1',  # other deps don't import chakrashim exports
           ],
         }],
+        [ 'node_uwp_dll=="true"', {
+          'msvs_settings': {
+            'VCCLCompilerTool': {		
+              'CompileAsWinRT': 'false',		
+            }
+          },
+        }],
       ],
     },
   ]

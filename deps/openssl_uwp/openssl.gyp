@@ -169,6 +169,11 @@
           'destination': 'openssl/include/openssl',
           'files': ['<@(openssl_headers)'],
         },],
+        'msvs_settings': {
+          'VCCLCompilerTool': {		
+            'CompileAsWinRT': 'false',		
+          }
+        },
       }],
       ['is_clang==1 or gcc_version>=43', {
         'cflags': ['-Wno-old-style-declaration'],

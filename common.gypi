@@ -331,9 +331,6 @@
                   'advapi32.lib',
                 ],
               },
-              'VCCLCompilerTool': {		
-                'CompileAsWinRT': 'false',		
-              }
             },
           }],
         ],

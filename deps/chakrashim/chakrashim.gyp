@@ -45,6 +45,11 @@
           'libraries': [
             '<@(node_engine_libs)',
           ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {		
+              'CompileAsWinRT': 'false',		
+            }
+          },
         }],
       ],
       'msvs_use_library_dependency_inputs': 1,
@@ -71,6 +76,11 @@
             'libraries': [
               '<@(node_engine_libs)',
             ],
+            'msvs_settings': {
+              'VCCLCompilerTool': {		
+                'CompileAsWinRT': 'false',		
+              }
+            },
           }],
         ],
       },

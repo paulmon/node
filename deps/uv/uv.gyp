@@ -184,6 +184,11 @@
         }],
         ['node_uwp_dll=="true"', {
 		  'sources': [ 'src/win/uwp.cpp' ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {		
+              'CompileAsWinRT': 'false',		
+            }
+          },
         }],
         [ 'OS in "linux mac ios android"', {
           'sources': [ 'src/unix/proctitle.c' ],
