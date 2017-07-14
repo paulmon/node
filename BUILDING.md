@@ -33,9 +33,13 @@ Support is divided into three tiers:
 
 ### Supported platforms
 
+The community does not build or test against end of life distributions (EoL).
+Thus we do not recommend that you use Node on end of life or unsupported platforms
+in production.
+
 |  System      | Support type | Version                          | Architectures        | Notes            |
 |--------------|--------------|----------------------------------|----------------------|------------------|
-| GNU/Linux    | Tier 1       | kernel >= 2.6.18, glibc >= 2.5   | x86, x64, arm, arm64 |                  |
+| GNU/Linux    | Tier 1       | kernel >= 2.6.32, glibc >= 2.12  | x86, x64, arm, arm64 |                  |
 | macOS        | Tier 1       | >= 10.10                         | x64                  |                  |
 | Windows      | Tier 1       | >= Windows 7 / 2008 R2           | x86, x64             | vs2015 or vs2017 |
 | SmartOS      | Tier 2       | >= 15 < 16.4                     | x86, x64             | see note1        |
@@ -61,7 +65,7 @@ Depending on host platform, the selection of toolchains may vary.
 
 #### Unix
 
-* GCC 4.8.5 or newer
+* GCC 4.9.4 or newer
 * Clang 3.4.2 or newer
 
 #### Windows
@@ -76,8 +80,8 @@ Depending on host platform, the selection of toolchains may vary.
 
 Prerequisites:
 
-* `gcc` and `g++` 4.8.5 or newer, or
-* `clang` and `clang++` 3.4.2 or newer
+* `gcc` and `g++` 4.9.4 or newer, or
+* `clang` and `clang++` 3.4.2 or newer (macOS: latest Xcode Command Line Tools)
 * Python 2.6 or 2.7
 * GNU Make 3.81 or newer
 

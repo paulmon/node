@@ -1,7 +1,7 @@
 'use strict';
 const common = require('../common');
 if (process.config.variables.node_without_node_options)
-  return common.skip('missing NODE_OPTIONS support');
+  common.skip('missing NODE_OPTIONS support');
 
 // Test options specified by env variable.
 
@@ -26,6 +26,7 @@ disallow('--interactive');
 disallow('-i');
 disallow('--v8-options');
 disallow('--');
+disallow('--no_warnings'); // Node options don't allow '_' instead of '-'.
 
 function disallow(opt) {
   const options = {env: {NODE_OPTIONS: opt}};
@@ -39,6 +40,7 @@ function disallow(opt) {
 }
 
 const printA = require.resolve('../fixtures/printA.js');
+
 
 expect(`-r ${printA}`, 'A\nB\n');
 expect('--no-deprecation', 'B\n');
@@ -58,9 +60,13 @@ if (common.hasCrypto) {
   expect('--openssl-config=_ossl_cfg', 'B\n');
 }
 if (!common.isChakraEngine) {
-
   // V8 options
+  expect('--abort-on-uncaught-exception', 'B\n');
+  expect('--abort_on_uncaught_exception', 'B\n');
+  expect('--abort_on-uncaught_exception', 'B\n');
   expect('--max_old_space_size=0', 'B\n');
+  expect('--max-old_space-size=0', 'B\n');
+  expect('--max-old-space-size=0', 'B\n');
 }
 
 function expect(opt, want) {
@@ -74,8 +80,8 @@ function expect(opt, want) {
     assert.ifError(err);
     if (!RegExp(want).test(stdout)) {
       console.error('For %j, failed to find %j in: <\n%s\n>',
-                    opt, expect, stdout);
-      assert(false, `Expected ${expect}`);
+                    opt, want, stdout);
+      assert.fail(`Expected ${want}`);
     }
   }));
 }

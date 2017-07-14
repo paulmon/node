@@ -103,6 +103,8 @@ const hook3 = initHooks({ onbefore: onhook3Before, onafter: onhook3After });
 // Enabling hook1 and hook3 only, hook2 is still disabled
 //
 hook1.enable();
+// Verify that the hook is enabled even if .enable() is called twice.
+hook1.enable();
 hook3.enable();
 
 //
@@ -121,6 +123,8 @@ function onhook3Before() {
 let disabledHook3 = false;
 function onhook2Before() {
   if (disabledHook3) return;
+  hook1.disable();
+  // Verify that the hook is disabled even if .disable() is called twice.
   hook1.disable();
   disabledHook3 = true;
 }
@@ -155,7 +159,7 @@ function onfirstImmediate() {
   assert.strictEqual(as3[0].uid, as1[0].uid);
   assert.strictEqual(firstImmediate.type, 'Immediate');
   assert.strictEqual(typeof firstImmediate.uid, 'number');
-  assert.strictEqual(typeof firstImmediate.triggerId, 'number');
+  assert.strictEqual(typeof firstImmediate.triggerAsyncId, 'number');
   checkInvocations(as1[0], { init: 1, before: 1 },
                    'hook1[0]: on first immediate');
   checkInvocations(as3[0], { init: 1, before: 1 },
@@ -203,7 +207,7 @@ function onsecondImmediate() {
   assert.strictEqual(hook1Second.uid, hook3Second.uid);
   assert.strictEqual(secondImmediate.type, 'Immediate');
   assert.strictEqual(typeof secondImmediate.uid, 'number');
-  assert.strictEqual(typeof secondImmediate.triggerId, 'number');
+  assert.strictEqual(typeof secondImmediate.triggerAsyncId, 'number');
 
   checkInvocations(hook1First, { init: 1, before: 1, after: 1, destroy: 1 },
                    'hook1First: on second immediate');

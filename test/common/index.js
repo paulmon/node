@@ -27,7 +27,6 @@ const assert = require('assert');
 const os = require('os');
 const child_process = require('child_process');
 const stream = require('stream');
-const buffer = require('buffer');
 const util = require('util');
 const Timer = process.binding('timer_wrap').Timer;
 const execSync = require('child_process').execSync;
@@ -37,7 +36,6 @@ const testRoot = process.env.NODE_TEST_DIR ?
 
 const noop = () => {};
 
-exports.noop = noop;
 exports.fixturesDir = path.join(__dirname, '..', 'fixtures');
 exports.tmpDirName = 'tmp';
 // PORT should match the definition in test/testpy/__init__.py.
@@ -56,8 +54,6 @@ exports.isLinux = process.platform === 'linux';
 exports.isOSX = process.platform === 'darwin';
 
 exports.enoughTestMem = os.totalmem() > 0x40000000; /* 1 Gb */
-exports.bufferMaxSizeMsg = new RegExp(
-  `^RangeError: "size" argument must not be larger than ${buffer.kMaxLength}$`);
 const cpus = os.cpus();
 exports.enoughTestCpu = Array.isArray(cpus) &&
                         (cpus.length > 1 || cpus[0].speed > 999);
@@ -268,8 +264,9 @@ if (exports.isWindows) {
 }
 
 const ifaces = os.networkInterfaces();
+const re = /lo/;
 exports.hasIPv6 = Object.keys(ifaces).some(function(name) {
-  return /lo/.test(name) && ifaces[name].some(function(info) {
+  return re.test(name) && ifaces[name].some(function(info) {
     return info.family === 'IPv6';
   });
 });
@@ -428,13 +425,14 @@ exports.allowGlobals = allowGlobals;
 function leakedGlobals() {
   const leaked = [];
 
-  // eslint-disable-next-line no-var
-  for (var val in global)
-    if (!knownGlobals.includes(global[val]))
+  for (const val in global) {
+    if (!knownGlobals.includes(global[val])) {
       leaked.push(val);
+    }
+  }
 
   if (global.__coverage__) {
-    return leaked.filter((varname) => !/^(cov_|__cov)/.test(varname));
+    return leaked.filter((varname) => !/^(?:cov_|__cov)/.test(varname));
   } else {
     return leaked;
   }
@@ -488,7 +486,7 @@ exports.mustCallAtLeast = function(fn, minimum) {
   return _mustCallInner(fn, minimum, 'minimum');
 };
 
-function _mustCallInner(fn, criteria, field) {
+function _mustCallInner(fn, criteria = 1, field) {
   if (typeof fn === 'number') {
     criteria = fn;
     fn = noop;
@@ -496,9 +494,7 @@ function _mustCallInner(fn, criteria, field) {
     fn = noop;
   }
 
-  if (criteria === undefined)
-    criteria = 1;
-  else if (typeof criteria !== 'number')
+  if (typeof criteria !== 'number')
     throw new TypeError(`Invalid ${field} value: ${criteria}`);
 
   const context = {
@@ -570,8 +566,13 @@ exports.mustNotCall = function(msg) {
   };
 };
 
-exports.skip = function(msg) {
+exports.printSkipMessage = function(msg) {
   console.log(`1..0 # Skipped: ${msg}`);
+};
+
+exports.skip = function(msg) {
+  exports.printSkipMessage(msg);
+  process.exit(0);
 };
 
 // A stream to push an array into a REPL
@@ -695,13 +696,26 @@ Object.defineProperty(exports, 'hasIntl', {
   }
 });
 
+Object.defineProperty(exports, 'hasSmallICU', {
+  get: function() {
+    return process.binding('config').hasSmallICU;
+  }
+});
+
 // Useful for testing expected internal/error objects
-exports.expectsError = function expectsError({code, type, message}) {
-  return function(error) {
+exports.expectsError = function expectsError(fn, options, exact) {
+  if (typeof fn !== 'function') {
+    exact = options;
+    options = fn;
+    fn = undefined;
+  }
+  const { code, type, message } = options;
+  const innerFn = exports.mustCall(function(error) {
     assert.strictEqual(error.code, code);
-    if (type !== undefined)
+    if (type !== undefined) {
       assert(error instanceof type,
              `${error} is not the expected type ${type}`);
+    }
     if (message instanceof RegExp) {
       assert(message.test(error.message),
              `${error.message} does not match ${message}`);
@@ -709,13 +723,17 @@ exports.expectsError = function expectsError({code, type, message}) {
       assert.strictEqual(error.message, message);
     }
     return true;
-  };
+  }, exact);
+  if (fn) {
+    assert.throws(fn, innerFn);
+    return;
+  }
+  return innerFn;
 };
 
 exports.skipIfInspectorDisabled = function skipIfInspectorDisabled() {
   if (process.config.variables.v8_enable_inspector === 0) {
     exports.skip('V8 inspector is disabled');
-    process.exit(0);
   }
 };
 
@@ -757,11 +775,37 @@ exports.getTTYfd = function getTTYfd() {
   if (!tty.isatty(tty_fd)) tty_fd++;
   else if (!tty.isatty(tty_fd)) tty_fd++;
   else if (!tty.isatty(tty_fd)) tty_fd++;
-  else try {
-    tty_fd = require('fs').openSync('/dev/tty');
-  } catch (e) {
-    // There aren't any tty fd's available to use.
-    return -1;
+  else {
+    try {
+      tty_fd = require('fs').openSync('/dev/tty');
+    } catch (e) {
+      // There aren't any tty fd's available to use.
+      return -1;
+    }
   }
   return tty_fd;
 };
+
+// Hijack stdout and stderr
+const stdWrite = {};
+function hijackStdWritable(name, listener) {
+  const stream = process[name];
+  const _write = stdWrite[name] = stream.write;
+
+  stream.writeTimes = 0;
+  stream.write = function(data, callback) {
+    listener(data);
+    _write.call(stream, data, callback);
+    stream.writeTimes++;
+  };
+}
+
+function restoreWritable(name) {
+  process[name].write = stdWrite[name];
+  delete process[name].writeTimes;
+}
+
+exports.hijackStdout = hijackStdWritable.bind(null, 'stdout');
+exports.hijackStderr = hijackStdWritable.bind(null, 'stderr');
+exports.restoreStdout = restoreWritable.bind(null, 'stdout');
+exports.restoreStderr = restoreWritable.bind(null, 'stderr');

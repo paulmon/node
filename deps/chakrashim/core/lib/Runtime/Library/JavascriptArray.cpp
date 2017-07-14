@@ -1589,6 +1589,9 @@ namespace Js
 
         // Grow the segments
 
+        // Code below has potential to throw due to OOM or SO. Just FailFast on those cases
+        AutoFailFastOnError failFastError;
+
         ScriptContext *scriptContext = intArray->GetScriptContext();
         Recycler *recycler = scriptContext->GetRecycler();
         SparseArraySegmentBase *seg, *nextSeg, *prevSeg = nullptr;
@@ -1697,6 +1700,7 @@ namespace Js
             VirtualTableInfo<JavascriptNativeFloatArray>::SetVirtualTable(intArray);
         }
 
+        failFastError.Completed();
         return (JavascriptNativeFloatArray*)intArray;
     }
 
@@ -1864,6 +1868,10 @@ namespace Js
         ScriptContext *scriptContext = intArray->GetScriptContext();
         Recycler *recycler = scriptContext->GetRecycler();
         SparseArraySegmentBase *seg, *nextSeg, *prevSeg = nullptr;
+
+        // Code below has potential to throw due to OOM or SO. Just FailFast on those cases
+        AutoFailFastOnError failFastError;
+
         for (seg = intArray->head; seg; seg = nextSeg)
         {
             nextSeg = seg->next;
@@ -1974,6 +1982,7 @@ namespace Js
             VirtualTableInfo<JavascriptArray>::SetVirtualTable(intArray);
         }
 
+        failFastError.Completed();
         return intArray;
     }
     JavascriptArray *JavascriptNativeIntArray::ToVarArray(JavascriptNativeIntArray *intArray)
@@ -2049,6 +2058,10 @@ namespace Js
         ScriptContext *scriptContext = fArray->GetScriptContext();
         Recycler *recycler = scriptContext->GetRecycler();
         SparseArraySegmentBase *seg, *nextSeg, *prevSeg = nullptr;
+
+        // Code below has potential to throw due to OOM or SO. Just FailFast on those cases
+        AutoFailFastOnError failFastError;
+
         for (seg = fArray->head; seg; seg = nextSeg)
         {
             nextSeg = seg->next;
@@ -2169,6 +2182,8 @@ namespace Js
             Assert(VirtualTableInfo<JavascriptNativeFloatArray>::HasVirtualTable(fArray));
             VirtualTableInfo<JavascriptArray>::SetVirtualTable(fArray);
         }
+
+        failFastError.Completed();
 
         return fArray;
     }
@@ -5253,16 +5268,30 @@ Case0:
 
         if (hasInlineSegment)
         {
-            SparseArraySegmentBase* headSegBase = array->head;
-            SparseArraySegment<T>* headSeg = (SparseArraySegment<T>*)headSegBase;
-
-            AnalysisAssert(headSeg);
-            SparseArraySegment<T>* newHeadSeg = SparseArraySegment<T>::template AllocateSegmentImpl<false>(recycler,
-                headSeg->left, headSeg->length, headSeg->size, headSeg->next);
-
-            newHeadSeg = SparseArraySegment<T>::CopySegment(recycler, newHeadSeg, headSeg->left, headSeg, headSeg->left, headSeg->length);
-            newHeadSeg->next = headSeg->next;
+            AnalysisAssert(array->head);
+            SparseArraySegment<T>* newHeadSeg = array->ReallocNonLeafSegment((SparseArraySegment<T>*)PointerValue(array->head), array->head->next);
             array->head = newHeadSeg;
+        }
+    }
+
+    template <typename T>
+    void JavascriptArray::ReallocateNonLeafLastSegmentIfLeaf(JavascriptArray * arr, Recycler * recycler)
+    {
+        Assert(arr->head && arr->head->next); // Doesn't make sense to reallocate a leaf last segment as a non-leaf if its not going to point to any other segments.
+
+        // TODO: Consider utilizing lastUsedSegment once we fix CopyHeadIfInlinedHeadSegment in that respect.
+        SparseArraySegmentBase *lastSeg = nullptr;
+        SparseArraySegmentBase *seg = arr->head;
+        while (seg)
+        {
+            lastSeg = seg;
+            seg = seg->next;
+        }
+
+        if (SparseArraySegmentBase::IsLeafSegment(lastSeg, recycler))
+        {
+            AnalysisAssert(lastSeg);
+            arr->ReallocNonLeafSegment((SparseArraySegment<T>*)lastSeg, lastSeg->next, true /*forceNonLeaf*/);
         }
     }
 
@@ -5369,6 +5398,8 @@ Case0:
             bool isIntArray = false;
             bool isFloatArray = false;
 
+            pArr->ClearSegmentMap(); // Just dump the segment map on reverse
+
             if (JavascriptNativeIntArray::Is(pArr))
             {
                 isIntArray = true;
@@ -5386,10 +5417,12 @@ Case0:
                 if (isIntArray)
                 {
                     CopyHeadIfInlinedHeadSegment<int32>(pArr, recycler);
+                    ReallocateNonLeafLastSegmentIfLeaf<int32>(pArr, recycler);
                 }
                 else if (isFloatArray)
                 {
                     CopyHeadIfInlinedHeadSegment<double>(pArr, recycler);
+                    ReallocateNonLeafLastSegmentIfLeaf<double>(pArr, recycler);
                 }
                 else
                 {
@@ -5437,32 +5470,20 @@ Case0:
             }
 
             pArr->head = prevSeg;
-
-            // Just dump the segment map on reverse
-            pArr->ClearSegmentMap();
+            pArr->InvalidateLastUsedSegment(); // lastUsedSegment might be 0-length and discarded above
 
             if (isIntArray)
             {
-                if (pArr->head && pArr->head->next && SparseArraySegmentBase::IsLeafSegment(pArr->head, recycler))
-                {
-                    pArr->ReallocNonLeafSegment(SparseArraySegment<int32>::From(pArr->head), pArr->head->next);
-                }
                 pArr->EnsureHeadStartsFromZero<int32>(recycler);
             }
             else if (isFloatArray)
             {
-                if (pArr->head && pArr->head->next && SparseArraySegmentBase::IsLeafSegment(pArr->head, recycler))
-                {
-                    pArr->ReallocNonLeafSegment(SparseArraySegment<double>::From(pArr->head), pArr->head->next);
-                }
                 pArr->EnsureHeadStartsFromZero<double>(recycler);
             }
             else
             {
                 pArr->EnsureHeadStartsFromZero<Var>(recycler);
             }
-
-            pArr->InvalidateLastUsedSegment(); // lastUsedSegment might be 0-length and discarded above
 
 #ifdef VALIDATE_ARRAY
             pArr->ValidateArray();
@@ -7271,6 +7292,8 @@ Case0:
         // If return object is a JavascriptArray, we can use all the array splice helpers
         if (newArr && isBuiltinArrayCtor && len == pArr->length)
         {
+            // Code below has potential to throw due to OOM or SO. Just FailFast on those cases
+            AutoFailFastOnError failFastOnError;
 
             // Array has a single segment (need not start at 0) and splice start lies in the range
             // of that segment we optimize splice - Fast path.
@@ -7356,6 +7379,8 @@ Case0:
             {
                 newArr->length = deleteLen;
             }
+
+            failFastOnError.Completed();
 
             newArr->InvalidateLastUsedSegment();
 
@@ -7670,7 +7695,6 @@ Case0:
                 pArr->ClearSegmentMap(); // Dump segmentMap on unshift (before any possible allocation and throw)
 
                 Assert(pArr->length <= MaxArrayLength - unshiftElements);
-
                 bool isIntArray = false;
                 bool isFloatArray = false;
 
@@ -7701,19 +7725,6 @@ Case0:
                     }
                 }
 
-                if (isIntArray)
-                {
-                    UnshiftHelper<int32>(pArr, unshiftElements, args.Values);
-                }
-                else if (isFloatArray)
-                {
-                    UnshiftHelper<double>(pArr, unshiftElements, args.Values);
-                }
-                else
-                {
-                    UnshiftHelper<Var>(pArr, unshiftElements, args.Values);
-                }
-
                 SparseArraySegmentBase* renumberSeg = pArr->head->next;
 
                 while (renumberSeg)
@@ -7725,6 +7736,26 @@ Case0:
                         renumberSeg->EnsureSizeInBound();
                     }
                     renumberSeg = renumberSeg->next;
+                }
+
+                try
+                {
+                    if (isIntArray)
+                    {
+                        UnshiftHelper<int32>(pArr, unshiftElements, args.Values);
+                    }
+                    else if (isFloatArray)
+                    {
+                        UnshiftHelper<double>(pArr, unshiftElements, args.Values);
+                    }
+                    else
+                    {
+                        UnshiftHelper<Var>(pArr, unshiftElements, args.Values);
+                    }
+                }
+                catch (...)
+                {
+                    Js::Throw::FatalInternalError();
                 }
 
                 pArr->InvalidateLastUsedSegment();
@@ -12613,6 +12644,14 @@ Case0:
         AssertMsg(Is(aValue), "Ensure var is actually a 'JavascriptNativeFloatArray'");
 
         return static_cast<JavascriptNativeFloatArray *>(RecyclableObject::FromVar(aValue));
+    }
+
+    AutoFailFastOnError::~AutoFailFastOnError()
+    {
+        if (!m_operationCompleted)
+        {
+            AssertOrFailFast(false);
+        }
     }
 
     template int   Js::JavascriptArray::GetParamForIndexOf<unsigned int>(unsigned int, Js::Arguments const&, void*&, unsigned int&, Js::ScriptContext*);

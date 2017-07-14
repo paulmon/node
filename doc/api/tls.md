@@ -391,7 +391,10 @@ when the server has no more open connections.
 ### server.connections
 <!-- YAML
 added: v0.3.2
+deprecated: v0.9.7
 -->
+
+> Stability: 0 - Deprecated: Use [`server.getConnections()`][] instead.
 
 Returns the current number of concurrent connections on the server.
 
@@ -585,7 +588,7 @@ if called on a server socket. The supported types are `'DH'` and `'ECDH'`. The
 
 For Example: `{ type: 'ECDH', name: 'prime256v1', size: 256 }`
 
-### tlsSocket.getPeerCertificate([ detailed ])
+### tlsSocket.getPeerCertificate([detailed])
 <!-- YAML
 added: v0.11.4
 -->
@@ -782,7 +785,7 @@ changes:
     verification fails; `err.code` contains the OpenSSL error code. Defaults to
     `true`.
   * `NPNProtocols` {string[]|Buffer[]|Uint8Array[]|Buffer|Uint8Array}
-    An array of strings, Buffer`s or `Uint8Array`s, or a single `Buffer` or
+    An array of strings, `Buffer`s or `Uint8Array`s, or a single `Buffer` or
     `Uint8Array` containing supported NPN protocols. `Buffer`s should have the
     format `[len][name][len][name]...` e.g. `0x05hello0x05world`, where the
     first byte is the length of the next protocol name. Passing an array is
@@ -1025,8 +1028,8 @@ changes:
 * `options` {Object}
   * `handshakeTimeout` {number} Abort the connection if the SSL/TLS handshake
     does not finish in the specified number of milliseconds. Defaults to `120`
-    seconds. A `'clientError'` is emitted on the `tls.Server` object whenever a
-    handshake times out.
+    seconds. A `'tlsClientError'` is emitted on the `tls.Server` object whenever
+    a handshake times out.
   * `requestCert` {boolean} If `true` the server will request a certificate from
     clients that connect and attempt to verify that certificate. Defaults to
     `false`.
@@ -1034,7 +1037,7 @@ changes:
     connection which is not authorized with the list of supplied CAs. This
     option only has an effect if `requestCert` is `true`. Defaults to `true`.
   * `NPNProtocols` {string[]|Buffer[]|Uint8Array[]|Buffer|Uint8Array}
-    An array of strings, Buffer`s or `Uint8Array`s, or a single `Buffer` or
+    An array of strings, `Buffer`s or `Uint8Array`s, or a single `Buffer` or
     `Uint8Array` containing supported NPN protocols. `Buffer`s should have the
     format `[len][name][len][name]...` e.g. `0x05hello0x05world`, where the
     first byte is the length of the next protocol name. Passing an array is
@@ -1272,6 +1275,7 @@ where `secure_socket` has the same API as `pair.cleartext`.
 [`net.Server.address()`]: net.html#net_server_address
 [`net.Server`]: net.html#net_class_net_server
 [`net.Socket`]: net.html#net_class_net_socket
+[`server.getConnections()`]: net.html#net_server_getconnections_callback
 [`tls.DEFAULT_ECDH_CURVE`]: #tls_tls_default_ecdh_curve
 [`tls.TLSSocket.getPeerCertificate()`]: #tls_tlssocket_getpeercertificate_detailed
 [`tls.TLSSocket`]: #tls_class_tls_tlssocket

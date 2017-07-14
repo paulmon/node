@@ -768,7 +768,6 @@ void SecureContext::AddCACert(const FunctionCallbackInfo<Value>& args) {
   SecureContext* sc;
   ASSIGN_OR_RETURN_UNWRAP(&sc, args.Holder());
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   if (args.Length() != 1) {
     return env->ThrowTypeError("CA certificate argument is mandatory");
@@ -806,7 +805,6 @@ void SecureContext::AddCRL(const FunctionCallbackInfo<Value>& args) {
   }
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   BIO *bio = LoadBIO(env, args[0]);
   if (!bio)
@@ -872,7 +870,6 @@ void SecureContext::AddRootCerts(const FunctionCallbackInfo<Value>& args) {
   SecureContext* sc;
   ASSIGN_OR_RETURN_UNWRAP(&sc, args.Holder());
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   if (!root_cert_store) {
     root_cert_store = NewRootCertStore();
@@ -901,7 +898,6 @@ void SecureContext::SetCiphers(const FunctionCallbackInfo<Value>& args) {
   ASSIGN_OR_RETURN_UNWRAP(&sc, args.Holder());
   Environment* env = sc->env();
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   if (args.Length() != 1) {
     return env->ThrowTypeError("Ciphers argument is mandatory");
@@ -948,7 +944,6 @@ void SecureContext::SetDHParam(const FunctionCallbackInfo<Value>& args) {
   ASSIGN_OR_RETURN_UNWRAP(&sc, args.This());
   Environment* env = sc->env();
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   // Auto DH is not supported in openssl 1.0.1, so dhparam needs
   // to be specified explicitly
@@ -1073,7 +1068,6 @@ void SecureContext::LoadPKCS12(const FunctionCallbackInfo<Value>& args) {
   SecureContext* sc;
   ASSIGN_OR_RETURN_UNWRAP(&sc, args.Holder());
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   if (args.Length() < 1) {
     return env->ThrowTypeError("PFX certificate argument is mandatory");
@@ -1243,7 +1237,7 @@ int SecureContext::TicketKeyCallback(SSL* ssl,
                                         env->ticketkeycallback_string(),
                                         arraysize(argv),
                                         argv,
-                                        0, 0).ToLocalChecked();
+                                        {0, 0}).ToLocalChecked();
   Local<Array> arr = ret.As<Array>();
 
   int r = arr->Get(kTicketKeyReturnIndex)->Int32Value();
@@ -1581,26 +1575,26 @@ static Local<Object> X509ToObject(Environment* env, X509* cert) {
     rsa = EVP_PKEY_get1_RSA(pkey);
 
   if (rsa != nullptr) {
-      BN_print(bio, rsa->n);
-      BIO_get_mem_ptr(bio, &mem);
-      info->Set(env->modulus_string(),
-                String::NewFromUtf8(env->isolate(), mem->data,
-                                    String::kNormalString, mem->length));
-      (void) BIO_reset(bio);
+    BN_print(bio, rsa->n);
+    BIO_get_mem_ptr(bio, &mem);
+    info->Set(env->modulus_string(),
+              String::NewFromUtf8(env->isolate(), mem->data,
+                                  String::kNormalString, mem->length));
+    (void) BIO_reset(bio);
 
-      uint64_t exponent_word = static_cast<uint64_t>(BN_get_word(rsa->e));
-      uint32_t lo = static_cast<uint32_t>(exponent_word);
-      uint32_t hi = static_cast<uint32_t>(exponent_word >> 32);
-      if (hi == 0) {
-          BIO_printf(bio, "0x%x", lo);
-      } else {
-          BIO_printf(bio, "0x%x%08x", hi, lo);
-      }
-      BIO_get_mem_ptr(bio, &mem);
-      info->Set(env->exponent_string(),
-                String::NewFromUtf8(env->isolate(), mem->data,
-                                    String::kNormalString, mem->length));
-      (void) BIO_reset(bio);
+    uint64_t exponent_word = static_cast<uint64_t>(BN_get_word(rsa->e));
+    uint32_t lo = static_cast<uint32_t>(exponent_word);
+    uint32_t hi = static_cast<uint32_t>(exponent_word >> 32);
+    if (hi == 0) {
+      BIO_printf(bio, "0x%x", lo);
+    } else {
+      BIO_printf(bio, "0x%x%08x", hi, lo);
+    }
+    BIO_get_mem_ptr(bio, &mem);
+    info->Set(env->exponent_string(),
+              String::NewFromUtf8(env->isolate(), mem->data,
+                                  String::kNormalString, mem->length));
+    (void) BIO_reset(bio);
   }
 
   if (pkey != nullptr) {
@@ -1697,7 +1691,6 @@ void SSLWrap<Base>::GetPeerCertificate(
   Environment* env = w->ssl_env();
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence unused variable warning.
 
   Local<Object> result;
   Local<Object> info;
@@ -1894,7 +1887,6 @@ void SSLWrap<Base>::Renegotiate(const FunctionCallbackInfo<Value>& args) {
   ASSIGN_OR_RETURN_UNWRAP(&w, args.Holder());
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence unused variable warning.
 
   bool yes = SSL_renegotiate(w->ssl_) == 1;
   args.GetReturnValue().Set(yes);
@@ -2644,7 +2636,6 @@ int Connection::HandleSSLError(const char* func,
                                ZeroStatus zs,
                                SyscallStatus ss) {
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence unused variable warning.
 
   if (rv > 0)
     return rv;
@@ -3323,7 +3314,7 @@ void CipherBase::Initialize(Environment* env, Local<Object> target) {
 
 
 void CipherBase::New(const FunctionCallbackInfo<Value>& args) {
-  CHECK_EQ(args.IsConstructCall(), true);
+  CHECK(args.IsConstructCall());
   CipherKind kind = args[0]->IsTrue() ? kCipher : kDecipher;
   Environment* env = Environment::GetCurrent(args);
   new CipherBase(env, args.This(), kind);
@@ -4259,7 +4250,6 @@ void Sign::SignFinal(const FunctionCallbackInfo<Value>& args) {
   md_value = new unsigned char[md_len];
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   Error err = sign->SignFinal(
       buf,
@@ -4382,7 +4372,6 @@ SignBase::Error Verify::VerifyFinal(const char* key_pem,
     return kSignNotInitialised;
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   EVP_PKEY* pkey = nullptr;
   BIO* bp = nullptr;
@@ -4614,7 +4603,6 @@ void PublicKeyCipher::Cipher(const FunctionCallbackInfo<Value>& args) {
   size_t out_len = 0;
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   bool r = Cipher<operation, EVP_PKEY_cipher_init, EVP_PKEY_cipher>(
       kbuf,
@@ -4922,7 +4910,6 @@ void DiffieHellman::ComputeSecret(const FunctionCallbackInfo<Value>& args) {
   }
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
   BIGNUM* key = nullptr;
 
   if (args.Length() == 0) {
@@ -6165,7 +6152,6 @@ void SetEngine(const FunctionCallbackInfo<Value>& args) {
   unsigned int flags = args[1]->Uint32Value();
 
   ClearErrorOnReturn clear_error_on_return;
-  (void) &clear_error_on_return;  // Silence compiler warning.
 
   const node::Utf8Value engine_id(env->isolate(), args[0]);
   ENGINE* engine = ENGINE_by_id(*engine_id);

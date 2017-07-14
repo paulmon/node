@@ -6,7 +6,7 @@
 static void uv__register_system_resume_callback();
 #endif
 
-void uv__init_detect_system_wakeup() {
+void uv__init_detect_system_wakeup(void) {
   /* Try registering system power event callback. This is the cleanest
    * method, but it will only work on Win8 and above.
    */

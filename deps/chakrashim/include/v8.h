@@ -25,7 +25,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#pragma once
+#ifndef DEPS_CHAKRASHIM_INCLUDE_V8_H_
+#define DEPS_CHAKRASHIM_INCLUDE_V8_H_
 
 // Stops windows.h from including winsock.h (conflicting with winsock2.h).
 #ifndef _WINSOCKAPI_
@@ -327,6 +328,7 @@ class Local {
   friend class TryCatch;
   friend class UnboundScript;
   friend class Value;
+  friend class JSON;
   template <class F> friend class FunctionCallbackInfo;
   template <class F> friend class MaybeLocal;
   template <class F> friend class PersistentBase;
@@ -367,7 +369,7 @@ class MaybeLocal {
  public:
   MaybeLocal() : val_(nullptr) {}
   template <class S>
-  MaybeLocal(Local<S> that)
+  MaybeLocal(Local<S> that)  // NOLINT(runtime/explicit)
     : val_(reinterpret_cast<T*>(*that)) {
     TYPE_CHECK(T, S);
   }
@@ -824,6 +826,7 @@ class ScriptOrigin {
   V8_INLINE Local<Integer> ScriptID() const {
     return script_id_;
   }
+
  private:
   Local<Value> resource_name_;
   Local<Integer> resource_line_offset_;
@@ -889,7 +892,8 @@ class V8_EXPORT ScriptCompiler {
       : source_string(source_string), resource_name(origin.ResourceName()) {
     }
 
-    Source(Local<String> source_string, CachedData * cached_data = NULL)
+    Source(Local<String> source_string,  // NOLINT(runtime/explicit)
+           CachedData * cached_data = NULL)
       : source_string(source_string) {
     }
 
@@ -998,7 +1002,9 @@ class V8_EXPORT StackFrame {
 
 enum class PromiseHookType { kInit, kResolve, kBefore, kAfter };
 
-typedef void(*PromiseHook)(PromiseHookType type, Local<Promise> promise, Local<Value> parent);
+typedef void(*PromiseHook)(PromiseHookType type,
+                           Local<Promise> promise,
+                           Local<Value> parent);
 
 
 class V8_EXPORT Value : public Data {
@@ -1286,7 +1292,7 @@ class V8_EXPORT Symbol : public Name {
  public:
   // Returns the print name string of the symbol, or undefined if none.
   Local<Value> Name() const;
-  static Local<Symbol> New(Isolate* isolate, 
+  static Local<Symbol> New(Isolate* isolate,
       Local<String> name = Local<String>());
   static Symbol* Cast(Value* obj);
 
@@ -1357,8 +1363,9 @@ class V8_EXPORT Object : public Value {
       Local<Context> context, Local<Name> key, Local<Value> value,
       PropertyAttribute attributes = None);
 
-  V8_WARN_UNUSED_RESULT Maybe<bool> DefineProperty(
-      Local<Context> context, Local<Name>, PropertyDescriptor& decriptor);
+  V8_WARN_UNUSED_RESULT Maybe<bool> DefineProperty(Local<Context> context,
+      Local<Name>,
+      PropertyDescriptor& decriptor);  // NOLINT(runtime/references)
 
   V8_DEPRECATE_SOON("Use maybe version",
                     bool ForceSet(Handle<Value> key, Handle<Value> value,
@@ -1767,16 +1774,17 @@ enum class ConstructorBehavior { kThrow, kAllow };
 
 class V8_EXPORT Function : public Object {
  public:
-  static MaybeLocal<Function> New(Local<Context> context,
-                                  FunctionCallback callback,
-                                  Local<Value> data = Local<Value>(),
-                                  int length = 0,
-                                  ConstructorBehavior behavior = ConstructorBehavior::kAllow);
+  static MaybeLocal<Function> New(
+      Local<Context> context,
+      FunctionCallback callback,
+      Local<Value> data = Local<Value>(),
+      int length = 0,
+      ConstructorBehavior behavior = ConstructorBehavior::kAllow);
   static V8_DEPRECATE_SOON("Use maybe version",
-                           Local<Function> New(Isolate* isolate,
-                                               FunctionCallback callback,
-                                               Local<Value> data = Local<Value>(),
-                                               int length = 0));
+    Local<Function> New(Isolate* isolate,
+                        FunctionCallback callback,
+                        Local<Value> data = Local<Value>(),
+                        int length = 0));
 
   V8_DEPRECATE_SOON("Use maybe version",
                     Local<Object> NewInstance(int argc,
@@ -1850,6 +1858,7 @@ class V8_EXPORT Promise : public Object {
 
   bool HasHandler();
   static Promise* Cast(Value* obj);
+
  private:
   Promise();
 };
@@ -2064,17 +2073,32 @@ class V8_EXPORT Float64Array : public TypedArray {
 };
 
 class V8_EXPORT SharedArrayBuffer : public Object {
-public:
+ public:
   static SharedArrayBuffer* Cast(Value* obj);
 
-private:
+ private:
   SharedArrayBuffer();
 };
 
+class V8_EXPORT JSON {
+ public:
+  static V8_DEPRECATED("Use the maybe version taking context",
+    Local<Value> Parse(Local<String> json_string));
+  static V8_DEPRECATE_SOON("Use the maybe version taking context",
+    MaybeLocal<Value> Parse(Isolate* isolate,
+    Local<String> json_string));
+  static V8_WARN_UNUSED_RESULT MaybeLocal<Value> Parse(
+    Local<Context> context, Local<String> json_string);
+
+  static V8_WARN_UNUSED_RESULT MaybeLocal<String> Stringify(
+    Local<Context> context, Local<Object> json_object,
+    Local<String> gap = Local<String>());
+};
+
 class V8_EXPORT ValueSerializer {
-public:
+ public:
   class V8_EXPORT Delegate {
-  public:
+   public:
     virtual ~Delegate() {}
 
     virtual void ThrowDataCloneError(Local<String> message) = 0;
@@ -2102,15 +2126,15 @@ public:
   void WriteDouble(double value);
   void WriteRawBytes(const void* source, size_t length);
 
-private:
+ private:
   ValueSerializer(const ValueSerializer&) = delete;
   void operator=(const ValueSerializer&) = delete;
 };
 
 class V8_EXPORT ValueDeserializer {
-public:
+ public:
   class V8_EXPORT Delegate {
-  public:
+   public:
     virtual ~Delegate() {}
 
     virtual MaybeLocal<Object> ReadHostObject(Isolate* isolate);
@@ -2132,7 +2156,7 @@ public:
   V8_WARN_UNUSED_RESULT bool ReadDouble(double* value);
   V8_WARN_UNUSED_RESULT bool ReadRawBytes(size_t length, const void** data);
 
-private:
+ private:
   ValueDeserializer(const ValueDeserializer&) = delete;
   void operator=(const ValueDeserializer&) = delete;
 };
@@ -2357,7 +2381,7 @@ class V8_EXPORT Exception {
 };
 
 class V8_EXPORT MicrotasksScope {
-public:
+ public:
     enum Type { kRunMicrotasks, kDoNotRunMicrotasks };
 
     MicrotasksScope(Isolate* isolate, Type type);
@@ -2415,6 +2439,7 @@ class PromiseRejectMessage {
 };
 
 typedef void (*PromiseRejectCallback)(PromiseRejectMessage message);
+typedef void(*MicrotaskCallback)(void* data);
 
 /**
 * Collection of V8 heap information.
@@ -2535,8 +2560,11 @@ class V8_EXPORT Isolate {
   };
 
   static Isolate* NewWithTTDSupport(const CreateParams& params,
-                                    size_t optReplayUriLength, const char* optReplayUri,
-                                    bool doRecord, bool doReplay, bool doDebug,
+                                    size_t optReplayUriLength,
+                                    const char* optReplayUri,
+                                    bool doRecord,
+                                    bool doReplay,
+                                    bool doDebug,
                                     uint32_t snapInterval,
                                     uint32_t snapHistoryLength);
   static Isolate* New(const CreateParams& params);
@@ -2569,6 +2597,7 @@ class V8_EXPORT Isolate {
   void SetPromiseHook(PromiseHook hook);
   void SetPromiseRejectCallback(PromiseRejectCallback callback);
   void RunMicrotasks();
+  void EnqueueMicrotask(MicrotaskCallback microtask, void* data = NULL);
   void SetAutorunMicrotasks(bool autorun);
   void SetFatalErrorHandler(FatalErrorCallback that);
   void SetJitCodeEventHandler(
@@ -3026,3 +3055,5 @@ Isolate* PropertyCallbackInfo<T>::GetIsolate() const {
 }
 
 }  // namespace v8
+
+#endif  // DEPS_CHAKRASHIM_INCLUDE_V8_H_

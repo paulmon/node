@@ -41,7 +41,7 @@ The documentation for N-API is structured as follows:
 * [Working with JavaScript Properties][]
 * [Working with JavaScript Functions][]
 * [Object Wrap][]
-* [Aynchronous Operations][]
+* [Asynchronous Operations][]
 
 The N-API is a C API that ensures ABI stability across Node.js versions
 and different compiler levels. However, we also understand that a C++
@@ -58,6 +58,14 @@ which is located in the src directory in the node development tree.
 For example:
 ```C
 #include <node_api.h>
+```
+
+As the feature is experimental it must be enabled with the
+following command line
+[option](https://nodejs.org/dist/latest-v8.x/docs/api/cli.html#cli_napi_modules):
+
+```bash
+--napi-modules
 ```
 
 ## Basic N-API Data Types
@@ -153,18 +161,16 @@ For more details, review the [Object Lifetime Management][].
 
 ### N-API Callback types
 #### *napi_callback_info*
-Opaque datatype that is passed to a callback function. It can be used for two
-purposes:
-- Get additional information about the context in which the callback was
-  invoked.
-- Set the return value of the callback.
+Opaque datatype that is passed to a callback function. It can be used for
+getting additional information about the context in which the callback was
+invoked.
 
 #### *napi_callback*
 Function pointer type for user-provided native functions which are to be
 exposed to JavaScript via N-API. Callback functions should satisfy the
 following signature:
 ```C
-typedef void (*napi_callback)(napi_env, napi_callback_info);
+typedef napi_value (*napi_callback)(napi_env, napi_callback_info);
 ```
 
 #### *napi_finalize*
@@ -233,7 +239,7 @@ typedef struct napi_extended_error_info {
   napi_status error_code;
 };
 ```
-- `error_message`: Textual representation of the error that occured.
+- `error_message`: Textual representation of the error that occurred.
 - `engine_reserved`: Opaque handle reserved for engine use only.
 - `engine_error_code`: VM specific error code.
 - `error_code`: n-api status code for the last error.
@@ -261,7 +267,10 @@ information about the error.
 Returns `napi_ok` if the API succeeded.
 
 This API retrieves a `napi_extended_error_info` structure with information
-about the last error that occured.
+about the last error that occurred.
+
+*Note*: The content of the `napi_extended_error_info` returned is only
+valid up until an n-api function is called on the same `env`.
 
 *Note*: Do not rely on the content or format of any of the extended
 information as it is not subject to SemVer and may change at any time.
@@ -399,10 +408,13 @@ This API queries a `napi_value` to check if it represents an error object.
 added: v8.0.0
 -->
 ```C
-NODE_EXTERN napi_status napi_create_error(napi_env env, const char* msg);
+NODE_EXTERN napi_status napi_create_error(napi_env env,
+                                          napi_value msg,
+                                          napi_value* result);
 ```
 - `[in] env`: The environment that the API is invoked under.
-- `[in] msg`: C string representing the text to be associated with.
+- `[in] msg`: napi_value that references a JavaScript String to be
+used as the message for the Error.
 - `[out] result`: `napi_value` representing the error created.
 
 Returns `napi_ok` if the API succeeded.
@@ -414,10 +426,13 @@ This API returns a JavaScript Error with the text provided.
 added: v8.0.0
 -->
 ```C
-NODE_EXTERN napi_status napi_create_type_error(napi_env env, const char* msg);
+NODE_EXTERN napi_status napi_create_type_error(napi_env env,
+                                               napi_value msg,
+                                               napi_value* result);
 ```
 - `[in] env`: The environment that the API is invoked under.
-- `[in] msg`: C string representing the text to be associated with.
+- `[in] msg`: napi_value that references a JavaScript String to be
+used as the message for the Error.
 - `[out] result`: `napi_value` representing the error created.
 
 Returns `napi_ok` if the API succeeded.
@@ -430,10 +445,13 @@ This API returns a JavaScript TypeError with the text provided.
 added: v8.0.0
 -->
 ```C
-NODE_EXTERN napi_status napi_create_range_error(napi_env env, const char* msg);
+NODE_EXTERN napi_status napi_create_range_error(napi_env env,
+                                                const char* msg,
+                                                napi_value* result);
 ```
 - `[in] env`: The environment that the API is invoked under.
-- `[in] msg`: C string representing the text to be associated with.
+- `[in] msg`: napi_value that references a JavaScript String to be
+used as the message for the Error.
 - `[out] result`: `napi_value` representing the error created.
 
 Returns `napi_ok` if the API succeeded.
@@ -550,16 +568,17 @@ for (int i = 0; i < 1000000; i++) {
 ```
 
 When nesting scopes, there are cases where a handle from an
-inner scope needs  to live beyond the lifespan of that scope. N-API supports an
+inner scope needs to live beyond the lifespan of that scope. N-API supports an
 'escapable scope' in order to support this case. An escapable scope
-allows one or more handles to be 'promoted' so that they 'escape' the
-current scope and the lifespan of the handle(s) changes from the current
+allows one handle to be 'promoted' so that it 'escapes' the
+current scope and the lifespan of the handle changes from the current
 scope to that of the outer scope.
 
 The methods available to open/close escapable scopes are
 [`napi_open_escapable_handle_scope`][] and [`napi_close_escapable_handle_scope`][].
 
-The request to promote a handle is made through the [`napi_escape_handle`][].
+The request to promote a handle is made through [`napi_escape_handle`][] which
+can only be called once.
 
 #### napi_open_handle_scope
 <!-- YAML
@@ -606,7 +625,7 @@ NODE_EXTERN napi_status
 
 Returns `napi_ok` if the API succeeded.
 
-This API open a new scope from which objects can be promoted
+This API open a new scope from which one object can be promoted
 to the outer scope.
 
 #### napi_close_escapable_handle_scope
@@ -645,9 +664,9 @@ Object in the outer scope.
 
 Returns `napi_ok` if the API succeeded.
 
-This API promotes the handle to the JavaScript object so that it valid
-for the lifetime of the outer scope.
-
+This API promotes the handle to the JavaScript object so that it is valid
+for the lifetime of the outer scope. It can only be called once per scope.
+If it is called more than once an error will be returned.
 
 ### References to objects with a lifespan longer than that of the native method
 In some cases an addon will need to be able to create and reference objects
@@ -695,7 +714,7 @@ added: v8.0.0
 NODE_EXTERN napi_status napi_create_reference(napi_env env,
                                               napi_value value,
                                               int initial_refcount,
-                                              ndapi_ref* result);
+                                              napi_ref* result);
 ```
 
 - `[in] env`: The environment that the API is invoked under.
@@ -1200,13 +1219,13 @@ added: v8.0.0
 -->
 ```C
 napi_status napi_create_symbol(napi_env env,
-                               const char* description,
+                               napi_value description,
                                napi_value* result)
 ```
 
 - `[in] env`: The environment that the API is invoked under.
-- `[in] description`: Null-terminated character buffer representing a
-UTF8-encoded string to describe the symbol.
+- `[in] description`: Optional napi_value which refers to a JavaScript
+String to be set as the description for the symbol.
 - `[out] result`: A `napi_value` representing a JavaScript Symbol.
 
 Returns `napi_ok` if the API succeeded.
@@ -1287,13 +1306,38 @@ napi_status napi_create_string_utf16(napi_env env,
 
 - `[in] env`: The environment that the API is invoked under.
 - `[in] str`: Character buffer representing a UTF16-LE-encoded string.
-- `[in] length`: The length of the string in characters, or -1 if it is
-null-terminated.
+- `[in] length`: The length of the string in two-byte code units, or -1 if
+it is null-terminated.
 - `[out] result`: A `napi_value` representing a JavaScript String.
 
 Returns `napi_ok` if the API succeeded.
 
 This API creates a JavaScript String object from a UTF16-LE-encoded C string
+
+The JavaScript String type is described in
+[Section 6.1.4](https://tc39.github.io/ecma262/#sec-ecmascript-language-types-string-type)
+of the ECMAScript Language Specification.
+
+#### *napi_create_string_latin1*
+<!-- YAML
+added: v8.0.0
+-->
+```C
+NAPI_EXTERN napi_status napi_create_string_latin1(napi_env env,
+                                                  const char* str,
+                                                  size_t length,
+                                                  napi_value* result);
+```
+
+- `[in] env`: The environment that the API is invoked under.
+- `[in] str`: Character buffer representing a latin1-encoded string.
+- `[in] length`: The length of the string in bytes, or -1 if it is
+null-terminated.
+- `[out] result`: A `napi_value` representing a JavaScript String.
+
+Returns `napi_ok` if the API succeeded.
+
+This API creates a JavaScript String object from a latin1-encoded C string.
 
 The JavaScript String type is described in
 [Section 6.1.4](https://tc39.github.io/ecma262/#sec-ecmascript-language-types-string-type)
@@ -1311,8 +1355,8 @@ napi_status napi_create_string_utf8(napi_env env,
 ```
 
 - `[in] env`: The environment that the API is invoked under.
-- `[in] s`: Character buffer representing a UTF8-encoded string.
-- `[in] length`: The length of the string in characters, or -1 if it is
+- `[in] str`: Character buffer representing a UTF8-encoded string.
+- `[in] length`: The length of the string in bytes, or -1 if it is
 null-terminated.
 - `[out] result`: A `napi_value` representing a JavaScript String.
 
@@ -1551,25 +1595,6 @@ is passed in it returns `napi_number_expected`.
 
 This API returns the C int64 primitive equivalent of the given
 JavaScript Number
-
-#### *napi_get_value_string_length*
-<!-- YAML
-added: v8.0.0
--->
-```C
-napi_status napi_get_value_string_length(napi_env env,
-                                         napi_value value,
-                                         int* result)
-```
-
-- `[in] env`: The environment that the API is invoked under.
-- `[in] value`: `napi_value` representing JavaScript string.
-- `[out] result`: Number of characters in the given JavaScript string.
-
-Returns `napi_ok` if the API succeeded. If a non-String `napi_value`
-is passed in it returns `napi_string_expected`.
-
-This API returns the number of characters in the given JavaScript string.
 
 #### *napi_get_value_string_utf8*
 <!-- YAML
@@ -2092,31 +2117,32 @@ if (status != napi_ok) return status;
 ```C
 typedef enum {
   napi_default = 0,
-  napi_read_only = 1 << 0,
-  napi_dont_enum = 1 << 1,
-  napi_dont_delete = 1 << 2,
-  napi_static_property = 1 << 10,
+  napi_writable = 1 << 0,
+  napi_enumerable = 1 << 1,
+  napi_configurable = 1 << 2,
+
+  // Used with napi_define_class to distinguish static properties
+  // from instance properties. Ignored by napi_define_properties.
+  napi_static = 1 << 10,
 } napi_property_attributes;
 ```
 
 `napi_property_attributes` are flags used to control the behavior of properties
-set on a JavaScript object. They roughly correspond to the attributes listed in
-[Section 6.1.7.1](https://tc39.github.io/ecma262/#table-2) of the
-[ECMAScript Language Specification](https://tc39.github.io/ecma262/). They can
-be one or more of the following bitflags:
+set on a JavaScript object. Other than `napi_static` they correspond to the
+attributes listed in [Section 6.1.7.1](https://tc39.github.io/ecma262/#table-2)
+of the [ECMAScript Language Specification](https://tc39.github.io/ecma262/).
+They can be one or more of the following bitflags:
 
 - `napi_default` - Used to indicate that no explicit attributes are set on the
-given property. By default, a property is Writable, Enumerable, and
- Configurable. This is a deviation from the ECMAScript specification,
- where generally the values for a property descriptor attribute default to
- false if they're not provided.
-- `napi_read_only` - Used to indicate that a given property is not Writable.
-- `napi_dont_enum` - Used to indicate that a given property is not Enumerable.
-- `napi_dont_delete` - Used to indicate that a given property is not.
-Configurable, as defined in
+given property. By default, a property is read only, not enumerable and not
+configurable.
+- `napi_writable`  - Used to indicate that a given property is writable.
+- `napi_enumerable` - Used to indicate that a given property is enumerable.
+- `napi_configurable` - Used to indicate that a given property is
+configurable, as defined in
 [Section 6.1.7.1](https://tc39.github.io/ecma262/#table-2) of the
 [ECMAScript Language Specification](https://tc39.github.io/ecma262/).
-- `napi_static_property` - Used to indicate that the property will be defined as
+- `napi_static` - Used to indicate that the property will be defined as
 a static property on a class as opposed to an instance property, which is the
 default. This is used only by [`napi_define_class`][]. It is ignored by
 `napi_define_properties`.
@@ -2124,7 +2150,9 @@ default. This is used only by [`napi_define_class`][]. It is ignored by
 #### *napi_property_descriptor*
 ```C
 typedef struct {
+  // One of utf8name or name should be NULL.
   const char* utf8name;
+  napi_value name;
 
   napi_callback method;
   napi_callback getter;
@@ -2136,7 +2164,12 @@ typedef struct {
 } napi_property_descriptor;
 ```
 
-- `utf8name`: String describing the key for the property, encoded as UTF8.
+- `utf8name`: Optional String describing the key for the property,
+encoded as UTF8. One of `utf8name` or `name` must be provided for the
+property.
+- `name`: Optional napi_value that points to a JavaScript string or symbol
+to be used as the key for the property.  One of `utf8name` or `name` must
+be provided for the property.
 - `value`: The value that's retrieved by a get access of the property if the
  property is a data property. If this is passed in, set `getter`, `setter`,
  `method` and `data` to `NULL` (since these members won't be used).
@@ -2157,7 +2190,7 @@ won't be used).
 - `data`: The callback data passed into `method`, `getter` and `setter` if
 this function is invoked.
 - `attributes`: The attributes associated with the particular property.
-See [`napi_property_attributes`](#napi_property_attributes).
+See [`napi_property_attributes`](#n_api_napi_property_attributes).
 
 ### Functions
 #### *napi_get_property_names*
@@ -2241,6 +2274,51 @@ napi_status napi_has_property(napi_env env,
 Returns `napi_ok` if the API succeeded.
 
 This API checks if the Object passed in has the named property.
+
+
+#### *napi_delete_property*
+<!-- YAML
+added: REPLACEME
+-->
+```C
+napi_status napi_delete_property(napi_env env,
+                                 napi_value object,
+                                 napi_value key,
+                                 bool* result);
+```
+
+- `[in] env`: The environment that the N-API call is invoked under.
+- `[in] object`: The object to query.
+- `[in] key`: The name of the property to delete.
+- `[out] result`: Whether the property deletion succeeded or not. `result` can
+optionally be ignored by passing `NULL`.
+
+Returns `napi_ok` if the API succeeded.
+
+This API attempts to delete the `key` own property from `object`.
+
+
+#### *napi_has_own_property*
+<!-- YAML
+added: REPLACEME
+-->
+```C
+napi_status napi_has_own_property(napi_env env,
+                                  napi_value object,
+                                  napi_value key,
+                                  bool* result);
+```
+
+- `[in] env`: The environment that the N-API call is invoked under.
+- `[in] object`: The object to query.
+- `[in] key`: The name of the own property whose existence to check.
+- `[out] result`: Whether the own property exists on the object or not.
+
+Returns `napi_ok` if the API succeeded.
+
+This API checks if the Object passed in has the named own property. `key` must
+be a string or a Symbol, or an error will be thrown. N-API will not perform any
+conversion between data types.
 
 
 #### *napi_set_named_property*
@@ -2366,6 +2444,27 @@ Returns `napi_ok` if the API succeeded.
 
 This API returns if the Object passed in has an element at the
 requested index.
+
+#### *napi_delete_element*
+<!-- YAML
+added: REPLACEME
+-->
+```C
+napi_status napi_delete_element(napi_env env,
+                                napi_value object,
+                                uint32_t index,
+                                bool* result);
+```
+
+- `[in] env`: The environment that the N-API call is invoked under.
+- `[in] object`: The object to query.
+- `[in] index`: The index of the property to delete.
+- `[out] result`: Whether the element deletion succeeded or not. `result` can
+optionally be ignored by passing `NULL`.
+
+Returns `napi_ok` if the API succeeded.
+
+This API attempts to delete the specified `index` from `object`.
 
 #### *napi_define_properties*
 <!-- YAML
@@ -2513,8 +2612,9 @@ In order to expose a function as part of the
 add-on's module exports, set the newly created function on the exports
 object. A sample module might look as follows:
 ```C
-void SayHello(napi_env env, napi_callback_info info) {
+napi_value SayHello(napi_env env, napi_callback_info info) {
   printf("Hello\n");
+  return nullptr;
 }
 
 void Init(napi_env env, napi_value exports, napi_value module, void* priv) {
@@ -2776,8 +2876,8 @@ napi_status napi_wrap(napi_env env,
 
 Returns `napi_ok` if the API succeeded.
 
-Wraps a native instance in JavaScript object of the corresponding type.
-The native instance can be retrieved later using `napi_unwrap()`.
+Wraps a native instance in a JavaScript object. The native instance can be
+retrieved later using `napi_unwrap()`.
 
 When JavaScript code invokes a constructor for a class that was defined using
 `napi_define_class()`, the `napi_callback` for the constructor is invoked.
@@ -2804,6 +2904,10 @@ required in order to enable correct proper of the reference.
 *Note*: This API may modify the prototype chain of the wrapper object.
 Afterward, additional manipulation of the wrapper's prototype chain may cause
 `napi_unwrap()` to fail.
+
+*Note*: Calling `napi_wrap()` a second time on an object that already has a
+native instance associated with it by virtue of a previous call to
+`napi_wrap()` will cause an error to be returned.
 
 ### *napi_unwrap*
 <!-- YAML
@@ -2991,7 +3095,7 @@ support it:
 * If the function is not available, provide an alternate implementation
   that does not use the function.
 
-[Aynchronous Operations]: #n_api_asynchronous_operations
+[Asynchronous Operations]: #n_api_asynchronous_operations
 [Basic N-API Data Types]: #n_api_basic_n_api_data_types
 [ECMAScript Language Specification]: https://tc39.github.io/ecma262/
 [Error Handling]: #n_api_error_handling
@@ -3017,12 +3121,15 @@ support it:
 [`napi_create_type_error`]: #n_api_napi_create_type_error
 [`napi_delete_async_work`]: #n_api_napi_delete_async_work
 [`napi_define_class`]: #n_api_napi_define_class
+[`napi_delete_element`]: #n_api_napi_delete_element
+[`napi_delete_property`]: #n_api_napi_delete_property
 [`napi_delete_reference`]: #n_api_napi_delete_reference
 [`napi_escape_handle`]: #n_api_napi_escape_handle
 [`napi_get_array_length`]: #n_api_napi_get_array_length
 [`napi_get_element`]: #n_api_napi_get_element
 [`napi_get_property`]: #n_api_napi_get_property
 [`napi_has_property`]: #n_api_napi_has_property
+[`napi_has_own_property`]: #n_api_napi_has_own_property
 [`napi_set_property`]: #n_api_napi_set_property
 [`napi_get_reference_value`]: #n_api_napi_get_reference_value
 [`napi_is_error`]: #n_api_napi_is_error

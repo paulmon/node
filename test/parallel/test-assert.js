@@ -36,6 +36,19 @@ assert.ok(a.AssertionError.prototype instanceof Error,
 
 assert.throws(makeBlock(a, false), a.AssertionError, 'ok(false)');
 
+// Using a object as second arg results in a failure
+assert.throws(
+  () => { assert.throws(() => { throw new Error(); }, { foo: 'bar' }); },
+  common.expectsError({
+    type: TypeError,
+    message: common.engineSpecificMessage({
+        v8: 'expected.test is not a function',
+        chakracore: 'Object doesn\'t support property or method \'test\''
+    })
+  })
+);
+
+
 assert.doesNotThrow(makeBlock(a, true), a.AssertionError, 'ok(true)');
 
 assert.doesNotThrow(makeBlock(a, 'test', 'ok(\'test\')'));
@@ -143,11 +156,7 @@ assert.throws(makeBlock(a.deepEqual, /a/igm, /a/im),
 {
   const re1 = /a/g;
   re1.lastIndex = 3;
-  assert.doesNotThrow(makeBlock(a.deepEqual, re1, /a/g),
-                      common.expectsError({
-                        code: 'ERR_ASSERTION',
-                        message: /^\/a\/g deepEqual \/a\/g$/
-                      }));
+  assert.doesNotThrow(makeBlock(a.deepEqual, re1, /a/g));
 }
 
 assert.doesNotThrow(makeBlock(a.deepEqual, 4, '4'), 'deepEqual(4, \'4\')');
@@ -423,8 +432,7 @@ assert.throws(makeBlock(thrower, TypeError));
     assert.ok(e instanceof TypeError, 'type');
   }
   assert.strictEqual(true, threw,
-                     'a.throws with an explicit error is eating extra errors',
-                     a.AssertionError);
+                     'a.throws with an explicit error is eating extra errors');
 }
 
 // doesNotThrow should pass through all errors
@@ -571,29 +579,30 @@ a.throws(makeBlock(a.deepEqual, args, []));
 
 // check messages from assert.throws()
 {
+  const noop = () => {};
   assert.throws(
-    () => { a.throws(common.noop); },
+    () => { a.throws((noop)); },
     common.expectsError({
       code: 'ERR_ASSERTION',
       message: /^Missing expected exception\.$/
     }));
 
   assert.throws(
-    () => { a.throws(common.noop, TypeError); },
+    () => { a.throws(noop, TypeError); },
     common.expectsError({
       code: 'ERR_ASSERTION',
       message: /^Missing expected exception \(TypeError\)\.$/
     }));
 
   assert.throws(
-    () => { a.throws(common.noop, 'fhqwhgads'); },
+    () => { a.throws(noop, 'fhqwhgads'); },
     common.expectsError({
       code: 'ERR_ASSERTION',
       message: /^Missing expected exception: fhqwhgads$/
     }));
 
   assert.throws(
-    () => { a.throws(common.noop, TypeError, 'fhqwhgads'); },
+    () => { a.throws(noop, TypeError, 'fhqwhgads'); },
     common.expectsError({
       code: 'ERR_ASSERTION',
       message: /^Missing expected exception \(TypeError\): fhqwhgads$/
@@ -669,10 +678,9 @@ try {
 
 {
   // Verify that throws() and doesNotThrow() throw on non-function block
-  const validationFunction = common.expectsError({
-    code: 'ERR_INVALID_ARG_TYPE',
-    type: TypeError
-  });
+  function typeName(value) {
+    return value === null ? 'null' : typeof value;
+  }
 
   const testBlockTypeError = (method, block) => {
     let threw = true;
@@ -681,7 +689,12 @@ try {
       method(block);
       threw = false;
     } catch (e) {
-      validationFunction(e);
+      common.expectsError({
+        code: 'ERR_INVALID_ARG_TYPE',
+        type: TypeError,
+        message: 'The "block" argument must be of type function. Received ' +
+                 'type ' + typeName(block)
+      })(e);
     }
 
     assert.ok(threw);
@@ -722,13 +735,14 @@ assert.throws(() => {
 {
   // bad args to AssertionError constructor should throw TypeError
   const args = [1, true, false, '', null, Infinity, Symbol('test'), undefined];
+  const re = /^The "options" argument must be of type object$/;
   args.forEach((input) => {
     assert.throws(
       () => new assert.AssertionError(input),
       common.expectsError({
         code: 'ERR_INVALID_ARG_TYPE',
         type: TypeError,
-        message: /^The "options" argument must be of type object$/
+        message: re
       }));
   });
 }

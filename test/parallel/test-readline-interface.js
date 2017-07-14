@@ -34,10 +34,10 @@ function FakeInput() {
   EventEmitter.call(this);
 }
 inherits(FakeInput, EventEmitter);
-FakeInput.prototype.resume = common.noop;
-FakeInput.prototype.pause = common.noop;
-FakeInput.prototype.write = common.noop;
-FakeInput.prototype.end = common.noop;
+FakeInput.prototype.resume = () => {};
+FakeInput.prototype.pause = () => {};
+FakeInput.prototype.write = () => {};
+FakeInput.prototype.end = () => {};
 
 function isWarned(emitter) {
   for (const name in emitter) {
@@ -315,14 +315,10 @@ function isWarned(emitter) {
       input: fi,
       completer: 'string is not valid'
     });
-  }, function(err) {
-    if (err instanceof TypeError) {
-      if (/Argument "completer" must be a function/.test(err)) {
-        return true;
-      }
-    }
-    return false;
-  });
+  }, common.expectsError({
+    type: TypeError,
+    code: 'ERR_INVALID_OPT_VALUE'
+  }));
 
   // duplicate lines are removed from history when
   // `options.removeHistoryDuplicates` is `true`

@@ -442,7 +442,7 @@ ssh -F %SSHCONFIG% %STAGINGSERVER% "touch nodejs/%DISTTYPEDIR%/v%FULLVERSION%/no
 
 @rem Build test/gc add-on if required.
 if "%build_testgc_addon%"=="" goto build-addons
-"%config%\node" deps\npm\node_modules\node-gyp\bin\node-gyp rebuild --directory="%~dp0test\gc" --nodedir="%~dp0."
+%node_gyp_exe% rebuild --directory="%~dp0test\gc" --nodedir="%~dp0."
 if errorlevel 1 goto build-testgc-addon-failed
 goto build-addons
 
@@ -467,7 +467,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 :: building addons
 setlocal EnableDelayedExpansion
 for /d %%F in (test\addons\*) do (
-  "%node_exe%" deps\npm\node_modules\node-gyp\bin\node-gyp rebuild ^
+  %node_gyp_exe% rebuild ^
     --directory="%%F" ^
     --nodedir="%cd%"
   if !errorlevel! neq 0 exit /b !errorlevel!
@@ -486,7 +486,7 @@ for /d %%F in (test\addons-napi\??_*) do (
 )
 :: building addons-napi
 for /d %%F in (test\addons-napi\*) do (
-  "%node_exe%" deps\npm\node_modules\node-gyp\bin\node-gyp rebuild ^
+  %node_gyp_exe% rebuild ^
     --directory="%%F" ^
     --nodedir="%cd%"
 )
@@ -499,7 +499,7 @@ if defined test_node_inspect goto node-test-inspect
 goto node-tests
 
 :node-check-deopts
-python tools\test.py --mode=release --check-deopts parallel sequential -J
+call :run-python tools\test.py --mode=release --check-deopts parallel sequential -J
 if defined test_node_inspect goto node-test-inspect
 goto node-tests
 
@@ -514,18 +514,22 @@ if "%config%"=="Debug" set test_args=--mode=debug %test_args%
 if "%config%"=="Release" set test_args=--mode=release %test_args%
 echo running 'cctest %cctest_args%'
 "%config%\cctest" %cctest_args%
-echo running 'python tools\test.py %test_args%'
-python tools\test.py %test_args%
+call :run-python tools\test.py %test_args%
 goto cpplint
 
 :cpplint
 if not defined cpplint goto jslint
-echo running cpplint
+call :run-cpplint src\*.c src\*.cc src\*.h test\addons\*.cc test\addons\*.h test\cctest\*.cc test\cctest\*.h test\gc\binding.cc tools\icu\*.cc tools\icu\*.h
+call :run-cpplint %chakra_cpplint%
+call :run-python tools/check-imports.py
+goto jslint
+
+:run-cpplint
+if "%*"=="" goto exit
+echo running cpplint '%*'
 set cppfilelist=
 setlocal enabledelayedexpansion
-for /f "tokens=*" %%G in ('dir /b /s /a src\*.c src\*.cc src\*.h ^
-test\addons\*.cc test\addons\*.h test\cctest\*.cc test\cctest\*.h ^
-test\gc\binding.cc tools\icu\*.cc tools\icu\*.h %chakra_cpplint%') do (
+for /f "tokens=*" %%G in ('dir /b /s /a %*') do (
   set relpath=%%G
   set relpath=!relpath:*%~dp0=!
   call :add-to-list !relpath!
@@ -533,9 +537,8 @@ test\gc\binding.cc tools\icu\*.cc tools\icu\*.h %chakra_cpplint%') do (
 ( endlocal
   set cppfilelist=%localcppfilelist%
 )
-python tools/cpplint.py %cppfilelist%
-python tools/check-imports.py
-goto jslint
+call :run-python tools/cpplint.py %cppfilelist%
+goto exit
 
 :add-to-list
 echo %1 | findstr /b /c:"src\node_root_certs.h" > nul 2>&1
@@ -563,7 +566,7 @@ goto exit
 :jslint
 if defined jslint_ci goto jslint-ci
 if not defined jslint goto exit
-if not exist tools\eslint\lib\eslint.js goto no-lint
+if not exist tools\eslint\bin\eslint.js goto no-lint
 echo running jslint
 %config%\node tools\eslint\bin\eslint.js --cache --rule "linebreak-style: 0" --rulesdir=tools\eslint-rules --ext=.js,.md benchmark doc lib test %chakra_jslint% tools
 goto exit
@@ -576,14 +579,14 @@ goto exit
 :no-lint
 echo Linting is not available through the source tarball.
 echo Use the git repo instead: $ git clone https://github.com/nodejs/node.git
-goto exit
+exit /b 1
 
 :create-msvs-files-failed
 echo Failed to create vc project files.
 goto exit
 
 :help
-echo vcbuild.bat [debug/release] [msi] [test-all/test-uv/test-inspector/test-internet/test-pummel/test-simple/test-message] [clean] [noprojgen] [small-icu/full-icu/without-intl] [nobuild] [sign] [x86/x64] [vs2015/vs2017] [download-all] [enable-vtune] [lint/lint-ci] [no-NODE-OPTIONS]
+echo vcbuild.bat [debug/release] [msi] [test/test-ci/test-all/test-uv/test-inspector/test-internet/test-pummel/test-simple/test-message/test-async-hooks] [clean] [noprojgen] [small-icu/full-icu/without-intl] [nobuild] [sign] [x86/x64] [vs2015/vs2017] [download-all] [enable-vtune] [lint/lint-ci] [no-NODE-OPTIONS]
 echo Examples:
 echo   vcbuild.bat                : builds release build
 echo   vcbuild.bat debug          : builds debug build
@@ -592,6 +595,14 @@ echo   vcbuild.bat test           : builds debug build and runs tests
 echo   vcbuild.bat build-release  : builds the release distribution as used by nodejs.org
 echo   vcbuild.bat enable-vtune   : builds nodejs with Intel VTune profiling support to profile JavaScript
 goto exit
+
+:run-python
+call tools\msvs\find_python.cmd
+if errorlevel 1 echo Could not find python2 & goto :exit
+set cmd1=%VCBUILD_PYTHON_LOCATION% %*
+echo %cmd1%
+%cmd1%
+exit /b %ERRORLEVEL%
 
 :exit
 exit /b %errorlevel%
@@ -605,8 +616,9 @@ rem ***************
 set NODE_VERSION=
 set TAG=
 set FULLVERSION=
-
-for /F "usebackq tokens=*" %%i in (`python "%~dp0tools\getnodeversion.py"`) do set NODE_VERSION=%%i
+:: Call as subroutine for validation of python
+call :run-python tools\getnodeversion.py > nul
+for /F "tokens=*" %%i in ('%VCBUILD_PYTHON_LOCATION% tools\getnodeversion.py') do set NODE_VERSION=%%i
 if not defined NODE_VERSION (
   echo Cannot determine current version of Node.js
   exit /b 1
@@ -615,7 +627,7 @@ if not defined NODE_VERSION (
 if not defined DISTTYPE set DISTTYPE=release
 if "%DISTTYPE%"=="release" (
   set FULLVERSION=%NODE_VERSION%
-  goto exit
+  goto distexit
 )
 if "%DISTTYPE%"=="custom" (
   if not defined CUSTOMTAG (
@@ -643,6 +655,6 @@ if not "%DISTTYPE%"=="custom" (
 )
 set FULLVERSION=%NODE_VERSION%-%TAG%
 
-:exit
+:distexit
 if not defined DISTTYPEDIR set DISTTYPEDIR=%DISTTYPE%
 goto :EOF

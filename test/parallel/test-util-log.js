@@ -27,12 +27,11 @@ const util = require('util');
 assert.ok(process.stdout.writable);
 assert.ok(process.stderr.writable);
 
-const stdout_write = global.process.stdout.write;
 const strings = [];
-global.process.stdout.write = function(string) {
-  strings.push(string);
-};
-console._stderr = process.stdout;
+common.hijackStdout(function(data) {
+  strings.push(data);
+});
+common.hijackStderr(common.mustNotCall('stderr.write must not be called'));
 
 const tests = [
   {input: 'foo', output: 'foo'},
@@ -50,13 +49,15 @@ const tests = [
 ];
 
 // test util.log()
+const re = /[0-9]{1,2} [A-Z][a-z]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} - (.+)$/;
 tests.forEach(function(test) {
   util.log(test.input);
   const result = strings.shift().trim();
-  const re = (/[0-9]{1,2} [A-Z][a-z]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} - (.+)$/);
   const match = re.exec(result);
   assert.ok(match);
   assert.strictEqual(match[1], test.output);
 });
 
-global.process.stdout.write = stdout_write;
+assert.strictEqual(process.stdout.writeTimes, tests.length);
+
+common.restoreStdout();

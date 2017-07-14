@@ -1,22 +1,22 @@
 'use strict';
-
 const common = require('../common');
+
+const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const assert = require('assert');
 
 // Basic usage tests.
 assert.throws(function() {
   fs.watchFile('./some-file');
-}, /"watchFile\(\)" requires a listener function/);
+}, /^Error: "watchFile\(\)" requires a listener function$/);
 
 assert.throws(function() {
   fs.watchFile('./another-file', {}, 'bad listener');
-}, /"watchFile\(\)" requires a listener function/);
+}, /^Error: "watchFile\(\)" requires a listener function$/);
 
 assert.throws(function() {
-  fs.watchFile(new Object(), common.noop);
-}, /Path must be a string/);
+  fs.watchFile(new Object(), common.mustNotCall());
+}, common.expectsError({code: 'ERR_INVALID_ARG_TYPE', type: TypeError}));
 
 const enoentFile = path.join(common.tmpDir, 'non-existent-file');
 const expectedStatObject = new fs.Stats(

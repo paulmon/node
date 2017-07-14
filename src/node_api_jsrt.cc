@@ -288,6 +288,31 @@ JsNameValueFromPropertyDescriptor(const napi_property_descriptor* p,
   }
   return napi_ok;
 }
+
+inline napi_status FindWrapper(JsValueRef obj, JsValueRef* result) {
+  // Search the object's prototype chain for the wrapper with external data.
+  // Usually the wrapper would be the first in the chain, but it is OK for
+  // other objects to be inserted in the prototype chain.
+  JsValueRef wrapper = obj;
+  bool hasExternalData = false;
+
+  JsValueRef nullValue = JS_INVALID_REFERENCE;
+  CHECK_JSRT(JsGetNullValue(&nullValue));
+
+  do {
+    CHECK_JSRT(JsGetPrototype(wrapper, &wrapper));
+    if (wrapper == JS_INVALID_REFERENCE || wrapper == nullValue) {
+      *result = JS_INVALID_REFERENCE;
+      return napi_ok;
+    }
+
+    CHECK_JSRT(JsHasExternalData(wrapper, &hasExternalData));
+  } while (!hasExternalData);
+
+  *result = wrapper;
+  return napi_ok;
+}
+
 }  // end of namespace jsrtimpl
 
 // Intercepts the Node-V8 module registration callback. Converts parameters
@@ -348,6 +373,7 @@ const char* error_messages[] = {
   "Unknown failure",
   "An exception is pending",
   "The async work item was cancelled",
+  "napi_escape_handle already called on scope"
 };
 
 napi_status napi_get_last_error_info(napi_env env,
@@ -355,9 +381,9 @@ napi_status napi_get_last_error_info(napi_env env,
   CHECK_ARG(result);
 
   static_assert(
-    sizeof(error_messages) / sizeof(*error_messages) == napi_status_last,
+    node::arraysize(error_messages) == napi_escape_called_twice + 1,
     "Count of error messages must match count of error values");
-  assert(static_last_error.error_code < napi_status_last);
+  assert(static_last_error.error_code <= napi_escape_called_twice);
 
   // Wait until someone requests the last error information to fetch the error
   // message string
@@ -572,6 +598,24 @@ napi_status napi_get_property_names(napi_env env,
   return napi_ok;
 }
 
+napi_status napi_delete_property(napi_env env,
+                                 napi_value object,
+                                 napi_value key,
+                                 bool* result) {
+  CHECK_ARG(result);
+  *result = false;
+
+  JsValueRef obj = reinterpret_cast<JsValueRef>(object);
+  JsPropertyIdRef propertyId;
+  JsValueRef deletePropertyResult;
+  CHECK_NAPI(jsrtimpl::JsPropertyIdFromKey(key, &propertyId));
+  CHECK_JSRT(JsDeleteProperty(obj, propertyId, false /* isStrictMode */,
+                              &deletePropertyResult));
+  CHECK_JSRT(JsBooleanToBool(deletePropertyResult, result));
+
+  return napi_ok;
+}
+
 napi_status napi_set_named_property(napi_env env,
                                     napi_value object,
                                     const char* utf8name,
@@ -593,6 +637,19 @@ napi_status napi_set_property(napi_env env,
   CHECK_NAPI(jsrtimpl::JsPropertyIdFromKey(key, &propertyId));
   JsValueRef js_value = reinterpret_cast<JsValueRef>(value);
   CHECK_JSRT(JsSetProperty(obj, propertyId, value, true));
+  return napi_ok;
+}
+
+napi_status napi_delete_element(napi_env env,
+                                napi_value object,
+                                uint32_t index,
+                                bool* result) {
+  CHECK_ARG(result);
+  JsValueRef indexValue = nullptr;
+  JsValueRef obj = reinterpret_cast<JsValueRef>(object);
+  CHECK_JSRT(JsIntToNumber(index, &indexValue));
+  CHECK_JSRT(JsDeleteIndexedProperty(obj, indexValue));
+  *result = true;
   return napi_ok;
 }
 
@@ -1350,6 +1407,10 @@ napi_status napi_wrap(napi_env env,
                       napi_ref* result) {
   JsValueRef value = reinterpret_cast<JsValueRef>(js_object);
 
+  JsValueRef wrapper = JS_INVALID_REFERENCE;
+  CHECK_NAPI(jsrtimpl::FindWrapper(value, &wrapper));
+  RETURN_STATUS_IF_FALSE(wrapper == JS_INVALID_REFERENCE, napi_invalid_arg);
+
   jsrtimpl::ExternalData* externalData = new jsrtimpl::ExternalData(
     env, native_object, finalize_cb, finalize_hint);
   if (externalData == nullptr) return napi_set_last_error(napi_generic_failure);
@@ -1375,18 +1436,9 @@ napi_status napi_wrap(napi_env env,
 napi_status napi_unwrap(napi_env env, napi_value js_object, void** result) {
   JsValueRef value = reinterpret_cast<JsValueRef>(js_object);
 
-  // Search the object's prototype chain for the wrapper with external data.
-  // Usually the wrapper would be the first in the chain, but it is OK for
-  // other objects to be inserted in the prototype chain.
-  JsValueRef wrapper = value;
-  bool hasExternalData = false;
-  do {
-    CHECK_JSRT(JsGetPrototype(wrapper, &wrapper));
-    if (wrapper == JS_INVALID_REFERENCE) {
-      return  napi_invalid_arg;
-    }
-    CHECK_JSRT(JsHasExternalData(wrapper, &hasExternalData));
-  } while (!hasExternalData);
+  JsValueRef wrapper = JS_INVALID_REFERENCE;
+  CHECK_NAPI(jsrtimpl::FindWrapper(value, &wrapper));
+  RETURN_STATUS_IF_FALSE(wrapper != JS_INVALID_REFERENCE, napi_invalid_arg);
 
   jsrtimpl::ExternalData* externalData;
   CHECK_JSRT(JsGetExternalData(

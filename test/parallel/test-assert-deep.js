@@ -7,10 +7,11 @@ const util = require('util');
 // for assert.throws()
 function re(literals, ...values) {
   let result = literals[0];
+  const escapeRE = /[\\^$.*+?()[\]{}|=!<>:-]/g;
   for (const [i, value] of values.entries()) {
     const str = util.inspect(value);
     // Need to escape special characters.
-    result += str.replace(/[\\^$.*+?()[\]{}|=!<>:-]/g, '\\$&');
+    result += str.replace(escapeRE, '\\$&');
     result += literals[i + 1];
   }
   return common.expectsError({
@@ -113,12 +114,12 @@ for (const a of similar) {
   }
 }
 
-assert.throws(
-  () => { assert.deepEqual(new Set([{a: 0}]), new Set([{a: 1}])); },
-  common.expectsError({
-    code: 'ERR_ASSERTION',
-    message: /^Set { { a: 0 } } deepEqual Set { { a: 1 } }$/
-  }));
+common.expectsError(() => {
+  assert.deepEqual(new Set([{a: 0}]), new Set([{a: 1}]));
+}, {
+  code: 'ERR_ASSERTION',
+  message: /^Set { { a: 0 } } deepEqual Set { { a: 1 } }$/
+});
 
 function assertDeepAndStrictEqual(a, b) {
   assert.deepEqual(a, b);
@@ -186,6 +187,28 @@ assertOnlyDeepEqual(new Map([['1', 'a']]), new Map([[1, 'a']]));
 assertOnlyDeepEqual(new Map([['a', '1']]), new Map([['a', 1]]));
 
 assertDeepAndStrictEqual(new Set([{}]), new Set([{}]));
+
+// Ref: https://github.com/nodejs/node/issues/13347
+assertNotDeepOrStrict(
+  new Set([{a: 1}, {a: 1}]),
+  new Set([{a: 1}, {a: 2}])
+);
+assertNotDeepOrStrict(
+  new Set([{a: 1}, {a: 1}, {a: 2}]),
+  new Set([{a: 1}, {a: 2}, {a: 2}])
+);
+assertNotDeepOrStrict(
+  new Map([[{x: 1}, 5], [{x: 1}, 5]]),
+  new Map([[{x: 1}, 5], [{x: 2}, 5]])
+);
+
+assertNotDeepOrStrict(new Set([3, '3']), new Set([3, 4]));
+assertNotDeepOrStrict(new Map([[3, 0], ['3', 0]]), new Map([[3, 0], [4, 0]]));
+
+assertNotDeepOrStrict(
+  new Set([{a: 1}, {a: 1}, {a: 2}]),
+  new Set([{a: 1}, {a: 2}, {a: 2}])
+);
 
 // This is an awful case, where a map contains multiple equivalent keys:
 assertOnlyDeepEqual(

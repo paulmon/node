@@ -515,8 +515,10 @@ A Writable stream in object mode will always ignore the `encoding` argument.
 added: v8.0.0
 -->
 
+* Returns: `this`
+
 Destroy the stream, and emit the passed error. After this call, the
-writible stream has ended. Implementors should not override this method,
+writable stream has ended. Implementors should not override this method,
 but instead implement [`writable._destroy`][writable-_destroy].
 
 ### Readable Streams
@@ -595,9 +597,8 @@ possible states:
 * `readable._readableState.flowing = true`
 
 When `readable._readableState.flowing` is `null`, no mechanism for consuming the
-streams data is provided so the stream will not generate its data.
-
-Attaching a listener for the `'data'` event, calling the `readable.pipe()`
+streams data is provided so the stream will not generate its data. While in this
+state, attaching a listener for the `'data'` event, calling the `readable.pipe()`
 method, or calling the `readable.resume()` method will switch
 `readable._readableState.flowing` to `true`, causing the Readable to begin
 actively emitting events as data is generated.
@@ -605,7 +606,22 @@ actively emitting events as data is generated.
 Calling `readable.pause()`, `readable.unpipe()`, or receiving "back pressure"
 will cause the `readable._readableState.flowing` to be set as `false`,
 temporarily halting the flowing of events but *not* halting the generation of
-data.
+data. While in this state, attaching a listener for the `'data'` event
+would not cause `readable._readableState.flowing` to switch to `true`.
+
+```js
+const { PassThrough, Writable } = require('stream');
+const pass = new PassThrough();
+const writable = new Writable();
+
+pass.pipe(writable);
+pass.unpipe(writable);
+// flowing is now false
+
+pass.on('data', (chunk) => { console.log(chunk.toString()); });
+pass.write('ok'); // will not emit 'data'
+pass.resume(); // must be called to make 'data' being emitted
+```
 
 While `readable._readableState.flowing` is `false`, data may be accumulating
 within the streams internal buffer.
@@ -754,7 +770,8 @@ end
 ```
 
 *Note*: In general, the `readable.pipe()` and `'data'` event mechanisms are
-preferred over the use of the `'readable'` event.
+easier to understand than the `'readable'` event.
+However, handling `'readable'` might result in increased throughput.
 
 ##### readable.isPaused()
 <!-- YAML
@@ -1727,8 +1744,8 @@ constructor and implement *both* the `readable._read()` and
 * `options` {Object} Passed to both Writable and Readable
   constructors. Also has the following fields:
   * `allowHalfOpen` {boolean} Defaults to `true`. If set to `false`, then
-    the stream will automatically end the readable side when the
-    writable side ends and vice versa.
+    the stream will automatically end the writable side when the
+    readable side ends.
   * `readableObjectMode` {boolean} Defaults to `false`. Sets `objectMode`
     for readable side of the stream. Has no effect if `objectMode`
     is `true`.
@@ -2160,6 +2177,7 @@ readable buffer so there is nothing for a user to consume.
 [fs read streams]: fs.html#fs_class_fs_readstream
 [fs write streams]: fs.html#fs_class_fs_writestream
 [http-incoming-message]: http.html#http_class_http_incomingmessage
+[zlib]: zlib.html
 [stream-_flush]: #stream_transform_flush_callback
 [stream-_read]: #stream_readable_read_size_1
 [stream-_transform]: #stream_transform_transform_chunk_encoding_callback

@@ -563,7 +563,7 @@ namespace Js
 
         if(isUnordered)
         {
-            newTypeHandler->CopyUnorderedStateFrom(*AsUnordered());
+            newTypeHandler->CopyUnorderedStateFrom(*AsUnordered(), instance);
         }
         else
         {
@@ -1036,7 +1036,7 @@ namespace Js
         Assert(this->GetSlotCapacity() <= MaxPropertyIndexSize);   // slotCapacity should never exceed MaxPropertyIndexSize
         Assert(nextPropertyIndex < this->GetSlotCapacity());       // nextPropertyIndex must be ready
 
-        Add(nextPropertyIndex++, propertyKey, attributes, isInitialized, isFixed, usedAsFixed, scriptContext);
+        Add(::Math::PostInc(nextPropertyIndex), propertyKey, attributes, isInitialized, isFixed, usedAsFixed, scriptContext);
     }
 
     template <typename TPropertyIndex, typename TMapKey, bool IsNotExtensibleSupported>
@@ -2536,8 +2536,8 @@ namespace Js
             // A Dictionary type is expected to have more properties
             // grow exponentially rather linearly to avoid the realloc and moves,
             // however use a small exponent to avoid waste
-            int newSlotCapacity = (nextPropertyIndex + 1);
-            newSlotCapacity += (newSlotCapacity>>2);
+            int newSlotCapacity = ::Math::Add(nextPropertyIndex, (TPropertyIndex)1);
+            newSlotCapacity = ::Math::Add(newSlotCapacity, newSlotCapacity >> 2);
             if (newSlotCapacity > MaxPropertyIndexSize)
             {
                 newSlotCapacity = MaxPropertyIndexSize;
@@ -2685,6 +2685,7 @@ namespace Js
                 ->AddProperty(instance, propertyKey, value, attributes, info, flags, possibleSideEffects);
         }
 
+        // CONSIDER: Do this after TryReuseDeletedPropertyIndex. If we can reuse slots, no need to grow right now.
         if (this->GetSlotCapacity() <= nextPropertyIndex)
         {
             if (this->GetSlotCapacity() >= MaxPropertyIndexSize)

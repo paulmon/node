@@ -1,17 +1,15 @@
 'use strict';
 
 const common = require('../common');
+if (!common.hasCrypto)
+  common.skip('missing crypto');
+
 const assert = require('assert');
 const initHooks = require('./init-hooks');
 const fs = require('fs');
 const { checkInvocations } = require('./hook-checks');
-
-if (!common.hasCrypto) {
-  common.skip('missing crypto');
-  return;
-}
-
 const tls = require('tls');
+
 const hooks = initHooks();
 hooks.enable();
 
@@ -48,7 +46,7 @@ function checkDestroyedWriteWraps(n, stage) {
   function checkValidWriteWrap(w) {
     assert.strictEqual(w.type, 'WRITEWRAP');
     assert.strictEqual(typeof w.uid, 'number');
-    assert.strictEqual(typeof w.triggerId, 'number');
+    assert.strictEqual(typeof w.triggerAsyncId, 'number');
 
     checkInvocations(w, { init: 1 }, `when ${stage}`);
   }
