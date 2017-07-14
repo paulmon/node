@@ -56,7 +56,6 @@
 #define USE_EDGEMODE_JSRT     // Only works with edge JSRT
 #endif
 
-#include <jsrt.h>
 #if !defined(OSX_SDK_TR1) && defined(__APPLE__)
 #include <AvailabilityMacros.h>
 #if __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < MAC_OS_X_VERSION_10_9
@@ -65,9 +64,7 @@
 #endif
 
 #include <memory>
-#ifndef UWP_DLL
-#include "ChakraCore.h"
-#endif
+#include <jsrt.h>
 #include "v8-version.h"
 #include "v8config.h"
 

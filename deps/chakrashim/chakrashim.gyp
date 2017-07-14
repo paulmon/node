@@ -39,23 +39,6 @@
             'chakracore.gyp:chakracore#host',
           ],
         }],
-        [ 'node_uwp_dll!="true"', {
-          'libraries': [
-            '-lole32.lib',
-            '-lversion.lib',
-            '<@(node_engine_libs)',
-          ],
-        }],
-        [ 'node_uwp_dll=="true"', {
-          'libraries': [
-            '<@(node_engine_libs)',
-          ],
-          'msvs_settings': {
-            'VCCLCompilerTool': {
-              'CompileAsWinRT': 'false',
-            }
-          },
-        }],
         [ 'OS in "linux"', {
           'cflags_cc': [ '-fexceptions' ],
         }],
@@ -85,6 +68,9 @@
         'defines': [
           'BUILDING_CHAKRASHIM=1',
         ],
+        'libraries': [
+          '<@(node_engine_libs)',
+        ],
         'conditions': [
           [ 'target_arch=="arm"', {
             'defines': [ '__arm__=1' ]
@@ -93,18 +79,7 @@
             'libraries': [
               '-lole32.lib',
               '-lversion.lib',
-              '<@(node_engine_libs)',
             ],
-          }],
-          [ 'node_uwp_dll=="true"', {
-            'libraries': [
-              '<@(node_engine_libs)',
-            ],
-            'msvs_settings': {
-              'VCCLCompilerTool': {
-                'CompileAsWinRT': 'false',
-              }
-            },
           }],
         ],
       },
@@ -137,8 +112,6 @@
         'src/jsrtpromise.cc',
         'src/jsrtproxyutils.cc',
         'src/jsrtproxyutils.h',
-        'src/jsrtstringutils.cc',
-        'src/jsrtstringutils.h',
         'src/jsrtutils.cc',
         'src/jsrtutils.h',
         'src/v8array.cc',
