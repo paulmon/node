@@ -58,7 +58,7 @@ class FunctionCallbackData : public ExternalData {
     prototype.Reset();
   }
 
-  static void CALLBACK FinalizeCallback(void *data) {
+  static void CHAKRA_CALLBACK FinalizeCallback(void *data) {
     if (data != nullptr) {
       FunctionCallbackData* functionCallbackData =
         reinterpret_cast<FunctionCallbackData*>(data);
@@ -78,7 +78,7 @@ class FunctionCallbackData : public ExternalData {
 
   bool CheckSignature(Local<Object> thisPointer,
                       JsValueRef *arguments,
-                      unsigned short argumentCount,
+                      unsigned short argumentCount,  // NOLINT(runtime/int)
                       Local<Object>* holder) {
     if (signature.IsEmpty()) {
       *holder = thisPointer;
@@ -89,13 +89,16 @@ class FunctionCallbackData : public ExternalData {
                                  thisPointer, holder);
   }
 
-  static JsValueRef CALLBACK FunctionInvoked(JsValueRef callee,
-                                             bool isConstructCall,
-                                             JsValueRef *arguments,
-                                             unsigned short argumentCount,
-                                             void *callbackState) {
+  static JsValueRef CHAKRA_CALLBACK FunctionInvoked(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState) {
+    CHAKRA_VERIFY(argumentCount >= 1);
+
     // Script engine could have switched context. Make sure to invoke the
-    // callback in the current callee context.
+    // CHAKRA_CALLBACK in the current callee context.
     ContextShim* contextShim = IsolateShim::GetContextShimOfObject(callee);
     ContextShim::Scope contextScope(contextShim);
     HandleScope scope(nullptr);
@@ -148,7 +151,7 @@ class FunctionCallbackData : public ExternalData {
       }
     }
 
-    // no callback is attach just return the new instance
+    // no CHAKRA_CALLBACK is attach just return the new instance
     return *thisPointer;
   }
 };
@@ -167,6 +170,7 @@ class FunctionTemplateData : public TemplateData {
   Persistent<ObjectTemplate> instanceTemplate;
   Persistent<FunctionTemplate> parent;
   Persistent<Function> functionInstance;
+  bool removePrototype;
 
  public:
   explicit FunctionTemplateData(FunctionCallback callback,
@@ -175,7 +179,8 @@ class FunctionTemplateData : public TemplateData {
       : TemplateData(ExternalDataType),
         callback(callback),
         data(nullptr, data),
-        signature(nullptr, signature) {
+        signature(nullptr, signature),
+        removePrototype(false) {
   }
 
   ~FunctionTemplateData() {
@@ -188,7 +193,7 @@ class FunctionTemplateData : public TemplateData {
     functionInstance.Reset();
   }
 
-  static void CALLBACK FinalizeCallback(void *data) {
+  static void CHAKRA_CALLBACK FinalizeCallback(void *data) {
     if (data != nullptr) {
       FunctionTemplateData * functionTemplateData =
         reinterpret_cast<FunctionTemplateData*>(data);
@@ -199,6 +204,10 @@ class FunctionTemplateData : public TemplateData {
   void SetCallHandler(FunctionCallback callback, Local<Value> data) {
     this->callback = callback;
     this->data = data;
+  }
+
+  void SetRemovePrototype(bool removePrototype) {
+    this->removePrototype = removePrototype;
   }
 
   void Inherit(Local<FunctionTemplate> parent) {
@@ -246,37 +255,45 @@ class FunctionTemplateData : public TemplateData {
         }
       }
 
-      Local<Object> prototype;
-      {
-        IsolateShim* iso = IsolateShim::GetCurrent();
-        prototype = !prototypeTemplate.IsEmpty() ?
-          prototypeTemplate->NewInstance() : Object::New();
+      if (!removePrototype) {
+        Local<Object> prototype;
+        {
+          IsolateShim* iso = IsolateShim::GetCurrent();
+          prototype = !prototypeTemplate.IsEmpty() ?
+            prototypeTemplate->NewInstance() : Object::New();
 
-        // inherit from parent
-        if (!parent.IsEmpty()) {
-          JsValueRef parentPrototype;
-          if (JsGetProperty(*parent->GetFunction(),
+          // inherit from parent
+          if (!parent.IsEmpty()) {
+            JsValueRef parentPrototype;
+            if (JsGetProperty(*parent->GetFunction(),
+                              iso->GetCachedPropertyIdRef(
+                                jsrt::CachedPropertyIdRef::prototype),
+                              &parentPrototype) != JsNoError ||
+                JsSetPrototype(*prototype,
+                               parentPrototype) != JsNoError) {
+              return nullptr;
+            }
+          }
+
+          if (jsrt::DefineProperty(*prototype,
+              iso->GetCachedPropertyIdRef(
+                  jsrt::CachedPropertyIdRef::constructor),
+              jsrt::PropertyDescriptorOptionValues::True, /* writable */
+              jsrt::PropertyDescriptorOptionValues::False, /* enumerable */
+              jsrt::PropertyDescriptorOptionValues::True, /* configurable */
+              function, /* value */
+              JS_INVALID_REFERENCE, /* getter */
+              JS_INVALID_REFERENCE /* setter */)
+              != JsNoError || JsSetProperty(function,
                             iso->GetCachedPropertyIdRef(
                               jsrt::CachedPropertyIdRef::prototype),
-                            &parentPrototype) != JsNoError ||
-              JsSetPrototype(*prototype,
-                             parentPrototype) != JsNoError) {
+                            *prototype, false) != JsNoError) {
             return nullptr;
           }
         }
 
-        if (JsSetProperty(*prototype,
-                          iso->GetCachedPropertyIdRef(
-                            jsrt::CachedPropertyIdRef::constructor),
-                          function, false) != JsNoError ||
-            JsSetProperty(function,
-                          iso->GetCachedPropertyIdRef(
-                            jsrt::CachedPropertyIdRef::prototype),
-                          *prototype, false) != JsNoError) {
-          return nullptr;
-        }
+        callbackData->SavePrototype(prototype);
       }
-      callbackData->SavePrototype(prototype);
 
       if (CopyPropertiesTo(function) != JsNoError) {
         return nullptr;
@@ -384,6 +401,16 @@ void FunctionTemplate::Inherit(Handle<FunctionTemplate> parent) {
   }
 
   functionTemplateData->Inherit(parent);
+}
+
+void FunctionTemplate::RemovePrototype() {
+  FunctionTemplateData* functionTemplateData = nullptr;
+  if (!ExternalData::TryGet(this, &functionTemplateData)) {
+    CHAKRA_ASSERT(false);
+    return;
+  }
+
+  functionTemplateData->SetRemovePrototype(true);
 }
 
 }  // namespace v8

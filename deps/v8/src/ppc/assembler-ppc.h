@@ -109,6 +109,9 @@ namespace internal {
   V(d16) V(d17) V(d18) V(d19) V(d20) V(d21) V(d22) V(d23) \
   V(d24) V(d25) V(d26) V(d27) V(d28) V(d29) V(d30) V(d31)
 
+#define FLOAT_REGISTERS DOUBLE_REGISTERS
+#define SIMD128_REGISTERS DOUBLE_REGISTERS
+
 #define ALLOCATABLE_DOUBLE_REGISTERS(V)                   \
   V(d1)  V(d2)  V(d3)  V(d4)  V(d5)  V(d6)  V(d7)         \
   V(d8)  V(d9)  V(d10) V(d11) V(d12) V(d15)               \
@@ -164,8 +167,6 @@ struct Register {
     Register r = {code};
     return r;
   }
-  const char* ToString();
-  bool IsAllocatable() const;
   bool is_valid() const { return 0 <= reg_code && reg_code < kNumRegisters; }
   bool is(Register reg) const { return reg_code == reg.reg_code; }
   int code() const {
@@ -204,6 +205,9 @@ const Register kConstantPoolRegister = r28;  // Constant pool.
 const Register kRootRegister = r29;          // Roots array pointer.
 const Register cp = r30;                     // JavaScript context pointer.
 
+static const bool kSimpleFPAliasing = true;
+static const bool kSimdMaskRegisters = false;
+
 // Double word FP register.
 struct DoubleRegister {
   enum Code {
@@ -217,8 +221,6 @@ struct DoubleRegister {
   static const int kNumRegisters = Code::kAfterLast;
   static const int kMaxNumRegisters = kNumRegisters;
 
-  const char* ToString();
-  bool IsAllocatable() const;
   bool is_valid() const { return 0 <= reg_code && reg_code < kNumRegisters; }
   bool is(DoubleRegister reg) const { return reg_code == reg.reg_code; }
   int code() const {
@@ -237,6 +239,11 @@ struct DoubleRegister {
 
   int reg_code;
 };
+
+typedef DoubleRegister FloatRegister;
+
+// TODO(ppc) Define SIMD registers.
+typedef DoubleRegister Simd128Register;
 
 #define DECLARE_REGISTER(R) \
   const DoubleRegister R = {DoubleRegister::kCode_##R};
@@ -282,9 +289,6 @@ const CRegister cr4 = {4};
 const CRegister cr5 = {5};
 const CRegister cr6 = {6};
 const CRegister cr7 = {7};
-
-// TODO(ppc) Define SIMD registers.
-typedef DoubleRegister Simd128Register;
 
 // -----------------------------------------------------------------------------
 // Machine instruction Operands
@@ -466,17 +470,10 @@ class Assembler : public AssemblerBase {
   INLINE(static void set_target_address_at(
       Isolate* isolate, Address pc, Address constant_pool, Address target,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED));
-  INLINE(static Address target_address_at(Address pc, Code* code)) {
-    Address constant_pool = code ? code->constant_pool() : NULL;
-    return target_address_at(pc, constant_pool);
-  }
+  INLINE(static Address target_address_at(Address pc, Code* code));
   INLINE(static void set_target_address_at(
       Isolate* isolate, Address pc, Code* code, Address target,
-      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED)) {
-    Address constant_pool = code ? code->constant_pool() : NULL;
-    set_target_address_at(isolate, pc, constant_pool, target,
-                          icache_flush_mode);
-  }
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED));
 
   // Return the code target address at a call site from the return address
   // of that call in the instruction stream.
@@ -834,6 +831,8 @@ class Assembler : public AssemblerBase {
             RCBit r = LeaveRC);
   void divwu(Register dst, Register src1, Register src2, OEBit o = LeaveOE,
              RCBit r = LeaveRC);
+  void modsw(Register rt, Register ra, Register rb);
+  void moduw(Register rt, Register ra, Register rb);
 
   void addi(Register dst, Register src, const Operand& imm);
   void addis(Register dst, Register src, const Operand& imm);
@@ -874,6 +873,9 @@ class Assembler : public AssemblerBase {
   void lwzux(Register dst, const MemOperand& src);
   void lwa(Register dst, const MemOperand& src);
   void lwax(Register dst, const MemOperand& src);
+  void ldbrx(Register dst, const MemOperand& src);
+  void lwbrx(Register dst, const MemOperand& src);
+  void lhbrx(Register dst, const MemOperand& src);
   void stb(Register dst, const MemOperand& src);
   void stbx(Register dst, const MemOperand& src);
   void stbux(Register dst, const MemOperand& src);
@@ -926,6 +928,8 @@ class Assembler : public AssemblerBase {
             RCBit r = LeaveRC);
   void divdu(Register dst, Register src1, Register src2, OEBit o = LeaveOE,
              RCBit r = LeaveRC);
+  void modsd(Register rt, Register ra, Register rb);
+  void modud(Register rt, Register ra, Register rb);
 #endif
 
   void rlwinm(Register ra, Register rs, int sh, int mb, int me,
@@ -1098,6 +1102,17 @@ class Assembler : public AssemblerBase {
              const DoubleRegister frc, const DoubleRegister frb,
              RCBit rc = LeaveRC);
 
+  // Support for VSX instructions
+
+  void xsadddp(const DoubleRegister frt, const DoubleRegister fra,
+               const DoubleRegister frb);
+  void xssubdp(const DoubleRegister frt, const DoubleRegister fra,
+               const DoubleRegister frb);
+  void xsdivdp(const DoubleRegister frt, const DoubleRegister fra,
+               const DoubleRegister frb);
+  void xsmuldp(const DoubleRegister frt, const DoubleRegister fra,
+               const DoubleRegister frc);
+
   // Pseudo instructions
 
   // Different nop operations are used by the code generator to detect certain
@@ -1182,9 +1197,6 @@ class Assembler : public AssemblerBase {
 
   // Debugging
 
-  // Mark generator continuation.
-  void RecordGeneratorContinuation();
-
   // Mark address of a debug break slot.
   void RecordDebugBreakSlot(RelocInfo::Mode mode);
 
@@ -1210,7 +1222,8 @@ class Assembler : public AssemblerBase {
 
   // Record a deoptimization reason that can be used by a log or cpu profiler.
   // Use --trace-deopt to enable.
-  void RecordDeoptReason(const int reason, int raw_position);
+  void RecordDeoptReason(DeoptimizeReason reason, SourcePosition position,
+                         int id);
 
   // Writes a single byte or word of data in the code stream.  Used
   // for inline tables, e.g., jump-tables.
@@ -1218,10 +1231,6 @@ class Assembler : public AssemblerBase {
   void dd(uint32_t data);
   void dq(uint64_t data);
   void dp(uintptr_t data);
-
-  AssemblerPositionsRecorder* positions_recorder() {
-    return &positions_recorder_;
-  }
 
   // Read/patch instructions
   Instr instr_at(int pos) { return *reinterpret_cast<Instr*>(buffer_ + pos); }
@@ -1406,6 +1415,8 @@ class Assembler : public AssemblerBase {
   void x_form(Instr instr, Register ra, Register rs, Register rb, RCBit r);
   void xo_form(Instr instr, Register rt, Register ra, Register rb, OEBit o,
                RCBit r);
+  void xx3_form(Instr instr, DoubleRegister t, DoubleRegister a,
+                DoubleRegister b);
   void md_form(Instr instr, Register ra, Register rs, int shift, int maskbit,
                RCBit r);
   void mds_form(Instr instr, Register ra, Register rs, Register rb, int maskbit,
@@ -1468,8 +1479,6 @@ class Assembler : public AssemblerBase {
   friend class RelocInfo;
   friend class CodePatcher;
   friend class BlockTrampolinePoolScope;
-  AssemblerPositionsRecorder positions_recorder_;
-  friend class AssemblerPositionsRecorder;
   friend class EnsureSpace;
 };
 

@@ -71,7 +71,7 @@ var tests = [
         body: function () {
             var i = 0;
             var a = [];
-            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available before for-of loop", "'x' is undefined");
+            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available before for-of loop", "'x' is not defined");
 
             for (let x of simpleIterator) {
                 a.push(x);
@@ -83,7 +83,7 @@ var tests = [
 
             assert.areEqual([0, 1, 2], a, "verify the correct number of iterations occurred");
 
-            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available after for-of loop", "'x' is undefined");
+            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available after for-of loop", "'x' is not defined");
         }
     },
     {
@@ -101,7 +101,7 @@ var tests = [
             /*
             var i = 0;
             var a = [];
-            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available before for-of loop", "'x' is undefined");
+            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available before for-of loop", "'x' is not defined");
 
             for (const x of simpleIterator) {
                 a.push(x);
@@ -112,7 +112,7 @@ var tests = [
 
             assert.areEqual([0, 1, 2], a, "verify the correct number of iterations occurred");
 
-            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available after for-of loop", "'x' is undefined");
+            assert.throws(function () { eval('x'); }, ReferenceError, "x is not available after for-of loop", "'x' is not defined");
             */
        }
     },
@@ -199,15 +199,10 @@ var tests = [
         }
     },
     {
-        name: "for-of does not execute loop body for null and undefined collections (i.e. before trying to call @@iterator)",
+        name: "for-of throws TypeError when expr is evaluated to undefined/null (because it should do the ToObject(expr))",
         body: function () {
-            for (let x of null) {
-                assert.fail("loop body should not execute for null iterator");
-            }
-
-            for (let x of undefined) {
-                assert.fail("loop body should not execute for undefined iterator");
-            }
+            assert.throws(function () { for (let x of undefined) { } }, TypeError, "throws when undefined", "Cannot convert null or undefined to object");
+            assert.throws(function () { for (let x of null) { } }, TypeError, "throws when null", "Cannot convert null or undefined to object");
         }
     },
     {

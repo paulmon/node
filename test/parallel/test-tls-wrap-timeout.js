@@ -12,8 +12,8 @@ const net = require('net');
 const fs = require('fs');
 
 const options = {
-  key: fs.readFileSync(common.fixturesDir + '/keys/agent1-key.pem'),
-  cert: fs.readFileSync(common.fixturesDir + '/keys/agent1-cert.pem')
+  key: fs.readFileSync(`${common.fixturesDir}/keys/agent1-key.pem`),
+  cert: fs.readFileSync(`${common.fixturesDir}/keys/agent1-cert.pem`)
 };
 
 const server = tls.createServer(options, common.mustCall((c) => {
@@ -27,8 +27,8 @@ const server = tls.createServer(options, common.mustCall((c) => {
   });
 }));
 
-var socket;
-var lastIdleStart;
+let socket;
+let lastIdleStart;
 
 server.listen(0, () => {
   socket = net.connect(server.address().port, function() {

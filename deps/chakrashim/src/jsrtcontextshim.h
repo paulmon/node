@@ -18,9 +18,15 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
+#ifndef DEPS_CHAKRASHIM_SRC_JSRTCONTEXTSHIM_H_
+#define DEPS_CHAKRASHIM_SRC_JSRTCONTEXTSHIM_H_
+
 #include <vector>
 
 namespace jsrt {
+
+class IsolateShim;
+
 class ContextShim {
  public:
   // This has the same layout as v8::Context::Scope
@@ -50,9 +56,12 @@ class ContextShim {
   };
 
   static ContextShim * New(IsolateShim * isolateShim, bool exposeGC,
+                           bool useGlobalTTState,
                            JsValueRef globalObjectTemplateInstance);
   ~ContextShim();
   void EnsureInitialized();
+
+  bool ExecuteChakraInspectorShimJS(JsValueRef * chakraDebugObject);
 
   IsolateShim * GetIsolateShim();
   JsContextRef GetContextRef();
@@ -69,12 +78,19 @@ class ContextShim {
   JsValueRef GetDateConstructor();
   JsValueRef GetRegExpConstructor();
   JsValueRef GetProxyConstructor();
+  JsValueRef GetMapConstructor();
   JsValueRef GetGlobalType(GlobalType index);
-  JsValueRef GetGetOwnPropertyDescriptorFunction();
+
+  JsValueRef GetHasOwnPropertyFunction();
+  JsValueRef GetToStringFunction();
+  JsValueRef GetValueOfFunction();
   JsValueRef GetStringConcatFunction();
   JsValueRef GetArrayPushFunction();
   JsValueRef GetGlobalPrototypeFunction(GlobalPrototypeFunction index);
   JsValueRef GetProxyOfGlobal();
+  JsValueRef GetMapGetFunction();
+  JsValueRef GetMapSetFunction();
+  JsValueRef GetMapHasFunction();
 
   void * GetAlignedPointerFromEmbedderData(int index);
   void SetAlignedPointerInEmbedderData(int index, void * value);
@@ -93,7 +109,7 @@ class ContextShim {
 
   template <typename Fn>
   bool InitializeBuiltIn(JsValueRef * builtInValue, Fn getBuiltIn);
-  bool InitializeBuiltIn(JsValueRef * builtInValue, const wchar_t* globalName);
+  bool InitializeBuiltIn(JsValueRef * builtInValue, const char* globalName);
   bool InitializeGlobalTypes();
   bool KeepAlive(JsValueRef value);
   JsValueRef GetCachedShimFunction(CachedPropertyIdRef id, JsValueRef* func);
@@ -125,10 +141,14 @@ class ContextShim {
   std::vector<void*> embedderData;
 
 #define DECLARE_CHAKRASHIM_FUNCTION_GETTER(F) \
-public: \
+ public: \
   JsValueRef Get##F##Function(); \
-private: \
+ private: \
   JsValueRef F##Function; \
+
+#define DEF_IS_TYPE(F) DECLARE_CHAKRASHIM_FUNCTION_GETTER(F)
+#include "jsrtcachedpropertyidref.inc"
+#undef DEF_IS_TYPE
 
   DECLARE_CHAKRASHIM_FUNCTION_GETTER(cloneObject);
   DECLARE_CHAKRASHIM_FUNCTION_GETTER(getPropertyNames);
@@ -146,10 +166,9 @@ private: \
   DECLARE_CHAKRASHIM_FUNCTION_GETTER(enqueueMicrotask);
   DECLARE_CHAKRASHIM_FUNCTION_GETTER(dequeueMicrotask);
   DECLARE_CHAKRASHIM_FUNCTION_GETTER(getPropertyAttributes);
-
-#define DEF_IS_TYPE(F) DECLARE_CHAKRASHIM_FUNCTION_GETTER(F)
-#include "jsrtcachedpropertyidref.inc"
-#undef DEF_IS_TYPE
+  DECLARE_CHAKRASHIM_FUNCTION_GETTER(getOwnPropertyNames);
 };
 
 }  // namespace jsrt
+
+#endif  // DEPS_CHAKRASHIM_SRC_JSRTCONTEXTSHIM_H_

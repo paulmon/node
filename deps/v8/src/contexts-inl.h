@@ -7,6 +7,7 @@
 
 #include "src/contexts.h"
 #include "src/objects-inl.h"
+#include "src/objects/regexp-match-info.h"
 
 namespace v8 {
 namespace internal {
@@ -56,18 +57,15 @@ Context* Context::previous() {
 }
 void Context::set_previous(Context* context) { set(PREVIOUS_INDEX, context); }
 
+Object* Context::next_context_link() { return get(Context::NEXT_CONTEXT_LINK); }
 
-bool Context::has_extension() { return !extension()->IsTheHole(); }
+bool Context::has_extension() { return !extension()->IsTheHole(GetIsolate()); }
 HeapObject* Context::extension() {
   return HeapObject::cast(get(EXTENSION_INDEX));
 }
 void Context::set_extension(HeapObject* object) {
   set(EXTENSION_INDEX, object);
 }
-
-
-JSModule* Context::module() { return JSModule::cast(get(EXTENSION_INDEX)); }
-void Context::set_module(JSModule* module) { set(EXTENSION_INDEX, module); }
 
 
 Context* Context::native_context() {
@@ -121,12 +119,19 @@ bool Context::IsModuleContext() {
   return map == map->GetHeap()->module_context_map();
 }
 
+bool Context::IsEvalContext() {
+  Map* map = this->map();
+  return map == map->GetHeap()->eval_context_map();
+}
 
 bool Context::IsScriptContext() {
   Map* map = this->map();
   return map == map->GetHeap()->script_context_map();
 }
 
+bool Context::OptimizedCodeMapIsCleared() {
+  return osr_code_table() == GetHeap()->empty_fixed_array();
+}
 
 bool Context::HasSameSecurityTokenAs(Context* that) {
   return this->native_context()->security_token() ==

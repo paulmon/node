@@ -1,3 +1,5 @@
+# Additional Onboarding Information
+
 ## Who to CC in issues
 
 | subsystem | maintainers |
@@ -9,24 +11,31 @@
 | `lib/child_process` | @bnoordhuis, @cjihrig |
 | `lib/cluster` | @bnoordhuis, @cjihrig, @mcollina |
 | `lib/{crypto,tls,https}` | @nodejs/crypto |
+| `lib/dgram` | @cjihrig, @mcollina |
 | `lib/domains` | @misterdjules |
-| `lib/fs`, `src/{fs|file}` | @nodejs/fs |
+| `lib/fs`, `src/{fs,file}` | @nodejs/fs |
+| `lib/internal/url`, `src/node_url` | @nodejs/url |
 | `lib/{_}http{*}` | @nodejs/http |
 | `lib/net` | @bnoordhuis, @indutny, @nodejs/streams |
-| `lib/{_}stream{s|*}` | @nodejs/streams |
+| `lib/{_}stream{*}` | @nodejs/streams |
 | `lib/repl` | @addaleax, @fishrock123 |
 | `lib/timers` | @fishrock123, @misterdjules |
 | `lib/util` | @bnoordhuis, @cjihrig, @evanlucas |
 | `lib/zlib` | @addaleax, @bnoordhuis, @indutny |
-| `src/async-wrap.*` | @trevnorris |
+| `src/async-wrap.*` | @nodejs/async_hooks |
+| `src/node_api.*` | @nodejs/n-api |
 | `src/node_crypto.*` | @nodejs/crypto |
 | `test/*` | @nodejs/testing |
-| `tools/eslint`, `.eslintrc` | @silverwind, @trott |
+| `tools/eslint`, `.eslintrc` | @not-an-aardvark, @silverwind, @trott |
+| async_hooks | @nodejs/async_hooks for bugs/reviews (+ @nodejs/diagnostics for API) |
+| performance | @nodejs/performance |
 | upgrading V8 | @nodejs/v8, @nodejs/post-mortem |
-| upgrading npm | @fishrock123, @thealphanerd |
+| upgrading npm | @fishrock123, @MylesBorins |
 | upgrading c-ares | @jbergstroem |
 | upgrading http-parser | @jbergstroem, @nodejs/http |
 | upgrading libuv | @saghul |
+| python code | @nodejs/python |
+| platform specific | @nodejs/platform-{aix,arm,freebsd,macos,ppc,smartos,s390,windows} |
 
 
 When things need extra attention, are controversial, or `semver-major`: @nodejs/ctc
@@ -67,17 +76,17 @@ Please use these when possible / appropriate
   * major vs. everything else: run last versions tests against this version, if they pass, **probably** minor or patch
   * A breaking change helper ([full source](https://gist.github.com/chrisdickinson/ba532fa0e4e243fb7b44)):
   ```sh
-  git checkout $(git show -s --pretty='%T' $(git show-ref -d $(git describe --abbrev=0) | tail -n1 | awk '{print $1}')) -- test; make -j8 test
+  git checkout $(git show -s --pretty='%T' $(git show-ref -d $(git describe --abbrev=0) | tail -n1 | awk '{print $1}')) -- test; make -j4 test
   ```
 
 
 ### Other Labels
 
 * Operating system labels
-  * `os x`, `windows`, `solaris`
+  * `macos`, `windows`, `smartos`, `aix`
   * No linux, linux is the implied default
 * Architecture labels
-  * `arm`, `mips`
+  * `arm`, `mips`, `s390`, `ppc`
   * No x86{_64}, since that is the implied default
 * `lts-agenda`, `lts-watch-v*`
   * tag things that should be discussed to go into LTS or should go into a specific LTS branch
@@ -93,16 +102,6 @@ to update from nodejs/node:
 * `git checkout master`
 * `git remote update -p` OR `git fetch --all` (I prefer the former)
 * `git merge --ff-only upstream/master` (or `REMOTENAME/BRANCH`)
-
-
-## If `git am` fails
-
-* if `git am` fails – use `git am --abort`
-  * this usually means the PR needs updated
-  * prefer to make the originating user update the code, since they have it fresh in mind
-* first, reattempt with `git am -3` (3-way merge)`
-* if `-3` still fails, and you need to get it merged:
-  * `git fetch upstream pull/N/head:pr-N && git checkout pr-N && git rebase master`
 
 
 ## best practices

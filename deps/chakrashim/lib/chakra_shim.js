@@ -37,7 +37,8 @@
     Set_entries = Set.prototype.entries,
     Set_values = Set.prototype.values,
     Symbol_keyFor = Symbol.keyFor,
-    Symbol_for = Symbol.for;
+    Symbol_for = Symbol.for,
+    Global_ParseInt = parseInt;
   var BuiltInError = Error;
   var global = this;
 
@@ -131,7 +132,7 @@
     for (var i = 0; i < splittedStack.length; i++) {
       // parseStack has 1 frame lesser than skipDepth. So skip calling .caller
       // once. After that, continue calling .caller
-      if (skipDepth != 1 && curr) {
+      if (skipDepth !== 1 && curr) {
         try {
           curr = curr.caller;
         } catch (e) {
@@ -210,7 +211,8 @@
 
   function captureStackTrace(err, func) {
     // skip 3 frames: lambda, withStackTraceLimitOffset, this frame
-    return privateCaptureStackTrace(err, func,
+    return privateCaptureStackTrace(
+      err, func,
       withStackTraceLimitOffset(3, () => new BuiltInError()),
       3);
   }
@@ -232,7 +234,7 @@
     function ensureStackTrace() {
       if (!currentStackTrace) {
         currentStackTrace = parseStack(
-          Reflect_apply(oldStackDesc.get, e) || '', // Call saved old getter
+          Reflect_apply(oldStackDesc.get, e, []) || '', // Call saved old getter
           skipDepth, startFuncName);
       }
       return currentStackTrace;
@@ -276,13 +278,13 @@
       Error, EvalError, RangeError, ReferenceError, SyntaxError, TypeError,
       URIError
     ].forEach(function(type) {
-      var newType = function __newType() {
+      function newType() {
         var e = withStackTraceLimitOffset(
           3, () => Reflect_construct(type, arguments, new.target || newType));
         // skip 3 frames: lambda, withStackTraceLimitOffset, this frame
         privateCaptureStackTrace(e, undefined, e, 3);
         return e;
-      };
+      }
 
       Object_defineProperty(newType, 'name', {
         value: type.name,
@@ -307,7 +309,7 @@
 
     Function.prototype.toString = function toString() {
       return Reflect_apply(Function_prototype_toString,
-        typeToNative.get(this) || this, arguments);
+                           typeToNative.get(this) || this, arguments);
     };
     typeToNative.set(Function.prototype.toString, Function_prototype_toString);
   }
@@ -428,13 +430,13 @@
   var microTasks = [];
 
   function patchUtils(utils) {
-    var isUintRegex = /^(0|[1-9]\\d*)$/;
+    var isUintRegex = /^(0|[1-9]\d*)$/;
 
-    var isUint = function(value) {
+    function isUint(value) {
       var result = isUintRegex.test(value);
       isUintRegex.lastIndex = 0;
       return result;
-    };
+    }
     utils.cloneObject = function(source, target) {
       Object_getOwnPropertyNames(source).forEach(function(key) {
         try {
@@ -449,7 +451,11 @@
     utils.getPropertyNames = function(a) {
       var names = [];
       for (var propertyName in a) {
-        names.push(propertyName);
+        if (isUint(propertyName)) {
+          names.push(Global_ParseInt(propertyName));
+        } else {
+          names.push(propertyName);
+        }
       }
       return names;
     };
@@ -508,10 +514,10 @@
       return captureStackTrace({}, undefined)();
     };
     utils.isMapIterator = function(value) {
-      return value[mapIteratorProperty] == true;
+      return value[mapIteratorProperty] === true;
     };
     utils.isSetIterator = function(value) {
-      return value[setIteratorProperty] == true;
+      return value[setIteratorProperty] === true;
     };
     function compareType(o, expectedType) {
       return Object_prototype_toString.call(o) === '[object ' +
@@ -542,6 +548,10 @@
     utils.isRegExp = function(obj) {
       return compareType(obj, 'RegExp');
     };
+    utils.isAsyncFunction = function(obj) {
+      // CHAKRA-TODO
+      return false;
+    };
     utils.isSet = function(obj) {
       return compareType(obj, 'Set');
     };
@@ -550,6 +560,24 @@
     };
     utils.isNumberObject = function(obj) {
       return compareType(obj, 'Number');
+    };
+    utils.isArgumentsObject = function(obj) {
+      return compareType(obj, 'Arguments');
+    };
+    utils.isGeneratorObject = function(obj) {
+      return compareType(obj, 'Generator');
+    };
+    utils.isWeakMap = function(obj) {
+      return compareType(obj, 'WeakMap');
+    };
+    utils.isWeakSet = function(obj) {
+      return compareType(obj, 'WeakSet');
+    };
+    utils.isSymbolObject = function(obj) {
+      return compareType(obj, 'Symbol');
+    };
+    utils.isName = function(obj) {
+      return compareType(obj, 'String') || compareType(obj, 'Symbol');
     };
     utils.getSymbolKeyFor = function(symbol) {
       return Symbol_keyFor(symbol);
@@ -570,13 +598,16 @@
     };
     utils.getPropertyAttributes = function(object, value) {
       var descriptor = Object_getOwnPropertyDescriptor(object, value);
-      if (descriptor == undefined) {
+      if (descriptor === undefined) {
         return -1;
       }
 
       var attributes = 0;
       // taken from v8.h. Update if this changes in future
-      const ReadOnly = 1, DontEnum = 2, DontDelete = 4;
+      const ReadOnly = 1,
+        DontEnum = 2,
+        DontDelete = 4;
+
       if (!descriptor.writable) {
         attributes |= ReadOnly;
       }
@@ -587,6 +618,22 @@
         attributes |= DontDelete;
       }
       return attributes;
+    };
+    utils.getOwnPropertyNames = function(obj) {
+      var ownPropertyNames = Object_getOwnPropertyNames(obj);
+      var i = 0;
+      while (i < ownPropertyNames.length) {
+        var item = ownPropertyNames[i];
+        if (isUint(item)) {
+          ownPropertyNames[i] = Global_ParseInt(item);
+          i++;
+          continue;
+        }
+        // As per spec, getOwnPropertyNames() first include
+        // numeric properties followed by non-numeric
+        break;
+      }
+      return ownPropertyNames;
     };
   }
 

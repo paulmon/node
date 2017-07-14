@@ -1385,16 +1385,22 @@ TEST(MIPS16) {
   Isolate* isolate = CcTest::i_isolate();
   HandleScope scope(isolate);
 
-  typedef struct {
+  struct T {
     int64_t r1;
     int64_t r2;
     int64_t r3;
     int64_t r4;
     int64_t r5;
     int64_t r6;
+    int64_t r7;
+    int64_t r8;
+    int64_t r9;
+    int64_t r10;
+    int64_t r11;
+    int64_t r12;
     uint32_t ui;
     int32_t si;
-  } T;
+  };
   T t;
 
   Assembler assm(isolate, NULL, 0);
@@ -1423,26 +1429,25 @@ TEST(MIPS16) {
 
   // lh with positive data.
   __ lh(a5, MemOperand(a0, offsetof(T, ui)));
-  __ sw(a5, MemOperand(a0, offsetof(T, r2)));
+  __ sw(a5, MemOperand(a0, offsetof(T, r7)));
 
   // lh with negative data.
   __ lh(a6, MemOperand(a0, offsetof(T, si)));
-  __ sw(a6, MemOperand(a0, offsetof(T, r3)));
+  __ sw(a6, MemOperand(a0, offsetof(T, r8)));
 
   // lhu with negative data.
   __ lhu(a7, MemOperand(a0, offsetof(T, si)));
-  __ sw(a7, MemOperand(a0, offsetof(T, r4)));
+  __ sw(a7, MemOperand(a0, offsetof(T, r9)));
 
   // lb with negative data.
   __ lb(t0, MemOperand(a0, offsetof(T, si)));
-  __ sw(t0, MemOperand(a0, offsetof(T, r5)));
+  __ sw(t0, MemOperand(a0, offsetof(T, r10)));
 
-  // // sh writes only 1/2 of word.
-  __ lui(t1, 0x3333);
-  __ ori(t1, t1, 0x3333);
-  __ sw(t1, MemOperand(a0, offsetof(T, r6)));
-  __ lhu(t1, MemOperand(a0, offsetof(T, si)));
-  __ sh(t1, MemOperand(a0, offsetof(T, r6)));
+  // sh writes only 1/2 of word.
+  __ lw(a4, MemOperand(a0, offsetof(T, ui)));
+  __ sh(a4, MemOperand(a0, offsetof(T, r11)));
+  __ lw(a4, MemOperand(a0, offsetof(T, si)));
+  __ sh(a4, MemOperand(a0, offsetof(T, r12)));
 
   __ jr(ra);
   __ nop();
@@ -1454,26 +1459,75 @@ TEST(MIPS16) {
   F3 f = FUNCTION_CAST<F3>(code->entry());
   t.ui = 0x44332211;
   t.si = 0x99aabbcc;
-  t.r1 = 0x1111111111111111;
-  t.r2 = 0x2222222222222222;
-  t.r3 = 0x3333333333333333;
-  t.r4 = 0x4444444444444444;
+  t.r1 = 0x5555555555555555;
+  t.r2 = 0x5555555555555555;
+  t.r3 = 0x5555555555555555;
+  t.r4 = 0x5555555555555555;
   t.r5 = 0x5555555555555555;
-  t.r6 = 0x6666666666666666;
+  t.r6 = 0x5555555555555555;
+  t.r7 = 0x5555555555555555;
+  t.r8 = 0x5555555555555555;
+  t.r9 = 0x5555555555555555;
+  t.r10 = 0x5555555555555555;
+  t.r11 = 0x5555555555555555;
+  t.r12 = 0x5555555555555555;
+
   Object* dummy = CALL_GENERATED_CODE(isolate, f, &t, 0, 0, 0, 0);
   USE(dummy);
 
-  // Unsigned data, 32 & 64.
-  CHECK_EQ(static_cast<int64_t>(0x1111111144332211L), t.r1);
-  CHECK_EQ(static_cast<int64_t>(0x0000000000002211L), t.r2);
+  if (kArchEndian == kLittle) {
+    // Unsigned data, 32 & 64
+    CHECK_EQ(static_cast<int64_t>(0x5555555544332211L), t.r1);  // lw, sw.
+    CHECK_EQ(static_cast<int64_t>(0x0000000044332211L), t.r2);  // sd.
 
-  // Signed data, 32 & 64.
-  CHECK_EQ(static_cast<int64_t>(0x33333333ffffbbccL), t.r3);
-  CHECK_EQ(static_cast<int64_t>(0xffffffff0000bbccL), t.r4);
+    // Signed data, 32 & 64.
+    CHECK_EQ(static_cast<int64_t>(0x5555555599aabbccL), t.r3);  // lw, sw.
+    CHECK_EQ(static_cast<int64_t>(0xffffffff99aabbccL), t.r4);  // sd.
 
-  // Signed data, 32 & 64.
-  CHECK_EQ(static_cast<int64_t>(0x55555555ffffffccL), t.r5);
-  CHECK_EQ(static_cast<int64_t>(0x000000003333bbccL), t.r6);
+    // Signed data, 32 & 64.
+    CHECK_EQ(static_cast<int64_t>(0x5555555599aabbccL), t.r5);  // lwu, sw.
+    CHECK_EQ(static_cast<int64_t>(0x0000000099aabbccL), t.r6);  // sd.
+
+    // lh with unsigned and signed data.
+    CHECK_EQ(static_cast<int64_t>(0x5555555500002211L), t.r7);  // lh, sw.
+    CHECK_EQ(static_cast<int64_t>(0x55555555ffffbbccL), t.r8);  // lh, sw.
+
+    // lhu with signed data.
+    CHECK_EQ(static_cast<int64_t>(0x555555550000bbccL), t.r9);  // lhu, sw.
+
+    // lb with signed data.
+    CHECK_EQ(static_cast<int64_t>(0x55555555ffffffccL), t.r10);  // lb, sw.
+
+    // sh with unsigned and signed data.
+    CHECK_EQ(static_cast<int64_t>(0x5555555555552211L), t.r11);  // lw, sh.
+    CHECK_EQ(static_cast<int64_t>(0x555555555555bbccL), t.r12);  // lw, sh.
+  } else {
+    // Unsigned data, 32 & 64
+    CHECK_EQ(static_cast<int64_t>(0x4433221155555555L), t.r1);  // lw, sw.
+    CHECK_EQ(static_cast<int64_t>(0x0000000044332211L), t.r2);  // sd.
+
+    // Signed data, 32 & 64.
+    CHECK_EQ(static_cast<int64_t>(0x99aabbcc55555555L), t.r3);  // lw, sw.
+    CHECK_EQ(static_cast<int64_t>(0xffffffff99aabbccL), t.r4);  // sd.
+
+    // Signed data, 32 & 64.
+    CHECK_EQ(static_cast<int64_t>(0x99aabbcc55555555L), t.r5);  // lwu, sw.
+    CHECK_EQ(static_cast<int64_t>(0x0000000099aabbccL), t.r6);  // sd.
+
+    // lh with unsigned and signed data.
+    CHECK_EQ(static_cast<int64_t>(0x0000443355555555L), t.r7);  // lh, sw.
+    CHECK_EQ(static_cast<int64_t>(0xffff99aa55555555L), t.r8);  // lh, sw.
+
+    // lhu with signed data.
+    CHECK_EQ(static_cast<int64_t>(0x000099aa55555555L), t.r9);  // lhu, sw.
+
+    // lb with signed data.
+    CHECK_EQ(static_cast<int64_t>(0xffffff9955555555L), t.r10);  // lb, sw.
+
+    // sh with unsigned and signed data.
+    CHECK_EQ(static_cast<int64_t>(0x2211555555555555L), t.r11);  // lw, sh.
+    CHECK_EQ(static_cast<int64_t>(0xbbcc555555555555L), t.r12);  // lw, sh.
+  }
 }
 
 
@@ -1535,10 +1589,10 @@ TEST(seleqz_selnez) {
 
     (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
 
-    CHECK_EQ(test.a, 1);
-    CHECK_EQ(test.b, 0);
-    CHECK_EQ(test.c, 0);
-    CHECK_EQ(test.d, 1);
+    CHECK_EQ(1, test.a);
+    CHECK_EQ(0, test.b);
+    CHECK_EQ(0, test.c);
+    CHECK_EQ(1, test.d);
 
     const int test_size = 3;
     const int input_size = 5;
@@ -1562,18 +1616,18 @@ TEST(seleqz_selnez) {
         test.i = inputs_S[i];
         test.j = tests_S[j];
         (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-        CHECK_EQ(test.g, outputs_D[i]);
-        CHECK_EQ(test.h, 0);
-        CHECK_EQ(test.k, outputs_S[i]);
-        CHECK_EQ(test.l, 0);
+        CHECK_EQ(outputs_D[i], test.g);
+        CHECK_EQ(0, test.h);
+        CHECK_EQ(outputs_S[i], test.k);
+        CHECK_EQ(0, test.l);
 
         test.f = tests_D[j+1];
         test.j = tests_S[j+1];
         (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-        CHECK_EQ(test.g, 0);
-        CHECK_EQ(test.h, outputs_D[i]);
-        CHECK_EQ(test.k, 0);
-        CHECK_EQ(test.l, outputs_S[i]);
+        CHECK_EQ(0, test.g);
+        CHECK_EQ(outputs_D[i], test.h);
+        CHECK_EQ(0, test.k);
+        CHECK_EQ(outputs_S[i], test.l);
       }
     }
   }
@@ -2162,7 +2216,7 @@ TEST(movz_movn) {
 
     __ ldc1(f2, MemOperand(a0, offsetof(TestFloat, a)) );
     __ lwc1(f6, MemOperand(a0, offsetof(TestFloat, c)) );
-    __ lw(t0, MemOperand(a0, offsetof(TestFloat, rt)) );
+    __ ld(t0, MemOperand(a0, offsetof(TestFloat, rt)));
     __ Move(f12, 0.0);
     __ Move(f10, 0.0);
     __ Move(f16, 0.0);
@@ -3261,6 +3315,8 @@ TEST(jump_tables1) {
   __ jr(ra);
   __ nop();
 
+  CHECK_EQ(0, assm.UnboundLabelsCount());
+
   CodeDesc desc;
   assm.GetCode(&desc);
   Handle<Code> code = isolate->factory()->NewCode(
@@ -3773,14 +3829,14 @@ TEST(ABS) {
   test.a = std::numeric_limits<double>::quiet_NaN();
   test.b = std::numeric_limits<float>::quiet_NaN();
   (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-  CHECK_EQ(std::isnan(test.a), true);
-  CHECK_EQ(std::isnan(test.b), true);
+  CHECK(std::isnan(test.a));
+  CHECK(std::isnan(test.b));
 
   test.a = std::numeric_limits<double>::signaling_NaN();
   test.b = std::numeric_limits<float>::signaling_NaN();
   (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-  CHECK_EQ(std::isnan(test.a), true);
-  CHECK_EQ(std::isnan(test.b), true);
+  CHECK(std::isnan(test.a));
+  CHECK(std::isnan(test.b));
 }
 
 
@@ -3840,16 +3896,16 @@ TEST(ADD_FMT) {
   test.fa = std::numeric_limits<float>::max();
   test.fb = std::numeric_limits<float>::max();
   (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-  CHECK_EQ(std::isfinite(test.c), false);
-  CHECK_EQ(std::isfinite(test.fc), false);
+  CHECK(!std::isfinite(test.c));
+  CHECK(!std::isfinite(test.fc));
 
   test.a = 5.0;
   test.b = std::numeric_limits<double>::signaling_NaN();
   test.fa = 5.0;
   test.fb = std::numeric_limits<float>::signaling_NaN();
   (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-  CHECK_EQ(std::isnan(test.c), true);
-  CHECK_EQ(std::isnan(test.fc), true);
+  CHECK(std::isnan(test.c));
+  CHECK(std::isnan(test.fc));
 }
 
 
@@ -4369,14 +4425,13 @@ TEST(CVT) {
   CHECK_EQ(test.cvt_d_s_out, static_cast<double>(test.cvt_d_s_in));
   CHECK_EQ(test.cvt_d_w_out, static_cast<double>(test.cvt_d_w_in));
   CHECK_EQ(test.cvt_d_l_out, static_cast<double>(test.cvt_d_l_in));
-  CHECK_EQ(test.cvt_l_s_out, -1);
-  CHECK_EQ(test.cvt_l_d_out, -1);
+  CHECK_EQ(-1, test.cvt_l_s_out);
+  CHECK_EQ(-1, test.cvt_l_d_out);
   CHECK_EQ(test.cvt_s_d_out, static_cast<float>(test.cvt_s_d_in));
   CHECK_EQ(test.cvt_s_w_out, static_cast<float>(test.cvt_s_w_in));
   CHECK_EQ(test.cvt_s_l_out, static_cast<float>(test.cvt_s_l_in));
-  CHECK_EQ(test.cvt_w_s_out, -1);
-  CHECK_EQ(test.cvt_w_d_out, -1);
-
+  CHECK_EQ(-1, test.cvt_w_s_out);
+  CHECK_EQ(-1, test.cvt_w_d_out);
 
   test.cvt_d_s_in = 0.49;
   test.cvt_d_w_in = 1;
@@ -4393,13 +4448,13 @@ TEST(CVT) {
   CHECK_EQ(test.cvt_d_s_out, static_cast<double>(test.cvt_d_s_in));
   CHECK_EQ(test.cvt_d_w_out, static_cast<double>(test.cvt_d_w_in));
   CHECK_EQ(test.cvt_d_l_out, static_cast<double>(test.cvt_d_l_in));
-  CHECK_EQ(test.cvt_l_s_out, 0);
-  CHECK_EQ(test.cvt_l_d_out, 0);
+  CHECK_EQ(0, test.cvt_l_s_out);
+  CHECK_EQ(0, test.cvt_l_d_out);
   CHECK_EQ(test.cvt_s_d_out, static_cast<float>(test.cvt_s_d_in));
   CHECK_EQ(test.cvt_s_w_out, static_cast<float>(test.cvt_s_w_in));
   CHECK_EQ(test.cvt_s_l_out, static_cast<float>(test.cvt_s_l_in));
-  CHECK_EQ(test.cvt_w_s_out, 0);
-  CHECK_EQ(test.cvt_w_d_out, 0);
+  CHECK_EQ(0, test.cvt_w_s_out);
+  CHECK_EQ(0, test.cvt_w_d_out);
 
   test.cvt_d_s_in = std::numeric_limits<float>::max();
   test.cvt_d_w_in = std::numeric_limits<int32_t>::max();
@@ -4471,13 +4526,13 @@ TEST(CVT) {
   CHECK_EQ(test.cvt_d_s_out, static_cast<double>(test.cvt_d_s_in));
   CHECK_EQ(test.cvt_d_w_out, static_cast<double>(test.cvt_d_w_in));
   CHECK_EQ(test.cvt_d_l_out, static_cast<double>(test.cvt_d_l_in));
-  CHECK_EQ(test.cvt_l_s_out, 0);
-  CHECK_EQ(test.cvt_l_d_out, 0);
+  CHECK_EQ(0, test.cvt_l_s_out);
+  CHECK_EQ(0, test.cvt_l_d_out);
   CHECK_EQ(test.cvt_s_d_out, static_cast<float>(test.cvt_s_d_in));
   CHECK_EQ(test.cvt_s_w_out, static_cast<float>(test.cvt_s_w_in));
   CHECK_EQ(test.cvt_s_l_out, static_cast<float>(test.cvt_s_l_in));
-  CHECK_EQ(test.cvt_w_s_out, 0);
-  CHECK_EQ(test.cvt_w_d_out, 0);
+  CHECK_EQ(0, test.cvt_w_s_out);
+  CHECK_EQ(0, test.cvt_w_d_out);
 }
 
 
@@ -4578,8 +4633,8 @@ TEST(DIV_FMT) {
   test.fOp2 = -0.0;
 
   (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-  CHECK_EQ(false, std::isfinite(test.dRes));
-  CHECK_EQ(false, std::isfinite(test.fRes));
+  CHECK(!std::isfinite(test.dRes));
+  CHECK(!std::isfinite(test.fRes));
 
   test.dOp1 = 0.0;
   test.dOp2 = -0.0;
@@ -4587,8 +4642,8 @@ TEST(DIV_FMT) {
   test.fOp2 = -0.0;
 
   (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-  CHECK_EQ(true, std::isnan(test.dRes));
-  CHECK_EQ(true, std::isnan(test.fRes));
+  CHECK(std::isnan(test.dRes));
+  CHECK(std::isnan(test.fRes));
 
   test.dOp1 = std::numeric_limits<double>::quiet_NaN();
   test.dOp2 = -5.0;
@@ -4596,8 +4651,8 @@ TEST(DIV_FMT) {
   test.fOp2 = -5.0;
 
   (CALL_GENERATED_CODE(isolate, f, &test, 0, 0, 0, 0));
-  CHECK_EQ(true, std::isnan(test.dRes));
-  CHECK_EQ(true, std::isnan(test.fRes));
+  CHECK(std::isnan(test.dRes));
+  CHECK(std::isnan(test.fRes));
 }
 
 
@@ -5559,15 +5614,22 @@ TEST(r6_ldpc) {
       uint64_t  expected_res;
     };
 
-    struct TestCaseLdpc tc[] = {
-      // offset,         expected_res
-      { -131072,         0x250ffffe250fffff },
-      {      -4,         0x250c0006250c0007 },
-      {      -1,         0x250c0000250c0001 },
-      {       0,         0x03001025ef180000 },
-      {       1,         0x2508000125080000 },
-      {       4,         0x2508000725080006 },
-      {  131071,         0x250bfffd250bfffc },
+    auto doubleword = [](uint32_t word2, uint32_t word1) {
+      if (kArchEndian == kLittle)
+        return (static_cast<uint64_t>(word2) << 32) + word1;
+      else
+        return (static_cast<uint64_t>(word1) << 32) + word2;
+    };
+
+    TestCaseLdpc tc[] = {
+        // offset,  expected_res
+        {-131072, doubleword(0x250ffffe, 0x250fffff)},
+        {-4, doubleword(0x250c0006, 0x250c0007)},
+        {-1, doubleword(0x250c0000, 0x250c0001)},
+        {0, doubleword(0x03001025, 0xef180000)},
+        {1, doubleword(0x25080001, 0x25080000)},
+        {4, doubleword(0x25080007, 0x25080006)},
+        {131071, doubleword(0x250bfffd, 0x250bfffc)},
     };
 
     size_t nr_test_cases = sizeof(tc) / sizeof(TestCaseLdpc);
@@ -5868,8 +5930,133 @@ TEST(Trampoline) {
 
   int64_t res = reinterpret_cast<int64_t>(
       CALL_GENERATED_CODE(isolate, f, 42, 42, 0, 0, 0));
-  CHECK_EQ(res, 0);
+  CHECK_EQ(0, res);
 }
 
+template <class T>
+struct TestCaseMaddMsub {
+  T fr, fs, ft, fd_add, fd_sub;
+};
+
+template <typename T, typename F>
+void helper_madd_msub_maddf_msubf(F func) {
+  CcTest::InitializeVM();
+  Isolate* isolate = CcTest::i_isolate();
+  HandleScope scope(isolate);
+  MacroAssembler assm(isolate, NULL, 0, v8::internal::CodeObjectRequired::kYes);
+
+  T x = std::sqrt(static_cast<T>(2.0));
+  T y = std::sqrt(static_cast<T>(3.0));
+  T z = std::sqrt(static_cast<T>(5.0));
+  T x2 = 11.11, y2 = 22.22, z2 = 33.33;
+  TestCaseMaddMsub<T> test_cases[] = {
+      {x, y, z, 0.0, 0.0},
+      {x, y, -z, 0.0, 0.0},
+      {x, -y, z, 0.0, 0.0},
+      {x, -y, -z, 0.0, 0.0},
+      {-x, y, z, 0.0, 0.0},
+      {-x, y, -z, 0.0, 0.0},
+      {-x, -y, z, 0.0, 0.0},
+      {-x, -y, -z, 0.0, 0.0},
+      {-3.14, 0.2345, -123.000056, 0.0, 0.0},
+      {7.3, -23.257, -357.1357, 0.0, 0.0},
+      {x2, y2, z2, 0.0, 0.0},
+      {x2, y2, -z2, 0.0, 0.0},
+      {x2, -y2, z2, 0.0, 0.0},
+      {x2, -y2, -z2, 0.0, 0.0},
+      {-x2, y2, z2, 0.0, 0.0},
+      {-x2, y2, -z2, 0.0, 0.0},
+      {-x2, -y2, z2, 0.0, 0.0},
+      {-x2, -y2, -z2, 0.0, 0.0},
+  };
+
+  if (std::is_same<T, float>::value) {
+    __ lwc1(f4, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, fr)));
+    __ lwc1(f6, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, fs)));
+    __ lwc1(f8, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, ft)));
+    __ lwc1(f16, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, fr)));
+  } else if (std::is_same<T, double>::value) {
+    __ ldc1(f4, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, fr)));
+    __ ldc1(f6, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, fs)));
+    __ ldc1(f8, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, ft)));
+    __ ldc1(f16, MemOperand(a0, offsetof(TestCaseMaddMsub<T>, fr)));
+  } else {
+    UNREACHABLE();
+  }
+
+  func(assm);
+
+  __ jr(ra);
+  __ nop();
+
+  CodeDesc desc;
+  assm.GetCode(&desc);
+  Handle<Code> code = isolate->factory()->NewCode(
+      desc, Code::ComputeFlags(Code::STUB), Handle<Code>());
+  F3 f = FUNCTION_CAST<F3>(code->entry());
+
+  const size_t kTableLength = sizeof(test_cases) / sizeof(TestCaseMaddMsub<T>);
+  TestCaseMaddMsub<T> tc;
+  for (size_t i = 0; i < kTableLength; i++) {
+    tc.fr = test_cases[i].fr;
+    tc.fs = test_cases[i].fs;
+    tc.ft = test_cases[i].ft;
+
+    (CALL_GENERATED_CODE(isolate, f, &tc, 0, 0, 0, 0));
+
+    T res_sub;
+    T res_add;
+    if (kArchVariant != kMips64r6) {
+      res_add = tc.fr + (tc.fs * tc.ft);
+      res_sub = (tc.fs * tc.ft) - tc.fr;
+    } else {
+      res_add = std::fma(tc.fs, tc.ft, tc.fr);
+      res_sub = std::fma(-tc.fs, tc.ft, tc.fr);
+    }
+
+    CHECK_EQ(tc.fd_add, res_add);
+    CHECK_EQ(tc.fd_sub, res_sub);
+  }
+}
+
+TEST(madd_msub_s) {
+  if (kArchVariant == kMips64r6) return;
+  helper_madd_msub_maddf_msubf<float>([](MacroAssembler& assm) {
+    __ madd_s(f10, f4, f6, f8);
+    __ swc1(f10, MemOperand(a0, offsetof(TestCaseMaddMsub<float>, fd_add)));
+    __ msub_s(f16, f4, f6, f8);
+    __ swc1(f16, MemOperand(a0, offsetof(TestCaseMaddMsub<float>, fd_sub)));
+  });
+}
+
+TEST(madd_msub_d) {
+  if (kArchVariant == kMips64r6) return;
+  helper_madd_msub_maddf_msubf<double>([](MacroAssembler& assm) {
+    __ madd_d(f10, f4, f6, f8);
+    __ sdc1(f10, MemOperand(a0, offsetof(TestCaseMaddMsub<double>, fd_add)));
+    __ msub_d(f16, f4, f6, f8);
+    __ sdc1(f16, MemOperand(a0, offsetof(TestCaseMaddMsub<double>, fd_sub)));
+  });
+}
+
+TEST(maddf_msubf_s) {
+  if (kArchVariant != kMips64r6) return;
+  helper_madd_msub_maddf_msubf<float>([](MacroAssembler& assm) {
+    __ maddf_s(f4, f6, f8);
+    __ swc1(f4, MemOperand(a0, offsetof(TestCaseMaddMsub<float>, fd_add)));
+    __ msubf_s(f16, f6, f8);
+    __ swc1(f16, MemOperand(a0, offsetof(TestCaseMaddMsub<float>, fd_sub)));
+  });
+}
+
+TEST(maddf_msubf_d) {
+  if (kArchVariant != kMips64r6) return;
+  helper_madd_msub_maddf_msubf<double>([](MacroAssembler& assm) {
+    __ maddf_d(f4, f6, f8);
+    __ sdc1(f4, MemOperand(a0, offsetof(TestCaseMaddMsub<double>, fd_add)));
+    __ msubf_d(f16, f6, f8);
+    __ sdc1(f16, MemOperand(a0, offsetof(TestCaseMaddMsub<double>, fd_sub)));
+  });
+}
 
 #undef __

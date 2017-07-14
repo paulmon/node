@@ -19,7 +19,8 @@ To enable running in a [UWP application](https://msdn.microsoft.com/en-us/window
 If you are looking to build this yourself. Here's what you will need:
 * Windows 10
 * [Python 2.6 or 2.7](https://www.python.org)
-* [Visual Studio 2015 with Windows 10 SDK](https://www.visualstudio.com/en-us/downloads/download-visual-studio-vs.aspx)
+* [Visual Studio]
+  (https://www.visualstudio.com/en-us/downloads/download-visual-studio-vs.aspx)
 
 Build Command for node.dll - Node.js (Chakra) for UWP
 ```batch

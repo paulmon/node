@@ -41,7 +41,7 @@
 
 #include "src/assembler.h"
 #include "src/debug/debug.h"
-
+#include "src/objects-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -49,6 +49,7 @@ namespace internal {
 
 bool CpuFeatures::SupportsCrankshaft() { return true; }
 
+bool CpuFeatures::SupportsSimd128() { return false; }
 
 void RelocInfo::apply(intptr_t delta) {
   // absolute code pointer inside code object moves with the code object.
@@ -86,11 +87,6 @@ Address RelocInfo::target_internal_reference_address() {
 
 Address RelocInfo::target_address() {
   DCHECK(IsCodeTarget(rmode_) || IsRuntimeEntry(rmode_));
-  return Assembler::target_address_at(pc_, host_);
-}
-
-Address RelocInfo::wasm_memory_reference() {
-  DCHECK(IsWasmMemoryReference(rmode_));
   return Assembler::target_address_at(pc_, host_);
 }
 
@@ -135,21 +131,17 @@ Address RelocInfo::constant_pool_entry_address() {
 
 int RelocInfo::target_address_size() { return Assembler::kSpecialTargetSize; }
 
-
-void RelocInfo::set_target_address(Address target,
-                                   WriteBarrierMode write_barrier_mode,
-                                   ICacheFlushMode icache_flush_mode) {
-  DCHECK(IsCodeTarget(rmode_) || IsRuntimeEntry(rmode_));
-  Assembler::set_target_address_at(isolate_, pc_, host_, target,
-                                   icache_flush_mode);
-  if (write_barrier_mode == UPDATE_WRITE_BARRIER && host() != NULL &&
-      IsCodeTarget(rmode_)) {
-    Object* target_code = Code::GetCodeFromTargetAddress(target);
-    host()->GetHeap()->incremental_marking()->RecordWriteIntoCode(
-        host(), this, HeapObject::cast(target_code));
-  }
+Address Assembler::target_address_at(Address pc, Code* code) {
+  Address constant_pool = code ? code->constant_pool() : NULL;
+  return target_address_at(pc, constant_pool);
 }
 
+void Assembler::set_target_address_at(Isolate* isolate, Address pc, Code* code,
+                                      Address target,
+                                      ICacheFlushMode icache_flush_mode) {
+  Address constant_pool = code ? code->constant_pool() : NULL;
+  set_target_address_at(isolate, pc, constant_pool, target, icache_flush_mode);
+}
 
 Address Assembler::target_address_from_return_address(Address pc) {
 // Returns the address of the call target from the return address that will
@@ -183,19 +175,6 @@ Address Assembler::return_address_from_call_start(Address pc) {
   return pc + (len + 2) * kInstrSize;
 }
 
-void RelocInfo::update_wasm_memory_reference(
-    Address old_base, Address new_base, size_t old_size, size_t new_size,
-    ICacheFlushMode icache_flush_mode) {
-  DCHECK(IsWasmMemoryReference(rmode_));
-  DCHECK(old_base <= wasm_memory_reference() &&
-         wasm_memory_reference() < old_base + old_size);
-  Address updated_reference = new_base + (wasm_memory_reference() - old_base);
-  DCHECK(new_base <= updated_reference &&
-         updated_reference < new_base + new_size);
-  Assembler::set_target_address_at(isolate_, pc_, host_, updated_reference,
-                                   icache_flush_mode);
-}
-
 Object* RelocInfo::target_object() {
   DCHECK(IsCodeTarget(rmode_) || rmode_ == EMBEDDED_OBJECT);
   return reinterpret_cast<Object*>(Assembler::target_address_at(pc_, host_));
@@ -220,6 +199,7 @@ void RelocInfo::set_target_object(Object* target,
       target->IsHeapObject()) {
     host()->GetHeap()->incremental_marking()->RecordWriteIntoCode(
         host(), this, HeapObject::cast(target));
+    host()->GetHeap()->RecordWriteIntoCode(host(), this, target);
   }
 }
 
@@ -343,7 +323,7 @@ void RelocInfo::WipeOut() {
   }
 }
 
-
+template <typename ObjectVisitor>
 void RelocInfo::Visit(Isolate* isolate, ObjectVisitor* visitor) {
   RelocInfo::Mode mode = rmode();
   if (mode == RelocInfo::EMBEDDED_OBJECT) {
@@ -497,9 +477,9 @@ Address Assembler::target_address_at(Address pc, Address constant_pool) {
 
 
 #if V8_TARGET_ARCH_PPC64
-const int kLoadIntptrOpcode = LD;
+const uint32_t kLoadIntptrOpcode = LD;
 #else
-const int kLoadIntptrOpcode = LWZ;
+const uint32_t kLoadIntptrOpcode = LWZ;
 #endif
 
 // Constant pool load sequence detection:
@@ -512,7 +492,7 @@ const int kLoadIntptrOpcode = LWZ;
 bool Assembler::IsConstantPoolLoadStart(Address pc,
                                         ConstantPoolEntry::Access* access) {
   Instr instr = instr_at(pc);
-  int opcode = instr & kOpcodeMask;
+  uint32_t opcode = instr & kOpcodeMask;
   if (!GetRA(instr).is(kConstantPoolRegister)) return false;
   bool overflowed = (opcode == ADDIS);
 #ifdef DEBUG
@@ -532,7 +512,7 @@ bool Assembler::IsConstantPoolLoadStart(Address pc,
 bool Assembler::IsConstantPoolLoadEnd(Address pc,
                                       ConstantPoolEntry::Access* access) {
   Instr instr = instr_at(pc);
-  int opcode = instr & kOpcodeMask;
+  uint32_t opcode = instr & kOpcodeMask;
   bool overflowed = false;
   if (!(opcode == kLoadIntptrOpcode || opcode == LFD)) return false;
   if (!GetRA(instr).is(kConstantPoolRegister)) {

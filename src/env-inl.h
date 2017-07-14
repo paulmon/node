@@ -1,3 +1,24 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 #ifndef SRC_ENV_INL_H_
 #define SRC_ENV_INL_H_
 
@@ -15,7 +36,10 @@
 
 namespace node {
 
-// Create string properties as internalized one byte strings.
+inline IsolateData::IsolateData(v8::Isolate* isolate, uv_loop_t* event_loop,
+                                uint32_t* zero_fill_field) :
+
+// Create string and private symbol properties as internalized one byte strings.
 //
 // Internalized because it makes property lookups a little faster and because
 // the string is created in the old space straight away.  It's going to end up
@@ -24,9 +48,6 @@ namespace node {
 //
 // One byte because our strings are ASCII and we can safely skip V8's UTF-8
 // decoding step.  It's a one-time cost, but why pay it when you don't have to?
-inline IsolateData::IsolateData(v8::Isolate* isolate, uv_loop_t* event_loop,
-                                uint32_t* zero_fill_field)
-    :
 #define V(PropertyName, StringValue)                                          \
     PropertyName ## _(                                                        \
         isolate,                                                              \
@@ -59,8 +80,29 @@ inline uint32_t* IsolateData::zero_fill_field() const {
   return zero_fill_field_;
 }
 
-inline Environment::AsyncHooks::AsyncHooks() {
-  for (int i = 0; i < kFieldsCount; i++) fields_[i] = 0;
+inline Environment::AsyncHooks::AsyncHooks(v8::Isolate* isolate)
+    : isolate_(isolate),
+      fields_(),
+      uid_fields_() {
+  v8::HandleScope handle_scope(isolate_);
+
+  // kAsyncUidCntr should start at 1 because that'll be the id the execution
+  // context during bootstrap (code that runs before entering uv_run()).
+  uid_fields_[AsyncHooks::kAsyncUidCntr] = 1;
+
+  // Create all the provider strings that will be passed to JS. Place them in
+  // an array so the array index matches the PROVIDER id offset. This way the
+  // strings can be retrieved quickly.
+#define V(Provider)                                                           \
+  providers_[AsyncWrap::PROVIDER_ ## Provider].Set(                           \
+      isolate_,                                                               \
+      v8::String::NewFromOneByte(                                             \
+        isolate_,                                                             \
+        reinterpret_cast<const uint8_t*>(#Provider),                          \
+        v8::NewStringType::kInternalized,                                     \
+        sizeof(#Provider) - 1).ToLocalChecked());
+  NODE_ASYNC_PROVIDER_TYPES(V)
+#undef V
 }
 
 inline uint32_t* Environment::AsyncHooks::fields() {
@@ -71,12 +113,94 @@ inline int Environment::AsyncHooks::fields_count() const {
   return kFieldsCount;
 }
 
-inline bool Environment::AsyncHooks::callbacks_enabled() {
-  return fields_[kEnableCallbacks] != 0;
+inline double* Environment::AsyncHooks::uid_fields() {
+  return uid_fields_;
 }
 
-inline void Environment::AsyncHooks::set_enable_callbacks(uint32_t flag) {
-  fields_[kEnableCallbacks] = flag;
+inline int Environment::AsyncHooks::uid_fields_count() const {
+  return kUidFieldsCount;
+}
+
+inline v8::Local<v8::String> Environment::AsyncHooks::provider_string(int idx) {
+  return providers_[idx].Get(isolate_);
+}
+
+inline void Environment::AsyncHooks::push_ids(double async_id,
+                                              double trigger_id) {
+  CHECK_GE(async_id, 0);
+  CHECK_GE(trigger_id, 0);
+
+  ids_stack_.push({ uid_fields_[kCurrentAsyncId],
+                    uid_fields_[kCurrentTriggerId] });
+  uid_fields_[kCurrentAsyncId] = async_id;
+  uid_fields_[kCurrentTriggerId] = trigger_id;
+}
+
+inline bool Environment::AsyncHooks::pop_ids(double async_id) {
+  // In case of an exception then this may have already been reset, if the
+  // stack was multiple MakeCallback()'s deep.
+  if (ids_stack_.empty()) return false;
+
+  // Ask for the async_id to be restored as a sanity check that the stack
+  // hasn't been corrupted.
+  if (uid_fields_[kCurrentAsyncId] != async_id) {
+    fprintf(stderr,
+            "Error: async hook stack has become corrupted ("
+            "actual: %'.f, expected: %'.f)\n",
+            uid_fields_[kCurrentAsyncId],
+            async_id);
+    Environment* env = Environment::GetCurrent(isolate_);
+    DumpBacktrace(stderr);
+    fflush(stderr);
+    if (!env->abort_on_uncaught_exception())
+      exit(1);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+    ABORT_NO_BACKTRACE();
+  }
+
+  auto ids = ids_stack_.top();
+  ids_stack_.pop();
+  uid_fields_[kCurrentAsyncId] = ids.async_id;
+  uid_fields_[kCurrentTriggerId] = ids.trigger_id;
+  return !ids_stack_.empty();
+}
+
+inline void Environment::AsyncHooks::clear_id_stack() {
+  while (!ids_stack_.empty())
+    ids_stack_.pop();
+  uid_fields_[kCurrentAsyncId] = 0;
+  uid_fields_[kCurrentTriggerId] = 0;
+}
+
+inline Environment::AsyncHooks::InitScope::InitScope(
+    Environment* env, double init_trigger_id)
+        : env_(env),
+          uid_fields_(env->async_hooks()->uid_fields()) {
+  env->async_hooks()->push_ids(uid_fields_[AsyncHooks::kCurrentAsyncId],
+                               init_trigger_id);
+}
+
+inline Environment::AsyncHooks::InitScope::~InitScope() {
+  env_->async_hooks()->pop_ids(uid_fields_[AsyncHooks::kCurrentAsyncId]);
+}
+
+inline Environment::AsyncHooks::ExecScope::ExecScope(
+    Environment* env, double async_id, double trigger_id)
+        : env_(env),
+          async_id_(async_id),
+          disposed_(false) {
+  env->async_hooks()->push_ids(async_id, trigger_id);
+}
+
+inline Environment::AsyncHooks::ExecScope::~ExecScope() {
+  if (disposed_) return;
+  Dispose();
+}
+
+inline void Environment::AsyncHooks::ExecScope::Dispose() {
+  disposed_ = true;
+  env_->async_hooks()->pop_ids(async_id_);
 }
 
 inline Environment::AsyncCallbackScope::AsyncCallbackScope(Environment* env)
@@ -166,18 +290,21 @@ inline Environment::Environment(IsolateData* isolate_data,
                                 v8::Local<v8::Context> context)
     : isolate_(context->GetIsolate()),
       isolate_data_(isolate_data),
+      async_hooks_(context->GetIsolate()),
       timer_base_(uv_now(isolate_data->event_loop())),
+      cares_query_last_ok_(true),
+      cares_is_servers_default_(true),
       using_domains_(false),
       printed_error_(false),
       trace_sync_io_(false),
+      abort_on_uncaught_exception_(false),
       makecallback_cntr_(0),
-      async_wrap_uid_(0),
-      debugger_agent_(this),
 #if HAVE_INSPECTOR
       inspector_agent_(this),
 #endif
       handle_cleanup_waiting_(0),
       http_parser_buffer_(nullptr),
+      fs_stats_field_array_(),
       context_(context->GetIsolate(), context) {
   // We'll be creating new objects so make sure we've entered the context.
   v8::HandleScope handle_scope(isolate());
@@ -186,27 +313,16 @@ inline Environment::Environment(IsolateData* isolate_data,
   set_binding_cache_object(v8::Object::New(isolate()));
   set_module_load_list_array(v8::Array::New(isolate()));
 
-  v8::Local<v8::FunctionTemplate> fn = v8::FunctionTemplate::New(isolate());
-  fn->SetClassName(FIXED_ONE_BYTE_STRING(isolate(), "InternalFieldObject"));
-  v8::Local<v8::ObjectTemplate> obj = fn->InstanceTemplate();
-  obj->SetInternalFieldCount(1);
-  set_generic_internal_field_template(obj);
-
   RB_INIT(&cares_task_list_);
   AssignToContext(context);
+
+  destroy_ids_list_.reserve(512);
 }
 
 inline Environment::~Environment() {
   v8::HandleScope handle_scope(isolate());
 
-  while (HandleCleanup* hc = handle_cleanup_queue_.PopFront()) {
-    handle_cleanup_waiting_++;
-    hc->cb_(this, hc->handle_, hc->arg_);
-    delete hc;
-  }
-
-  while (handle_cleanup_waiting_ != 0)
-    uv_run(event_loop(), UV_RUN_ONCE);
+  fs_stats_field_array_.Empty();
 
   context()->SetAlignedPointerInEmbedderData(kContextEmbedderDataIndex,
                                              nullptr);
@@ -221,11 +337,6 @@ inline Environment::~Environment() {
 
 inline v8::Isolate* Environment::isolate() const {
   return isolate_;
-}
-
-inline bool Environment::async_wrap_callbacks_enabled() const {
-  // The const_cast is okay, it doesn't violate conceptual const-ness.
-  return const_cast<Environment*>(this)->async_hooks()->callbacks_enabled();
 }
 
 inline bool Environment::in_domain() const {
@@ -245,6 +356,15 @@ inline uv_check_t* Environment::immediate_check_handle() {
 
 inline uv_idle_t* Environment::immediate_idle_handle() {
   return &immediate_idle_handle_;
+}
+
+inline Environment* Environment::from_destroy_ids_timer_handle(
+    uv_timer_t* handle) {
+  return ContainerOf(&Environment::destroy_ids_timer_handle_, handle);
+}
+
+inline uv_timer_t* Environment::destroy_ids_timer_handle() {
+  return &destroy_ids_timer_handle_;
 }
 
 inline void Environment::RegisterHandleCleanup(uv_handle_t* handle,
@@ -297,26 +417,58 @@ inline void Environment::set_trace_sync_io(bool value) {
   trace_sync_io_ = value;
 }
 
-inline int64_t Environment::get_async_wrap_uid() {
-  return ++async_wrap_uid_;
+inline bool Environment::abort_on_uncaught_exception() const {
+  return abort_on_uncaught_exception_;
 }
 
-inline uint32_t* Environment::heap_statistics_buffer() const {
+inline void Environment::set_abort_on_uncaught_exception(bool value) {
+  abort_on_uncaught_exception_ = value;
+}
+
+inline std::vector<double>* Environment::destroy_ids_list() {
+  return &destroy_ids_list_;
+}
+
+inline double Environment::new_async_id() {
+  return ++async_hooks()->uid_fields()[AsyncHooks::kAsyncUidCntr];
+}
+
+inline double Environment::current_async_id() {
+  return async_hooks()->uid_fields()[AsyncHooks::kCurrentAsyncId];
+}
+
+inline double Environment::trigger_id() {
+  return async_hooks()->uid_fields()[AsyncHooks::kCurrentTriggerId];
+}
+
+inline double Environment::get_init_trigger_id() {
+  double* uid_fields = async_hooks()->uid_fields();
+  double tid = uid_fields[AsyncHooks::kInitTriggerId];
+  uid_fields[AsyncHooks::kInitTriggerId] = 0;
+  if (tid <= 0) tid = current_async_id();
+  return tid;
+}
+
+inline void Environment::set_init_trigger_id(const double id) {
+  async_hooks()->uid_fields()[AsyncHooks::kInitTriggerId] = id;
+}
+
+inline double* Environment::heap_statistics_buffer() const {
   CHECK_NE(heap_statistics_buffer_, nullptr);
   return heap_statistics_buffer_;
 }
 
-inline void Environment::set_heap_statistics_buffer(uint32_t* pointer) {
+inline void Environment::set_heap_statistics_buffer(double* pointer) {
   CHECK_EQ(heap_statistics_buffer_, nullptr);  // Should be set only once.
   heap_statistics_buffer_ = pointer;
 }
 
-inline uint32_t* Environment::heap_space_statistics_buffer() const {
+inline double* Environment::heap_space_statistics_buffer() const {
   CHECK_NE(heap_space_statistics_buffer_, nullptr);
   return heap_space_statistics_buffer_;
 }
 
-inline void Environment::set_heap_space_statistics_buffer(uint32_t* pointer) {
+inline void Environment::set_heap_space_statistics_buffer(double* pointer) {
   CHECK_EQ(heap_space_statistics_buffer_, nullptr);  // Should be set only once.
   heap_space_statistics_buffer_ = pointer;
 }
@@ -329,6 +481,16 @@ inline char* Environment::http_parser_buffer() const {
 inline void Environment::set_http_parser_buffer(char* buffer) {
   CHECK_EQ(http_parser_buffer_, nullptr);  // Should be set only once.
   http_parser_buffer_ = buffer;
+}
+
+inline v8::Local<v8::Float64Array> Environment::fs_stats_field_array() const {
+  return v8::Local<v8::Float64Array>::New(isolate_, fs_stats_field_array_);
+}
+
+inline void Environment::set_fs_stats_field_array(
+    v8::Local<v8::Float64Array> fields) {
+  CHECK_EQ(fs_stats_field_array_.IsEmpty(), true);  // Should be set only once.
+  fs_stats_field_array_ = v8::Global<v8::Float64Array>(isolate_, fields);
 }
 
 inline Environment* Environment::from_cares_timer_handle(uv_timer_t* handle) {
@@ -348,6 +510,22 @@ inline ares_channel* Environment::cares_channel_ptr() {
   return &cares_channel_;
 }
 
+inline bool Environment::cares_query_last_ok() {
+  return cares_query_last_ok_;
+}
+
+inline void Environment::set_cares_query_last_ok(bool ok) {
+  cares_query_last_ok_ = ok;
+}
+
+inline bool Environment::cares_is_servers_default() {
+  return cares_is_servers_default_;
+}
+
+inline void Environment::set_cares_is_servers_default(bool is_default) {
+  cares_is_servers_default_ = is_default;
+}
+
 inline node_ares_task_list* Environment::cares_task_list() {
   return &cares_task_list_;
 }
@@ -356,39 +534,23 @@ inline IsolateData* Environment::isolate_data() const {
   return isolate_data_;
 }
 
-// this would have been a template function were it not for the fact that g++
-// sometimes fails to resolve it...
-#define THROW_ERROR(fun)                                                      \
-  do {                                                                        \
-    v8::HandleScope scope(isolate);                                           \
-    isolate->ThrowException(fun(OneByteString(isolate, errmsg)));             \
-  }                                                                           \
-  while (0)
-
-inline void Environment::ThrowError(v8::Isolate* isolate, const char* errmsg) {
-  THROW_ERROR(v8::Exception::Error);
-}
-
-inline void Environment::ThrowTypeError(v8::Isolate* isolate,
-                                        const char* errmsg) {
-  THROW_ERROR(v8::Exception::TypeError);
-}
-
-inline void Environment::ThrowRangeError(v8::Isolate* isolate,
-                                         const char* errmsg) {
-  THROW_ERROR(v8::Exception::RangeError);
-}
-
 inline void Environment::ThrowError(const char* errmsg) {
-  ThrowError(isolate(), errmsg);
+  ThrowError(v8::Exception::Error, errmsg);
 }
 
 inline void Environment::ThrowTypeError(const char* errmsg) {
-  ThrowTypeError(isolate(), errmsg);
+  ThrowError(v8::Exception::TypeError, errmsg);
 }
 
 inline void Environment::ThrowRangeError(const char* errmsg) {
-  ThrowRangeError(isolate(), errmsg);
+  ThrowError(v8::Exception::RangeError, errmsg);
+}
+
+inline void Environment::ThrowError(
+    v8::Local<v8::Value> (*fun)(v8::Local<v8::String>),
+    const char* errmsg) {
+  v8::HandleScope handle_scope(isolate());
+  isolate()->ThrowException(fun(OneByteString(isolate(), errmsg)));
 }
 
 inline void Environment::ThrowErrnoException(int errorno,
@@ -453,15 +615,9 @@ inline void Environment::SetTemplateMethod(v8::Local<v8::FunctionTemplate> that,
   t->SetClassName(name_string);  // NODE_SET_METHOD() compatibility.
 }
 
-inline v8::Local<v8::Object> Environment::NewInternalFieldObject() {
-  v8::MaybeLocal<v8::Object> m_obj =
-      generic_internal_field_template()->NewInstance(context());
-  return m_obj.ToLocalChecked();
-}
-
-#define VP(PropertyName, StringValue) V(v8::Private, PropertyName, StringValue)
-#define VS(PropertyName, StringValue) V(v8::String, PropertyName, StringValue)
-#define V(TypeName, PropertyName, StringValue)                                \
+#define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
+#define VS(PropertyName, StringValue) V(v8::String, PropertyName)
+#define V(TypeName, PropertyName)                                             \
   inline                                                                      \
   v8::Local<TypeName> IsolateData::PropertyName(v8::Isolate* isolate) const { \
     /* Strings are immutable so casting away const-ness here is okay. */      \
@@ -473,9 +629,9 @@ inline v8::Local<v8::Object> Environment::NewInternalFieldObject() {
 #undef VS
 #undef VP
 
-#define VP(PropertyName, StringValue) V(v8::Private, PropertyName, StringValue)
-#define VS(PropertyName, StringValue) V(v8::String, PropertyName, StringValue)
-#define V(TypeName, PropertyName, StringValue)                                \
+#define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
+#define VS(PropertyName, StringValue) V(v8::String, PropertyName)
+#define V(TypeName, PropertyName)                                             \
   inline v8::Local<TypeName> Environment::PropertyName() const {              \
     return isolate_data()->PropertyName(isolate());                           \
   }

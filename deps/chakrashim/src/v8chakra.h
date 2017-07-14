@@ -18,7 +18,9 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 
-#pragma once
+#ifndef DEPS_CHAKRASHIM_SRC_V8CHAKRA_H_
+#define DEPS_CHAKRASHIM_SRC_V8CHAKRA_H_
+
 #include "v8.h"
 #include "jsrtutils.h"
 
@@ -26,9 +28,6 @@ namespace v8 {
 
 using jsrt::ContextShim;
 class ObjectTemplateData;
-
-extern __declspec(thread) bool g_EnableDebug;
-extern ArrayBuffer::Allocator* g_arrayBufferAllocator;
 
 // External object data types
 enum class ExternalDataTypes {
@@ -98,8 +97,8 @@ class ObjectData: public ExternalData {
    private:
     void Reset();
 
-    bool isRefValue;
     void* value;
+    bool isRefValue;
   };
 
   JsValueRef objectInstance;
@@ -121,7 +120,7 @@ class ObjectData: public ExternalData {
 
   ObjectData(ObjectTemplate* objectTemplate, ObjectTemplateData *templateData);
   ~ObjectData();
-  static void CALLBACK FinalizeCallback(void *data);
+  static void CHAKRA_CALLBACK FinalizeCallback(void *data);
 
   static FieldValue* GetInternalField(Object* object, int index);
 };
@@ -145,78 +144,78 @@ class TemplateData : public ExternalData {
 
 class Utils {
  public:
-  static JsValueRef CALLBACK AccessorHandler(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
+  static JsValueRef CHAKRA_CALLBACK AccessorHandler(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
 
-  static JsValueRef CALLBACK GetCallback(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
-  static JsValueRef CALLBACK SetCallback(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
-  static JsValueRef CALLBACK DeletePropertyCallback(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
+  static JsValueRef CHAKRA_CALLBACK GetCallback(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
+  static JsValueRef CHAKRA_CALLBACK SetCallback(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
+  static JsValueRef CHAKRA_CALLBACK DeletePropertyCallback(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
 
   static JsValueRef HasPropertyHandler(
-    JsValueRef *arguments,
-    unsigned short argumentCount);
-  static JsValueRef CALLBACK HasCallback(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
+      JsValueRef *arguments,
+      unsigned short argumentCount);  // NOLINT(runtime/int)
+  static JsValueRef CHAKRA_CALLBACK HasCallback(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
 
   static JsValueRef GetPropertiesEnumeratorHandler(
-    JsValueRef* arguments,
-    unsigned int argumentsCount);
-  static JsValueRef CALLBACK EnumerateCallback(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
+      JsValueRef* arguments,
+      unsigned int argumentsCount);
+  static JsValueRef CHAKRA_CALLBACK EnumerateCallback(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
 
   static JsValueRef GetPropertiesHandler(
-    JsValueRef* arguments,
-    unsigned int argumentsCount,
-    bool getFromPrototype);
-  static JsValueRef CALLBACK OwnKeysCallback(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
-  static JsValueRef CALLBACK GetOwnPropertyDescriptorCallback(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
+      JsValueRef* arguments,
+      unsigned int argumentsCount,
+      bool getFromPrototype);
+  static JsValueRef CHAKRA_CALLBACK OwnKeysCallback(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
+  static JsValueRef CHAKRA_CALLBACK GetOwnPropertyDescriptorCallback(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
 
-  static void CALLBACK WeakReferenceCallbackWrapperCallback(
-    JsRef ref, void *data);
+  static void CHAKRA_CALLBACK WeakReferenceCallbackWrapperCallback(
+      JsRef ref, void *data);
 
-  static JsValueRef CALLBACK ObjectPrototypeToStringShim(
-    JsValueRef callee,
-    bool isConstructCall,
-    JsValueRef *arguments,
-    unsigned short argumentCount,
-    void *callbackState);
+  static JsValueRef CHAKRA_CALLBACK ObjectPrototypeToStringShim(
+      JsValueRef callee,
+      bool isConstructCall,
+      JsValueRef *arguments,
+      unsigned short argumentCount,  // NOLINT(runtime/int)
+      void *callbackState);
 
   // Create a Local<T> internally (use private constructor)
   template <class T>
@@ -254,6 +253,8 @@ class Utils {
     }
     return **objectTemplate;
   }
+
+  static MaybeLocal<String> NewString(const char *data, int length = -1);
 };
 
 
@@ -267,5 +268,6 @@ Local<T> FromMaybe(MaybeLocal<T> maybe, const Local<T>& def = Local<T>()) {
   return maybe.FromMaybe(def);
 }
 
-
 }  // namespace v8
+
+#endif  // DEPS_CHAKRASHIM_SRC_V8CHAKRA_H_

@@ -149,8 +149,9 @@ class TestJob(Job):
 
     Rename files with PIDs to files with unique test IDs, because the number
     of tests might be higher than pid_max. E.g.:
-    d8.1234.sancov -> d8.test.1.sancov, where 1234 was the process' PID
-    and 1 is the test ID.
+    d8.1234.sancov -> d8.test.42.1.sancov, where 1234 was the process' PID,
+    42 is the test ID and 1 is the attempt (the same test might be rerun on
+    failures).
     """
     if context.sancov_dir and output.pid is not None:
       sancov_file = os.path.join(
@@ -160,7 +161,10 @@ class TestJob(Job):
       if os.path.exists(sancov_file):
         parts = sancov_file.split(".")
         new_sancov_file = ".".join(
-            parts[:-2] + ["test", str(self.test.id)] + parts[-1:])
+            parts[:-2] +
+            ["test", str(self.test.id), str(self.test.run)] +
+            parts[-1:]
+        )
         assert not os.path.exists(new_sancov_file)
         os.rename(sancov_file, new_sancov_file)
 
@@ -193,12 +197,17 @@ class Runner(object):
     self.perf_failures = False
     self.printed_allocations = False
     self.tests = [ t for s in suites for t in s.tests ]
+
+    # Always pre-sort by status file, slowest tests first.
+    slow_key = lambda t: statusfile.IsSlow(t.outcomes)
+    self.tests.sort(key=slow_key, reverse=True)
+
+    # Sort by stored duration of not opted out.
     if not context.no_sorting:
       for t in self.tests:
         t.duration = self.perfdata.FetchPerfData(t) or 1.0
-      slow_key = lambda t: statusfile.IsSlow(t.outcomes)
-      self.tests.sort(key=slow_key, reverse=True)
       self.tests.sort(key=lambda t: t.duration, reverse=True)
+
     self._CommonInit(suites, progress_indicator, context)
 
   def _CommonInit(self, suites, progress_indicator, context):
@@ -248,7 +257,6 @@ class Runner(object):
       self.total += 1
 
   def _ProcessTestNormal(self, test, result, pool):
-    self.indicator.AboutToRun(test)
     test.output = result[1]
     test.duration = result[2]
     has_unexpected_output = test.suite.HasUnexpectedOutput(test)
@@ -285,7 +293,6 @@ class Runner(object):
     if test.run == 1 and result[1].HasTimedOut():
       # If we get a timeout in the first run, we are already in an
       # unpredictable state. Just report it as a failure and don't rerun.
-      self.indicator.AboutToRun(test)
       test.output = result[1]
       self.remaining -= 1
       self.failed.append(test)
@@ -294,16 +301,13 @@ class Runner(object):
       # From the second run on, check for different allocations. If a
       # difference is found, call the indicator twice to report both tests.
       # All runs of each test are counted as one for the statistic.
-      self.indicator.AboutToRun(test)
       self.remaining -= 1
       self.failed.append(test)
       self.indicator.HasRun(test, True)
-      self.indicator.AboutToRun(test)
       test.output = result[1]
       self.indicator.HasRun(test, True)
     elif test.run >= 3:
       # No difference on the third run -> report a success.
-      self.indicator.AboutToRun(test)
       self.remaining -= 1
       self.succeeded += 1
       test.output = result[1]

@@ -1,35 +1,32 @@
 'use strict';
-var common = require('../common');
-var assert = require('assert');
-var path = require('path');
-var child_process = require('child_process');
+const common = require('../common');
+const assert = require('assert');
+const path = require('path');
+const child_process = require('child_process');
 
-var wrong_script = path.join(common.fixturesDir, 'cert.pem');
+const wrong_script = path.join(common.fixturesDir, 'cert.pem');
 
-var p = child_process.spawn(process.execPath, [
+const p = child_process.spawn(process.execPath, [
   '-e',
   'require(process.argv[1]);',
   wrong_script
 ]);
 
 p.stdout.on('data', function(data) {
-  assert(false, 'Unexpected stdout data: ' + data);
+  assert.fail(`Unexpected stdout data: ${data}`);
 });
 
-var output = '';
+let output = '';
 
 p.stderr.on('data', function(data) {
   output += data;
 });
 
 process.on('exit', function() {
-  // chakra engine don't point line in script file
-  if (common.isChakraEngine) {
-    assert(/^SyntaxError: Expected ';'/.test(output));
-  } else {
-    assert(/BEGIN CERT/.test(output));
-    assert(/^\s+\^/m.test(output));
-    assert(/Invalid left-hand side expression in prefix operation/
-      .test(output));
-  }
+  assert(/BEGIN CERT/.test(output));
+  assert(/^\s+\^/m.test(output));
+  common.engineSpecificMessage({
+    v8: /Invalid left-hand side expression in prefix operation/,
+    chakracore: /SyntaxError: Expected ';'/
+  }).test(output);
 });

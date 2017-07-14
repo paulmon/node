@@ -30,8 +30,6 @@ void Environment::Start(int argc,
   HandleScope handle_scope(isolate());
   Context::Scope context_scope(context());
 
-  isolate()->SetAutorunMicrotasks(false);
-
   uv_check_init(event_loop(), immediate_check_handle());
   uv_unref(reinterpret_cast<uv_handle_t*>(immediate_check_handle()));
 
@@ -50,6 +48,8 @@ void Environment::Start(int argc,
   uv_check_init(event_loop(), &idle_check_handle_);
   uv_unref(reinterpret_cast<uv_handle_t*>(&idle_prepare_handle_));
   uv_unref(reinterpret_cast<uv_handle_t*>(&idle_check_handle_));
+
+  uv_timer_init(event_loop(), destroy_ids_timer_handle());
 
   auto close_and_finish = [](Environment* env, uv_handle_t* handle, void* arg) {
     handle->data = env;
@@ -89,6 +89,20 @@ void Environment::Start(int argc,
 
   SetupProcessObject(this, argc, argv, exec_argc, exec_argv);
   LoadAsyncWrapperInfo(this);
+}
+
+void Environment::CleanupHandles() {
+  while (HandleCleanup* hc = handle_cleanup_queue_.PopFront()) {
+    handle_cleanup_waiting_++;
+    hc->cb_(this, hc->handle_, hc->arg_);
+    delete hc;
+  }
+
+  while (handle_cleanup_waiting_ != 0)
+    uv_run(event_loop(), UV_RUN_ONCE);
+
+  while (handle_cleanup_waiting_ != 0)
+    uv_run(event_loop(), UV_RUN_ONCE);
 }
 
 void Environment::StartProfilerIdleNotifier() {
@@ -150,6 +164,33 @@ void Environment::PrintSyncTrace() const {
     }
   }
   fflush(stderr);
+}
+
+void Environment::RunAtExitCallbacks() {
+  for (AtExitCallback at_exit : at_exit_functions_) {
+    at_exit.cb_(at_exit.arg_);
+  }
+  at_exit_functions_.clear();
+}
+
+void Environment::AtExit(void (*cb)(void* arg), void* arg) {
+  at_exit_functions_.push_back(AtExitCallback{cb, arg});
+}
+
+void Environment::AddPromiseHook(promise_hook_func fn, void* arg) {
+  promise_hooks_.push_back(PromiseHookCallback{fn, arg});
+  if (promise_hooks_.size() == 1) {
+    isolate_->SetPromiseHook(EnvPromiseHook);
+  }
+}
+
+void Environment::EnvPromiseHook(v8::PromiseHookType type,
+                                 v8::Local<v8::Promise> promise,
+                                 v8::Local<v8::Value> parent) {
+  Environment* env = Environment::GetCurrent(promise->CreationContext());
+  for (const PromiseHookCallback& hook : env->promise_hooks_) {
+    hook.cb_(type, promise, parent, hook.arg_);
+  }
 }
 
 }  // namespace node

@@ -41,11 +41,14 @@
 
 #include "src/assembler.h"
 #include "src/debug/debug.h"
+#include "src/objects-inl.h"
 
 namespace v8 {
 namespace internal {
 
 bool CpuFeatures::SupportsCrankshaft() { return true; }
+
+bool CpuFeatures::SupportsSimd128() { return false; }
 
 void RelocInfo::apply(intptr_t delta) {
   // Absolute code pointer inside code object moves with the code object.
@@ -93,11 +96,6 @@ Address RelocInfo::target_address() {
   return Assembler::target_address_at(pc_, host_);
 }
 
-Address RelocInfo::wasm_memory_reference() {
-  DCHECK(IsWasmMemoryReference(rmode_));
-  return Assembler::target_address_at(pc_, host_);
-}
-
 Address RelocInfo::target_address_address() {
   DCHECK(IsCodeTarget(rmode_) || IsRuntimeEntry(rmode_) ||
          rmode_ == EMBEDDED_OBJECT || rmode_ == EXTERNAL_REFERENCE);
@@ -121,18 +119,16 @@ Address RelocInfo::constant_pool_entry_address() {
 
 int RelocInfo::target_address_size() { return Assembler::kSpecialTargetSize; }
 
-void RelocInfo::set_target_address(Address target,
-                                   WriteBarrierMode write_barrier_mode,
-                                   ICacheFlushMode icache_flush_mode) {
-  DCHECK(IsCodeTarget(rmode_) || IsRuntimeEntry(rmode_));
-  Assembler::set_target_address_at(isolate_, pc_, host_, target,
-                                   icache_flush_mode);
-  if (write_barrier_mode == UPDATE_WRITE_BARRIER && host() != NULL &&
-      IsCodeTarget(rmode_)) {
-    Object* target_code = Code::GetCodeFromTargetAddress(target);
-    host()->GetHeap()->incremental_marking()->RecordWriteIntoCode(
-        host(), this, HeapObject::cast(target_code));
-  }
+Address Assembler::target_address_at(Address pc, Code* code) {
+  Address constant_pool = code ? code->constant_pool() : NULL;
+  return target_address_at(pc, constant_pool);
+}
+
+void Assembler::set_target_address_at(Isolate* isolate, Address pc, Code* code,
+                                      Address target,
+                                      ICacheFlushMode icache_flush_mode) {
+  Address constant_pool = code ? code->constant_pool() : NULL;
+  set_target_address_at(isolate, pc, constant_pool, target, icache_flush_mode);
 }
 
 Address Assembler::target_address_from_return_address(Address pc) {
@@ -154,19 +150,6 @@ Handle<Object> Assembler::code_target_object_handle_at(Address pc) {
       Instruction::InstructionBits(reinterpret_cast<const byte*>(pc));
   int index = instr & 0xFFFFFFFF;
   return code_targets_[index];
-}
-
-void RelocInfo::update_wasm_memory_reference(
-    Address old_base, Address new_base, size_t old_size, size_t new_size,
-    ICacheFlushMode icache_flush_mode) {
-  DCHECK(IsWasmMemoryReference(rmode_));
-  DCHECK(old_base <= wasm_memory_reference() &&
-         wasm_memory_reference() < old_base + old_size);
-  Address updated_reference = new_base + (wasm_memory_reference() - old_base);
-  DCHECK(new_base <= updated_reference &&
-         updated_reference < new_base + new_size);
-  Assembler::set_target_address_at(isolate_, pc_, host_, updated_reference,
-                                   icache_flush_mode);
 }
 
 Object* RelocInfo::target_object() {
@@ -195,6 +178,7 @@ void RelocInfo::set_target_object(Object* target,
       target->IsHeapObject()) {
     host()->GetHeap()->incremental_marking()->RecordWriteIntoCode(
         host(), this, HeapObject::cast(target));
+    host()->GetHeap()->RecordWriteIntoCode(host(), this, target);
   }
 }
 
@@ -312,6 +296,7 @@ void RelocInfo::WipeOut() {
   }
 }
 
+template <typename ObjectVisitor>
 void RelocInfo::Visit(Isolate* isolate, ObjectVisitor* visitor) {
   RelocInfo::Mode mode = rmode();
   if (mode == RelocInfo::EMBEDDED_OBJECT) {

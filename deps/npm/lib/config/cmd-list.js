@@ -37,6 +37,7 @@ var affordances = {
   'info': 'view',
   'show': 'view',
   'find': 'search',
+  'add': 'install',
   'unlink': 'uninstall',
   'remove': 'uninstall',
   'rm': 'uninstall',
@@ -64,8 +65,8 @@ var cmdList = [
   'publish',
   'star',
   'stars',
-  'tag',
   'adduser',
+  'login', // This is an alias for `adduser` but it can be confusing
   'logout',
   'unpublish',
   'owner',
@@ -98,7 +99,8 @@ var cmdList = [
   'start',
   'restart',
   'run-script',
-  'completion'
+  'completion',
+  'doctor'
 ]
 
 var plumbing = [

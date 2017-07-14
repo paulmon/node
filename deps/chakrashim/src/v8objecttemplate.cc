@@ -22,12 +22,10 @@
 
 namespace v8 {
 
-using namespace jsrt;
-
 class ObjectTemplateData : public TemplateData {
  public:
   static const ExternalDataTypes ExternalDataType =
-    ExternalDataTypes::ObjectTemplateData;
+      ExternalDataTypes::ObjectTemplateData;
 
   Persistent<String> className;
   NamedPropertyGetterCallback namedPropertyGetter;
@@ -70,7 +68,7 @@ class ObjectTemplateData : public TemplateData {
       functionCallDelegateInterceptorData.Reset();
   }
 
-  static void CALLBACK FinalizeCallback(void *data) {
+  static void CHAKRA_CALLBACK FinalizeCallback(void *data) {
     if (data != nullptr) {
       ObjectTemplateData* objectTemplateData =
         reinterpret_cast<ObjectTemplateData*>(data);
@@ -112,16 +110,14 @@ void ObjectData::FieldValue::SetRef(JsValueRef ref) {
     return;  // fail
   }
 
-  value = reinterpret_cast<void*>(
-    reinterpret_cast<UINT_PTR>(ref));
+  value = reinterpret_cast<void*>(ref);
   isRefValue = true;
   CHAKRA_ASSERT(GetRef() == ref);
 }
 
 JsValueRef ObjectData::FieldValue::GetRef() const {
   CHAKRA_ASSERT(IsRef() || !value);
-  return reinterpret_cast<JsValueRef>(
-    reinterpret_cast<UINT_PTR>(value));
+  return reinterpret_cast<JsValueRef>(value);
 }
 
 bool ObjectData::FieldValue::IsRef() const {
@@ -182,7 +178,7 @@ ObjectData::~ObjectData() {
   indexedPropertyInterceptorData.Reset();
 }
 
-void CALLBACK ObjectData::FinalizeCallback(void *data) {
+void CHAKRA_CALLBACK ObjectData::FinalizeCallback(void *data) {
   if (data != nullptr) {
     ObjectData* objectData = reinterpret_cast<ObjectData*>(data);
     delete objectData;
@@ -203,11 +199,14 @@ ObjectData::FieldValue* ObjectData::GetInternalField(Object* object,
 }
 
 // Callbacks used with proxies:
-JsValueRef CALLBACK Utils::GetCallback(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef *arguments,
-                                       unsigned short argumentCount,
-                                       void *callbackState) {
+JsValueRef CHAKRA_CALLBACK Utils::GetCallback(
+    JsValueRef callee,
+    bool isConstructCall,
+    JsValueRef *arguments,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
+    void *callbackState) {
+  CHAKRA_VERIFY(argumentCount >= 3);
+
   JsValueRef result;
 
   JsValueRef object = arguments[1];
@@ -216,7 +215,7 @@ JsValueRef CALLBACK Utils::GetCallback(JsValueRef callee,
   // intercept "__getSelf__" call from Object::InternalFieldHelper
   JsValueType propValueType;
   if (JsGetValueType(prop, &propValueType) != JsNoError) {
-    return GetUndefined();
+    return jsrt::GetUndefined();
   }
   if (propValueType == JsValueType::JsSymbol) {
     JsPropertyIdRef selfSymbolPropertyIdRef =
@@ -230,14 +229,14 @@ JsValueRef CALLBACK Utils::GetCallback(JsValueRef callee,
 
   ObjectData* objectData = nullptr;
   if (!ExternalData::TryGet(object, &objectData)) {
-    return GetUndefined();
+    return jsrt::GetUndefined();
   }
 
   bool isPropIntType = false;
   unsigned int index;
   if (propValueType == JsValueType::JsString &&
-      TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
-    return GetUndefined();
+      jsrt::TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
+    return jsrt::GetUndefined();
   }
 
   if (isPropIntType) {
@@ -254,8 +253,8 @@ JsValueRef CALLBACK Utils::GetCallback(JsValueRef callee,
       }
     }
 
-    if (GetIndexedProperty(object, index, &result) != JsNoError) {
-      return GetUndefined();
+    if (jsrt::GetIndexedProperty(object, index, &result) != JsNoError) {
+      return jsrt::GetUndefined();
     }
     return result;
   } else {
@@ -273,30 +272,33 @@ JsValueRef CALLBACK Utils::GetCallback(JsValueRef callee,
 
     // use default JS behavior, on the prototype..
     if (jsrt::GetProperty(object, prop, &result) != JsNoError) {
-      return GetUndefined();
+      return jsrt::GetUndefined();
     }
     return result;
   }
 }
 
-JsValueRef CALLBACK Utils::SetCallback(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef *arguments,
-                                       unsigned short argumentCount,
-                                       void *callbackState) {
+JsValueRef CHAKRA_CALLBACK Utils::SetCallback(
+    JsValueRef callee,
+    bool isConstructCall,
+    JsValueRef *arguments,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
+    void *callbackState) {
+  CHAKRA_VERIFY(argumentCount >= 4);
+
   JsValueRef object = arguments[1];
   JsValueRef prop = arguments[2];
   JsValueRef value = arguments[3];
 
   ObjectData* objectData = nullptr;
   if (!ExternalData::TryGet(object, &objectData)) {
-    return GetFalse();
+    return jsrt::GetFalse();
   }
 
   bool isPropIntType;
   unsigned int index;
-  if (TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
-    return GetFalse();
+  if (jsrt::TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
+    return jsrt::GetFalse();
   }
 
   Local<Value> setCallbackResult;
@@ -309,12 +311,12 @@ JsValueRef CALLBACK Utils::SetCallback(JsValueRef callee,
       objectData->indexedPropertySetter(
         index, reinterpret_cast<Value*>(value), info);
       if (info.GetReturnValue().Get() != JS_INVALID_REFERENCE) {
-        return GetTrue();  // intercepted
+        return jsrt::GetTrue();  // intercepted
       }
     }
     // use default JS behavior
     if (jsrt::SetIndexedProperty(object, index, value) != JsNoError) {
-      return GetFalse();
+      return jsrt::GetFalse();
     }
   } else {
     if (objectData->namedPropertySetter) {
@@ -325,36 +327,39 @@ JsValueRef CALLBACK Utils::SetCallback(JsValueRef callee,
       objectData->namedPropertySetter(
         reinterpret_cast<String*>(prop), reinterpret_cast<Value*>(value), info);
       if (info.GetReturnValue().Get() != JS_INVALID_REFERENCE) {
-        return GetTrue();  // intercepted
+        return jsrt::GetTrue();  // intercepted
       }
     }
     // use default JS behavior
     if (jsrt::SetProperty(object, prop, value) != JsNoError) {
-      return GetFalse();
+      return jsrt::GetFalse();
     }
   }
 
-  return GetTrue();
+  return jsrt::GetTrue();
 }
 
-JsValueRef CALLBACK Utils::DeletePropertyCallback(JsValueRef callee,
-                                                  bool isConstructCall,
-                                                  JsValueRef *arguments,
-                                                  unsigned short argumentCount,
-                                                  void *callbackState) {
+JsValueRef CHAKRA_CALLBACK Utils::DeletePropertyCallback(
+    JsValueRef callee,
+    bool isConstructCall,
+    JsValueRef *arguments,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
+    void *callbackState) {
+  CHAKRA_VERIFY(argumentCount >= 3);
+
   JsValueRef object = arguments[1];
   JsValueRef prop = arguments[2];
   JsValueRef result;
 
   ObjectData* objectData = nullptr;
   if (!ExternalData::TryGet(object, &objectData)) {
-    return GetFalse();
+    return jsrt::GetFalse();
   }
 
   bool isPropIntType;
   unsigned int index;
-  if (TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
-    return GetFalse();
+  if (jsrt::TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
+    return jsrt::GetFalse();
   }
 
   Local<Value> deleteCallbackResult;
@@ -372,9 +377,9 @@ JsValueRef CALLBACK Utils::DeletePropertyCallback(JsValueRef callee,
     }
     // use default JS behavior
     if (jsrt::DeleteIndexedProperty(object, index) != JsNoError) {
-      return GetFalse();
+      return jsrt::GetFalse();
     }
-    return GetTrue();  // no result from JsDeleteIndexedProperty
+    return jsrt::GetTrue();  // no result from JsDeleteIndexedProperty
   } else {
     if (objectData->namedPropertyDeleter != nullptr) {
       PropertyCallbackInfo<Boolean> info(
@@ -389,26 +394,29 @@ JsValueRef CALLBACK Utils::DeletePropertyCallback(JsValueRef callee,
     }
     // use default JS behavior
     if (jsrt::DeleteProperty(object, prop, &result) != JsNoError) {
-      return GetFalse();
+      return jsrt::GetFalse();
     }
     return result;
   }
 }
 
-JsValueRef Utils::HasPropertyHandler(JsValueRef *arguments,
-                                     unsigned short argumentCount) {
+JsValueRef Utils::HasPropertyHandler(
+    JsValueRef *arguments,
+    unsigned short argumentCount) {  // NOLINT(runtime/int)
+  CHAKRA_VERIFY(argumentCount >= 3);
+
   JsValueRef object = arguments[1];
   JsValueRef prop = arguments[2];
 
   ObjectData* objectData = nullptr;
   if (!ExternalData::TryGet(object, &objectData)) {
-    return GetFalse();
+    return jsrt::GetFalse();
   }
 
   bool isPropIntType;
   unsigned int index;
-  if (TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
-    return GetFalse();
+  if (jsrt::TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
+    return jsrt::GetFalse();
   }
 
   if (isPropIntType) {
@@ -420,7 +428,7 @@ JsValueRef Utils::HasPropertyHandler(JsValueRef *arguments,
         /*holder*/reinterpret_cast<Object*>(object));
       objectData->indexedPropertyQuery(index, info);
       if (info.GetReturnValue().Get() != JS_INVALID_REFERENCE) {
-        return GetTrue();  // intercepted
+        return jsrt::GetTrue();  // intercepted
       }
     }
 
@@ -432,16 +440,16 @@ JsValueRef Utils::HasPropertyHandler(JsValueRef *arguments,
         /*holder*/reinterpret_cast<Object*>(object));
       objectData->indexedPropertyGetter(index, info);
       if (info.GetReturnValue().Get() != JS_INVALID_REFERENCE) {
-        return GetTrue();  // intercepted
+        return jsrt::GetTrue();  // intercepted
       }
     }
 
     // fallback to default JS behavior
     bool hasProperty;
     if (jsrt::HasIndexedProperty(object, index, &hasProperty) != JsNoError) {
-      return GetFalse();
+      return jsrt::GetFalse();
     }
-    return hasProperty ? GetTrue() : GetFalse();
+    return hasProperty ? jsrt::GetTrue() : jsrt::GetFalse();
   } else {  // named property...
     if (objectData->namedPropertyQuery != nullptr) {
       HandleScope scope(nullptr);
@@ -451,7 +459,7 @@ JsValueRef Utils::HasPropertyHandler(JsValueRef *arguments,
         /*holder*/reinterpret_cast<Object*>(object));
       objectData->namedPropertyQuery(reinterpret_cast<String*>(prop), info);
       if (info.GetReturnValue().Get() != JS_INVALID_REFERENCE) {
-        return GetTrue();  // intercepted
+        return jsrt::GetTrue();  // intercepted
       }
     }
 
@@ -462,36 +470,40 @@ JsValueRef Utils::HasPropertyHandler(JsValueRef *arguments,
         /*holder*/reinterpret_cast<Object*>(object));
       objectData->namedPropertyGetter(reinterpret_cast<String*>(prop), info);
       if (info.GetReturnValue().Get() != JS_INVALID_REFERENCE) {
-        return GetTrue();  // intercepted
+        return jsrt::GetTrue();  // intercepted
       }
     }
 
     // fallback to default JS behavior
     bool hasProperty;
     if (jsrt::HasProperty(object, prop, &hasProperty) != JsNoError) {
-      return GetFalse();
+      return jsrt::GetFalse();
     }
-    return hasProperty ? GetTrue() : GetFalse();
+    return hasProperty ? jsrt::GetTrue() : jsrt::GetFalse();
   }
 }
 
-JsValueRef CALLBACK Utils::HasCallback(JsValueRef callee,
-                                       bool isConstructCall,
-                                       JsValueRef *arguments,
-                                       unsigned short argumentCount,
-                                       void *callbackState) {
+JsValueRef CHAKRA_CALLBACK Utils::HasCallback(
+    JsValueRef callee,
+    bool isConstructCall,
+    JsValueRef *arguments,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
+    void *callbackState) {
   return HasPropertyHandler(arguments, argumentCount);
 }
 
-JsValueRef Utils::GetPropertiesHandler(JsValueRef* arguments,
-                                       unsigned int argumentsCount,
-                                       bool getFromPrototype) {
+JsValueRef Utils::GetPropertiesHandler(
+    JsValueRef* arguments,
+    unsigned int argumentsCount,  // NOLINT(runtime/int)
+    bool getFromPrototype) {
+  CHAKRA_VERIFY(argumentsCount >= 2);
+
   HandleScope scope(nullptr);
   JsValueRef object = arguments[1];
 
   ObjectData* objectData = nullptr;
   if (!ExternalData::TryGet(object, &objectData)) {
-    return GetUndefined();
+    return jsrt::GetUndefined();
   }
 
   JsValueRef indexedProperties;
@@ -504,13 +516,13 @@ JsValueRef Utils::GetPropertiesHandler(JsValueRef* arguments,
     indexedProperties =
       reinterpret_cast<JsValueRef>(info.GetReturnValue().Get());
   } else if (getFromPrototype) {  // get indexed properties from object
-    if (GetEnumerableIndexedProperties(object,
-                                       &indexedProperties) != JsNoError) {
-      return GetUndefined();
+    if (jsrt::GetEnumerableIndexedProperties(
+            object, &indexedProperties) != JsNoError) {
+      return jsrt::GetUndefined();
     }
   } else {
-    if (GetIndexedOwnKeys(object, &indexedProperties) != JsNoError) {
-      return GetUndefined();
+    if (jsrt::GetIndexedOwnKeys(object, &indexedProperties) != JsNoError) {
+      return jsrt::GetUndefined();
     }
   }
 
@@ -523,72 +535,78 @@ JsValueRef Utils::GetPropertiesHandler(JsValueRef* arguments,
     objectData->namedPropertyEnumerator(info);
     namedProperties = reinterpret_cast<JsValueRef>(info.GetReturnValue().Get());
   } else if (getFromPrototype) {  // get named properties from object
-    if (GetEnumerableNamedProperties(object, &namedProperties) != JsNoError) {
-      return GetUndefined();
+    if (jsrt::GetEnumerableNamedProperties(object,
+                                           &namedProperties) != JsNoError) {
+      return jsrt::GetUndefined();
     }
   } else {
-    if (GetNamedOwnKeys(object, &namedProperties) != JsNoError) {
-      return GetUndefined();
+    if (jsrt::GetNamedOwnKeys(object, &namedProperties) != JsNoError) {
+      return jsrt::GetUndefined();
     }
   }
 
   JsValueRef concatenatedArray;
-  if (ConcatArray(indexedProperties,
-                  namedProperties, &concatenatedArray) != JsNoError) {
-    return GetUndefined();
+  if (jsrt::ConcatArray(indexedProperties, namedProperties,
+                        &concatenatedArray) != JsNoError) {
+    return jsrt::GetUndefined();
   }
 
   return concatenatedArray;
 }
 
-JsValueRef Utils::GetPropertiesEnumeratorHandler(JsValueRef* arguments,
-                                                 unsigned int argumentsCount) {
+JsValueRef Utils::GetPropertiesEnumeratorHandler(
+    JsValueRef* arguments,
+    unsigned int argumentsCount) {  // NOLINT(runtime/int)
   JsValueRef properties =
-    GetPropertiesHandler(arguments, argumentsCount, /*getFromPrototype*/true);
+      GetPropertiesHandler(arguments, argumentsCount, /*getFromPrototype*/true);
 
   JsValueRef result;
-  if (CreateEnumerationIterator(properties, &result) != JsNoError) {
-    return GetUndefined();
+  if (jsrt::CreateEnumerationIterator(properties, &result) != JsNoError) {
+    return jsrt::GetUndefined();
   }
 
   return result;
 }
 
-JsValueRef CALLBACK Utils::EnumerateCallback(JsValueRef callee,
-                                             bool isConstructCall,
-                                             JsValueRef *arguments,
-                                             unsigned short argumentCount,
-                                             void *callbackState) {
-  return GetPropertiesEnumeratorHandler(arguments, argumentCount);
-}
-
-JsValueRef CALLBACK Utils::OwnKeysCallback(JsValueRef callee,
-                                           bool isConstructCall,
-                                           JsValueRef *arguments,
-                                           unsigned short argumentCount,
-                                           void *callbackState) {
-  return GetPropertiesHandler(arguments, argumentCount, false);
-}
-
-JsValueRef CALLBACK Utils::GetOwnPropertyDescriptorCallback(
+JsValueRef CHAKRA_CALLBACK Utils::EnumerateCallback(
     JsValueRef callee,
     bool isConstructCall,
     JsValueRef *arguments,
-    unsigned short argumentCount,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
     void *callbackState) {
+  return GetPropertiesEnumeratorHandler(arguments, argumentCount);
+}
+
+JsValueRef CHAKRA_CALLBACK Utils::OwnKeysCallback(
+    JsValueRef callee,
+    bool isConstructCall,
+    JsValueRef *arguments,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
+    void *callbackState) {
+  return GetPropertiesHandler(arguments, argumentCount, false);
+}
+
+JsValueRef CHAKRA_CALLBACK Utils::GetOwnPropertyDescriptorCallback(
+    JsValueRef callee,
+    bool isConstructCall,
+    JsValueRef *arguments,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
+    void *callbackState) {
+  CHAKRA_VERIFY(argumentCount >= 3);
+
   JsValueRef object = arguments[1];
   JsValueRef prop = arguments[2];
   JsValueRef descriptor;
 
   ObjectData* objectData = nullptr;
   if (!ExternalData::TryGet(object, &objectData)) {
-    return GetUndefined();
+    return jsrt::GetUndefined();
   }
 
   bool isPropIntType;
   unsigned int index;
-  if (TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
-    return GetUndefined();
+  if (jsrt::TryParseUInt32(prop, &isPropIntType, &index) != JsNoError) {
+    return jsrt::GetUndefined();
   }
 
   JsValueRef queryResult = JS_INVALID_REFERENCE;
@@ -616,8 +634,8 @@ JsValueRef CALLBACK Utils::GetOwnPropertyDescriptorCallback(
 
     // if queryResult valid, ensure value available
     if (queryResult != JS_INVALID_REFERENCE && value == JS_INVALID_REFERENCE) {
-      if (GetIndexedProperty(object, index, &value) != JsNoError) {
-        return GetUndefined();
+      if (jsrt::GetIndexedProperty(object, index, &value) != JsNoError) {
+        return jsrt::GetUndefined();
       }
     }
   } else {  // named property...
@@ -644,16 +662,17 @@ JsValueRef CALLBACK Utils::GetOwnPropertyDescriptorCallback(
 
     // if queryResult valid, ensure value available
     if (queryResult != JS_INVALID_REFERENCE && value == JS_INVALID_REFERENCE) {
-      if (GetProperty(object, prop, &value) != JsNoError) {
-        return GetUndefined();
+      if (jsrt::GetProperty(object, prop, &value) != JsNoError) {
+        return jsrt::GetUndefined();
       }
     }
   }
 
   // if neither is intercepted, fallback to default
   if (queryResult == JS_INVALID_REFERENCE && value == JS_INVALID_REFERENCE) {
-    if (GetOwnPropertyDescriptor(object, prop, &descriptor) != JsNoError) {
-      return GetUndefined();
+    if (jsrt::GetOwnPropertyDescriptor(object, prop,
+                                       &descriptor) != JsNoError) {
+      return jsrt::GetUndefined();
     }
     return descriptor;
   }
@@ -661,16 +680,16 @@ JsValueRef CALLBACK Utils::GetOwnPropertyDescriptorCallback(
   int queryResultInt = v8::PropertyAttribute::DontEnum;
   if (queryResult != JS_INVALID_REFERENCE) {
     if (jsrt::ValueToIntLikely(queryResult, &queryResultInt) != JsNoError) {
-      return GetUndefined();
+      return jsrt::GetUndefined();
     }
   }
 
   v8::PropertyAttribute attributes =
     static_cast<v8::PropertyAttribute>(queryResultInt);
-  if (CreatePropertyDescriptor(attributes, value,
-                               JS_INVALID_REFERENCE, JS_INVALID_REFERENCE,
-                               &descriptor) != JsNoError) {
-    return GetUndefined();
+  if (jsrt::CreatePropertyDescriptor(attributes, value, JS_INVALID_REFERENCE,
+                                     JS_INVALID_REFERENCE,
+                                     &descriptor) != JsNoError) {
+    return jsrt::GetUndefined();
   }
 
   return descriptor;
@@ -690,11 +709,12 @@ Local<ObjectTemplate> ObjectTemplate::New(Isolate* isolate) {
   return Local<ObjectTemplate>::New(objectTemplateRef);
 }
 
-JsValueRef CALLBACK GetSelf(JsValueRef callee,
-                            bool isConstructCall,
-                            JsValueRef *arguments,
-                            unsigned short argumentCount,
-                            void *callbackState) {
+JsValueRef CHAKRA_CALLBACK GetSelf(
+    JsValueRef callee,
+    bool isConstructCall,
+    JsValueRef *arguments,
+    unsigned short argumentCount,  // NOLINT(runtime/int)
+    void *callbackState) {
   return reinterpret_cast<JsValueRef>(callbackState);
 }
 
@@ -741,43 +761,44 @@ Local<Object> ObjectTemplate::NewInstance(Handle<Object> prototype) {
   if (objectTemplateData->AreInterceptorsRequired()) {
     JsValueRef newInstanceTargetRef = newInstanceRef;
 
-    JsNativeFunction proxyConf[ProxyTraps::TrapCount] = {};
+    JsNativeFunction proxyConf[jsrt::ProxyTraps::TrapCount] = {};
 
     if (objectTemplateData->indexedPropertyGetter != nullptr ||
         objectTemplateData->namedPropertyGetter != nullptr)
-      proxyConf[ProxyTraps::GetTrap] = Utils::GetCallback;
+      proxyConf[jsrt::ProxyTraps::GetTrap] = Utils::GetCallback;
 
     if (objectTemplateData->indexedPropertySetter != nullptr ||
         objectTemplateData->namedPropertySetter != nullptr)
-      proxyConf[ProxyTraps::SetTrap] = Utils::SetCallback;
+      proxyConf[jsrt::ProxyTraps::SetTrap] = Utils::SetCallback;
 
     if (objectTemplateData->indexedPropertyDeleter != nullptr ||
         objectTemplateData->namedPropertyDeleter != nullptr)
-      proxyConf[ProxyTraps::DeletePropertyTrap] = Utils::DeletePropertyCallback;
+      proxyConf[jsrt::ProxyTraps::DeletePropertyTrap] =
+          Utils::DeletePropertyCallback;
 
     if (objectTemplateData->indexedPropertyEnumerator != nullptr ||
         objectTemplateData->namedPropertyEnumerator != nullptr) {
-      proxyConf[ProxyTraps::EnumerateTrap] = Utils::EnumerateCallback;
-      proxyConf[ProxyTraps::OwnKeysTrap] = Utils::OwnKeysCallback;
+      proxyConf[jsrt::ProxyTraps::EnumerateTrap] = Utils::EnumerateCallback;
+      proxyConf[jsrt::ProxyTraps::OwnKeysTrap] = Utils::OwnKeysCallback;
     }
 
     if (objectTemplateData->indexedPropertyQuery != nullptr ||
         objectTemplateData->namedPropertyQuery != nullptr ||
         objectTemplateData->indexedPropertyGetter != nullptr ||
         objectTemplateData->namedPropertyGetter != nullptr) {
-      proxyConf[ProxyTraps::HasTrap] = Utils::HasCallback;
+      proxyConf[jsrt::ProxyTraps::HasTrap] = Utils::HasCallback;
     }
 
     if (objectTemplateData->indexedPropertyQuery != nullptr ||
         objectTemplateData->namedPropertyQuery != nullptr ||
         objectTemplateData->indexedPropertyGetter != nullptr ||
         objectTemplateData->namedPropertyGetter != nullptr) {
-      proxyConf[ProxyTraps::GetOwnPropertyDescriptorTrap] =
-        Utils::GetOwnPropertyDescriptorCallback;
+      proxyConf[jsrt::ProxyTraps::GetOwnPropertyDescriptorTrap] =
+          Utils::GetOwnPropertyDescriptorCallback;
     }
 
     JsErrorCode error =
-      jsrt::CreateProxy(newInstanceTargetRef, proxyConf, &newInstanceRef);
+        jsrt::CreateProxy(newInstanceTargetRef, proxyConf, &newInstanceRef);
 
     if (error != JsNoError) {
       return Local<Object>();

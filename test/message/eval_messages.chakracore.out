@@ -1,41 +1,66 @@
 [eval]
+[eval]:1
+'use strict'; with(this){__filename}
+              ^^^^^
+
 SyntaxError: 'with' statements are not allowed in strict mode
-   at exports.runInThisContext (vm.js:*)
+   at createScript (vm.js:*:*)
+   at runInThisContext (vm.js:*:*)
    at Anonymous function ([eval]-wrapper:*:*)
    at Module.prototype._compile (module.js:*:*)
+   at evalScript (bootstrap_node.js:*:*)
+   at startup (bootstrap_node.js:*:*)
    at Anonymous function (bootstrap_node.js:*:*)
-   at _combinedTickCallback (internal/process/next_tick.js:*:*)
-   at _tickCallback (internal/process/next_tick.js:*:*)
 42
 42
+[eval]:1
+throw new Error("hello")
+^
+
 Error: hello
-   at Global code ([eval]:1:1)
-   at Script.prototype.runInThisContext (vm.js:*:*)      
-   at exports.runInThisContext (vm.js:*)
+   at Global code ([eval]:*:*)
+   at Script.prototype.runInThisContext (vm.js:*:*)
+   at runInThisContext (vm.js:*:*)
    at Anonymous function ([eval]-wrapper:*:*)
    at Module.prototype._compile (module.js:*:*)
+   at evalScript (bootstrap_node.js:*:*)
+   at startup (bootstrap_node.js:*:*)
    at Anonymous function (bootstrap_node.js:*:*)
-   at _combinedTickCallback (internal/process/next_tick.js:*:*)
-   at _tickCallback (internal/process/next_tick.js:*:*)
+[eval]:1
+'use strict'; throw new Error("hello")
+              ^
+
 Error: hello
-   at Global code ([eval]:1:15)
-   at Script.prototype.runInThisContext (vm.js:*:*)   
-   at exports.runInThisContext (vm.js:*)
+   at Global code ([eval]:*:*)
+   at Script.prototype.runInThisContext (vm.js:*:*)
+   at runInThisContext (vm.js:*:*)
    at Anonymous function ([eval]-wrapper:*:*)
    at Module.prototype._compile (module.js:*:*)
+   at evalScript (bootstrap_node.js:*:*)
+   at startup (bootstrap_node.js:*:*)
    at Anonymous function (bootstrap_node.js:*:*)
-   at _combinedTickCallback (internal/process/next_tick.js:*:*)
-   at _tickCallback (internal/process/next_tick.js:*:*)
 100
+[eval]:1
+'use strict'; var x = 100; y = x;
+                           ^
+
 ReferenceError: Variable undefined in strict mode
-   at Global code ([eval]:1:28)
-   at Script.prototype.runInThisContext (vm.js:*:*)      
-   at exports.runInThisContext (vm.js:*)
+   at Global code ([eval]:*:*)
+   at Script.prototype.runInThisContext (vm.js:*:*)
+   at runInThisContext (vm.js:*:*)
    at Anonymous function ([eval]-wrapper:*:*)
    at Module.prototype._compile (module.js:*:*)
+   at evalScript (bootstrap_node.js:*:*)
+   at startup (bootstrap_node.js:*:*)
    at Anonymous function (bootstrap_node.js:*:*)
-   at _combinedTickCallback (internal/process/next_tick.js:*:*)
-   at _tickCallback (internal/process/next_tick.js:*:*)
+
+vm.js:*
+    return realRunInThisContext.call(this, options);
+    ^
 10
+
+vm.js:*
+    return realRunInThisContext.call(this, options);
+    ^
 10
 done

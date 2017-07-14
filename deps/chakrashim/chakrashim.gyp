@@ -2,9 +2,13 @@
   'variables': {
     'library_files': [
       'lib/chakra_shim.js',
+      'lib/chakra_inspector.js'
     ],
+    'v8_enable_inspector%': 0,
   },
-
+  'includes': [
+    'src/inspector/inspector.gypi'
+  ],
   'targets': [
     {
       'target_name': 'chakrashim',
@@ -15,6 +19,7 @@
       ],
 
       'include_dirs': [
+        '.',
         'include',
         '<(SHARED_INTERMEDIATE_DIR)',
         './../uv/include'
@@ -46,10 +51,29 @@
             '<@(node_engine_libs)',
           ],
           'msvs_settings': {
-            'VCCLCompilerTool': {		
-              'CompileAsWinRT': 'false',		
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
             }
           },
+        }],
+        [ 'OS in "linux"', {
+          'cflags_cc': [ '-fexceptions' ],
+        }],
+        [ 'OS in "mac"', {
+          'cflags_cc': [ '-fexceptions' ],
+          'cflags_cc!': [ '-fno-exceptions' ],
+          'xcode_settings': {
+            'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',
+            'OTHER_CFLAGS': [ '-fexceptions' ],
+          },
+        }],
+        ['v8_enable_inspector==1', {
+          'sources': [
+            '<@(inspector_all_sources)'
+          ],
+          'dependencies': [
+            'src/inspector/inspector.gyp:protocol_generated_sources',
+          ],
         }],
       ],
       'msvs_use_library_dependency_inputs': 1,
@@ -77,8 +101,8 @@
               '<@(node_engine_libs)',
             ],
             'msvs_settings': {
-              'VCCLCompilerTool': {		
-                'CompileAsWinRT': 'false',		
+              'VCCLCompilerTool': {
+                'CompileAsWinRT': 'false',
               }
             },
           }],
@@ -93,12 +117,23 @@
         'include/v8-platform.h',
         'include/v8-profiler.h',
         'include/v8-version.h',
+        'src/base/logging.cc',
+        'src/base/logging.h',
+        'src/base/macros.h',
+        'src/base/platform/platform.cc',
+        'src/base/platform/platform.h',
         'src/jsrtcachedpropertyidref.inc',
         'src/jsrtcontextcachedobj.inc',
         'src/jsrtcontextshim.cc',
         'src/jsrtcontextshim.h',
+        'src/jsrtinspector.cc',
+        'src/jsrtinspector.h',
+        'src/jsrtinspectorhelpers.cc',
+        'src/jsrtinspectorhelpers.h',
         'src/jsrtisolateshim.cc',
         'src/jsrtisolateshim.h',
+        'src/jsrtplatform.cc',
+        'src/jsrtplatform.h',
         'src/jsrtpromise.cc',
         'src/jsrtproxyutils.cc',
         'src/jsrtproxyutils.h',
@@ -124,25 +159,39 @@
         'src/v8int32.cc',
         'src/v8integer.cc',
         'src/v8isolate.cc',
+        'src/v8map.cc',
         'src/v8message.cc',
+        'src/v8microtasksscope.cc',
+        'src/v8name.cc',
         'src/v8number.cc',
         'src/v8numberobject.cc',
         'src/v8object.cc',
         'src/v8objecttemplate.cc',
         'src/v8persistent.cc',
+        'src/v8persistent.cc',
         'src/v8private.cc',
+        'src/v8promise.cc',
+        'src/v8resolver.cc',
+        'src/v8propertydescriptor.cc',
         'src/v8proxy.cc',
+        'src/v8regexp.cc',
         'src/v8script.cc',
+        'src/v8sharedarraybuffer.cc',
+        'src/v8set.cc',
         'src/v8signature.cc',
         'src/v8stacktrace.cc',
         'src/v8string.cc',
         'src/v8stringobject.cc',
+        'src/v8symbol.cc',
+        'src/v8symbolobject.cc',
         'src/v8template.cc',
         'src/v8trycatch.cc',
         'src/v8typedarray.cc',
         'src/v8uint32.cc',
         'src/v8v8.cc',
         'src/v8value.cc',
+        'src/v8valueserializer.cc',
+        'src/v8valuedeserializer.cc',
       ],
     },  # end chakrashim
 

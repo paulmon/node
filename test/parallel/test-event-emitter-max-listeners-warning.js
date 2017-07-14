@@ -15,7 +15,9 @@ process.on('warning', common.mustCall((warning) => {
   assert.strictEqual(warning.emitter, e);
   assert.strictEqual(warning.count, 2);
   assert.strictEqual(warning.type, 'event-type');
+  assert.ok(warning.message.includes('2 event-type listeners added.'));
 }));
 
-e.on('event-type', function() {});
-e.on('event-type', function() {});
+e.on('event-type', common.noop);
+e.on('event-type', common.noop);  // Trigger warning.
+e.on('event-type', common.noop);  // Verify that warning is emitted only once.

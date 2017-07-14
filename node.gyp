@@ -24,8 +24,7 @@
     'node_uwp_dll%': 'false',
     'library_files': [
       'lib/internal/bootstrap_node.js',
-      'lib/_debug_agent.js',
-      'lib/_debugger.js',
+      'lib/async_hooks.js',
       'lib/assert.js',
       'lib/buffer.js',
       'lib/child_process.js',
@@ -46,7 +45,7 @@
       'lib/_http_outgoing.js',
       'lib/_http_server.js',
       'lib/https.js',
-      'lib/_linklist.js',
+      'lib/inspector.js',
       'lib/module.js',
       'lib/net.js',
       'lib/os.js',
@@ -70,16 +69,25 @@
       'lib/_tls_common.js',
       'lib/_tls_legacy.js',
       'lib/_tls_wrap.js',
+      'lib/trace_mgr.js',
       'lib/tty.js',
       'lib/url.js',
       'lib/util.js',
       'lib/v8.js',
       'lib/vm.js',
       'lib/zlib.js',
+      'lib/internal/buffer.js',
       'lib/internal/child_process.js',
-      'lib/internal/cluster.js',
+      'lib/internal/cluster/child.js',
+      'lib/internal/cluster/master.js',
+      'lib/internal/cluster/round_robin_handle.js',
+      'lib/internal/cluster/shared_handle.js',
+      'lib/internal/cluster/utils.js',
+      'lib/internal/cluster/worker.js',
+      'lib/internal/errors.js',
       'lib/internal/freelist.js',
       'lib/internal/fs.js',
+      'lib/internal/http.js',
       'lib/internal/linkedlist.js',
       'lib/internal/net.js',
       'lib/internal/module.js',
@@ -88,14 +96,20 @@
       'lib/internal/process/stdio.js',
       'lib/internal/process/warning.js',
       'lib/internal/process.js',
+      'lib/internal/querystring.js',
+      'lib/internal/process/write-coverage.js',
       'lib/internal/readline.js',
       'lib/internal/repl.js',
       'lib/internal/socket_list.js',
+      'lib/internal/test/unicode.js',
+      'lib/internal/url.js',
       'lib/internal/util.js',
       'lib/internal/v8_prof_polyfill.js',
       'lib/internal/v8_prof_processor.js',
       'lib/internal/streams/lazy_transform.js',
       'lib/internal/streams/BufferList.js',
+      'lib/internal/streams/legacy.js',
+      'lib/internal/streams/destroy.js',
       'deps/v8/tools/splaytree.js',
       'deps/v8/tools/codemap.js',
       'deps/v8/tools/consarray.js',
@@ -106,6 +120,9 @@
       'deps/v8/tools/tickprocessor.js',
       'deps/v8/tools/SourceMap.js',
       'deps/v8/tools/tickprocessor-driver.js',
+      'deps/node-inspect/lib/_inspect.js',
+      'deps/node-inspect/lib/internal/inspect_client.js',
+      'deps/node-inspect/lib/internal/inspect_repl.js',
     ],
     'conditions': [
       [ 'node_shared=="true"', {
@@ -129,18 +146,21 @@
       'type': '<(node_target_type)',
 
       'dependencies': [
-        'node_js2c#host'
+        'node_js2c#host',
+      ],
+
+      'includes': [
+        'node.gypi'
       ],
 
       'include_dirs': [
         'src',
         'tools/msvs/genfiles',
         'deps/uv/src/ares',
-        '<(SHARED_INTERMEDIATE_DIR)', # for node_natives.h
+        '<(SHARED_INTERMEDIATE_DIR)',
       ],
 
       'sources': [
-        'src/debug-agent.cc',
         'src/async-wrap.cc',
         'src/env.cc',
         'src/fs_event_wrap.cc',
@@ -154,12 +174,14 @@
         'src/node_config.cc',
         'src/node_constants.cc',
         'src/node_contextify.cc',
+        'src/node_debug_options.cc',
         'src/node_file.cc',
         'src/node_http_parser.cc',
-        'src/node_javascript.cc',
         'src/node_main.cc',
         'src/node_os.cc',
         'src/node_revert.cc',
+        'src/node_serdes.cc',
+        'src/node_url.cc',
         'src/node_util.cc',
         'src/node_v8.cc',
         'src/node_stat_watcher.cc',
@@ -167,16 +189,23 @@
         'src/node_zlib.cc',
         'src/node_i18n.cc',
         'src/pipe_wrap.cc',
+        'src/process_wrap.cc',
         'src/signal_wrap.cc',
         'src/spawn_sync.cc',
         'src/string_bytes.cc',
+        'src/string_search.cc',
         'src/stream_base.cc',
         'src/stream_wrap.cc',
         'src/tcp_wrap.cc',
         'src/timer_wrap.cc',
+        'src/tracing/agent.cc',
+        'src/tracing/node_trace_buffer.cc',
+        'src/tracing/node_trace_writer.cc',
+        'src/tracing/trace_event.cc',
         'src/tty_wrap.cc',
         'src/process_wrap.cc',
         'src/udp_wrap.cc',
+        'src/util.cc',
         'src/uv.cc',
         # headers to make for a more pleasant IDE experience
         'src/async-wrap.h',
@@ -185,16 +214,16 @@
         'src/base-object-inl.h',
         'src/connection_wrap.h',
         'src/connect_wrap.h',
-        'src/debug-agent.h',
         'src/env.h',
         'src/env-inl.h',
         'src/handle_wrap.h',
         'src/js_stream.h',
         'src/node.h',
+        'src/node_api.h',
+        'src/node_api_types.h',
         'src/node_buffer.h',
         'src/node_constants.h',
-        'src/node_file.h',
-        'src/node_http_parser.h',
+        'src/node_debug_options.h',
         'src/node_internals.h',
         'src/node_javascript.h',
         'src/node_mutex.h',
@@ -214,6 +243,10 @@
         'src/stream_base.h',
         'src/stream_base-inl.h',
         'src/stream_wrap.h',
+        'src/tracing/agent.h',
+        'src/tracing/node_trace_buffer.h',
+        'src/tracing/node_trace_writer.h',
+        'src/tracing/trace_event.h'
         'src/tree.h',
         'src/util.h',
         'src/util-inl.h',
@@ -227,6 +260,7 @@
         '<@(library_files)',
         # node.gyp is added to the project by default.
         'common.gypi',
+        '<(SHARED_INTERMEDIATE_DIR)/node_javascript.cc',
       ],
 
       'defines': [
@@ -236,7 +270,6 @@
         # Warn when using deprecated V8 APIs.
         'V8_DEPRECATION_WARNINGS=1',
       ],
-
 
       'conditions': [
         [ 'node_shared=="false"', {
@@ -355,7 +388,7 @@
                 ['node_uwp_dll!="true"', {
                   'dependencies': [
                     './deps/openssl/openssl.gyp:openssl',
-                    
+
                     # For tests
                     './deps/openssl/openssl.gyp:openssl-cli',
                   ],
@@ -545,8 +578,8 @@
               'libraries': [ '-lchakrart' ],
               'msvs_disabled_warnings': [4146],
               'msvs_settings': {
-                'VCCLCompilerTool': {		
-                  'CompileAsWinRT': 'false',		
+                'VCCLCompilerTool': {
+                  'CompileAsWinRT': 'false',
                 }
               },
             }],
@@ -578,28 +611,6 @@
             '_LINUX_SOURCE_COMPAT',
           ],
         }],
-        [ 'OS=="solaris"', {
-          'libraries': [
-            '-lkstat',
-            '-lumem',
-          ],
-          'defines!': [
-            'NODE_PLATFORM="solaris"',
-          ],
-          'defines': [
-            # we need to use node's preferred "sunos"
-            # rather than gyp's preferred "solaris"
-            'NODE_PLATFORM="sunos"',
-          ],
-        }],
-        [ '(OS=="freebsd" or OS=="linux") and node_shared=="false"', {
-          'ldflags': [ '-Wl,-z,noexecstack',
-                       '-Wl,--whole-archive <(V8_BASE)',
-                       '-Wl,--no-whole-archive' ]
-        }],
-        [ 'OS=="sunos"', {
-          'ldflags': [ '-Wl,-M,/usr/lib/ld/map.noexstk' ],
-        }],
       ],
     },
     {
@@ -614,7 +625,7 @@
               # Categories to export.
               '-CAES,BF,BIO,DES,DH,DSA,EC,ECDH,ECDSA,ENGINE,EVP,HMAC,MD4,MD5,'
               'NEXTPROTONEG,PSK,RC2,RC4,RSA,SHA,SHA0,SHA1,SHA256,SHA512,SOCK,'
-              'STDIO,TLSEXT',
+              'STDIO,TLSEXT,FP_API',
               # Defines.
               '-DWIN32',
               # Symbols to filter from the export list.
@@ -624,7 +635,7 @@
               # Base generated DEF on zlib.def
               '-Bdeps/zlib/win32/zlib.def'
             ],
-    },
+          },
           'conditions': [
             ['openssl_fips!=""', {
               'variables': { 'mkssldef_flags': ['-DOPENSSL_FIPS'] },
@@ -697,18 +708,54 @@
       ]
     },
     {
+      'target_name': 'v8_inspector_compress_protocol_json',
+      'type': 'none',
+      'toolsets': ['host'],
+      'conditions': [
+        [ 'v8_enable_inspector==1', {
+          'actions': [
+            {
+              'action_name': 'v8_inspector_compress_protocol_json',
+              'process_outputs_as_sources': 1,
+              'outputs': [
+                '<(SHARED_INTERMEDIATE_DIR)/v8_inspector_protocol_json.h',
+              ],
+              'action': [
+                'python',
+                'tools/compress_json.py',
+                '<@(_inputs)',
+                '<@(_outputs)',
+              ],
+              'conditions': [
+                [ 'node_engine=="chakra"', {
+                  'inputs': [
+                    'deps/chakrashim/src/inspector/js_protocol.json',
+                  ],
+                }, {
+                  'inputs': [
+                    'deps/v8/src/inspector/js_protocol.json',
+                  ],
+                }],
+              ],
+            },
+          ],
+        }],
+      ],
+    },
+    {
       'target_name': 'node_js2c',
       'type': 'none',
       'toolsets': ['host'],
       'actions': [
         {
           'action_name': 'node_js2c',
+          'process_outputs_as_sources': 1,
           'inputs': [
             '<@(library_files)',
             './config.gypi',
           ],
           'outputs': [
-            '<(SHARED_INTERMEDIATE_DIR)/node_natives.h',
+            '<(SHARED_INTERMEDIATE_DIR)/node_javascript.cc',
           ],
           'conditions': [
             [ 'node_use_dtrace=="false" and node_use_etw=="false"', {
@@ -823,7 +870,7 @@
                 '<(OBJ_DIR)/node/src/node_dtrace_ustack.o'
               ],
               'conditions': [
-                [ 'target_arch=="ia32"', {
+                [ 'target_arch=="ia32" or target_arch=="arm"', {
                   'action': [
                     'dtrace', '-32', '-I<(SHARED_INTERMEDIATE_DIR)', '-Isrc',
                     '-C', '-G', '-s', 'src/v8ustack.d', '-o', '<@(_outputs)',
@@ -874,7 +921,25 @@
       'targets': [
         {
           'target_name': 'node',
-          'type': 'executable',
+          'conditions': [
+            ['node_shared=="true"', {
+              'type': 'shared_library',
+              'ldflags': ['--shared'],
+              'product_extension': '<(shlib_suffix)',
+            }, {
+              'type': 'executable',
+            }],
+            ['target_arch=="ppc64"', {
+              'ldflags': [
+                '-Wl,-blibpath:/usr/lib:/lib:/opt/freeware/lib/pthread/ppc64'
+              ],
+            }],
+            ['target_arch=="ppc"', {
+              'ldflags': [
+                '-Wl,-blibpath:/usr/lib:/lib:/opt/freeware/lib/pthread'
+              ],
+            }]
+          ],
           'dependencies': ['<(node_core_target_name)', 'node_exp'],
 
           'include_dirs': [
@@ -971,7 +1036,7 @@
               ]
             }],
             ['node_engine=="chakra"', {
-              'dependencies': [ 
+              'dependencies': [
                  'deps/chakrashim/chakrashim.gyp:chakrashim',
                  'deps/uv/uv.gyp:libuv'
               ],

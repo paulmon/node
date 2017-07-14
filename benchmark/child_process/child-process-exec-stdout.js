@@ -10,7 +10,8 @@ const bench = common.createBenchmark(main, {
   dur: [5]
 });
 
-const exec = require('child_process').exec;
+const child_process = require('child_process');
+const exec = child_process.exec;
 function main(conf) {
   bench.start();
 
@@ -18,10 +19,10 @@ function main(conf) {
   const len = +conf.len;
 
   const msg = `"${'.'.repeat(len)}"`;
+  // eslint-disable-next-line no-unescaped-regexp-dot
   msg.match(/./);
   const options = {'stdio': ['ignore', 'pipe', 'ignore']};
-  // NOTE: Command below assumes bash shell.
-  const child = exec(`while\n  echo ${msg}\ndo :; done\n`, options);
+  const child = exec(`yes ${msg}`, options);
 
   var bytes = 0;
   child.stdout.on('data', function(msg) {
@@ -29,7 +30,12 @@ function main(conf) {
   });
 
   setTimeout(function() {
-    child.kill();
     bench.end(bytes);
+    if (process.platform === 'win32') {
+      // Sometimes there's a yes.exe process left hanging around on Windows...
+      child_process.execSync(`taskkill /f /t /pid ${child.pid}`);
+    } else {
+      child.kill();
+    }
   }, dur * 1000);
 }

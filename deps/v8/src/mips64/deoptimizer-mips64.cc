@@ -93,7 +93,7 @@ void Deoptimizer::SetPlatformCompiledStubRegisters(
 
 void Deoptimizer::CopyDoubleRegisters(FrameDescription* output_frame) {
   for (int i = 0; i < DoubleRegister::kMaxNumRegisters; ++i) {
-    double double_value = input_->GetDoubleRegister(i);
+    Float64 double_value = input_->GetDoubleRegister(i);
     output_frame->SetDoubleRegister(i, double_value);
   }
 }
@@ -117,8 +117,7 @@ void Deoptimizer::TableEntryGenerator::Generate() {
 
   // Save all FPU registers before messing with them.
   __ Dsubu(sp, sp, Operand(kDoubleRegsSize));
-  const RegisterConfiguration* config =
-      RegisterConfiguration::ArchDefault(RegisterConfiguration::CRANKSHAFT);
+  const RegisterConfiguration* config = RegisterConfiguration::Crankshaft();
   for (int i = 0; i < config->num_allocatable_double_registers(); ++i) {
     int code = config->GetAllocatableDoubleCode(i);
     const DoubleRegister fpu_reg = DoubleRegister::from_code(code);

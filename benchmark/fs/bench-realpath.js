@@ -22,12 +22,12 @@ function main(conf) {
   else if (type === 'resolved')
     resolvedPath(n);
   else
-    throw new Error('unknown "type": ' + type);
+    throw new Error(`unknown "type": ${type}`);
 }
 
 function relativePath(n) {
   (function r(cntr) {
-    if (--cntr <= 0)
+    if (cntr-- <= 0)
       return bench.end(n);
     fs.realpath(relative_path, function() {
       r(cntr);
@@ -37,7 +37,7 @@ function relativePath(n) {
 
 function resolvedPath(n) {
   (function r(cntr) {
-    if (--cntr <= 0)
+    if (cntr-- <= 0)
       return bench.end(n);
     fs.realpath(resolved_path, function() {
       r(cntr);

@@ -34,7 +34,7 @@ function csvEncodeValue(value) {
   if (typeof value === 'number') {
     return value.toString();
   } else {
-    return '"' + value.replace(/"/g, '""') + '"';
+    return `"${value.replace(/"/g, '""')}"`;
   }
 }
 
@@ -42,6 +42,10 @@ function csvEncodeValue(value) {
   const child = fork(path.resolve(__dirname, filepath), cli.optional.set);
 
   child.on('message', function(data) {
+    if (data.type !== 'report') {
+      return;
+    }
+
     // print csv header
     if (printHeader) {
       const confHeader = Object.keys(data.conf)

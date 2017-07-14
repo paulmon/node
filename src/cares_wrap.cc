@@ -1,3 +1,24 @@
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 #define CARES_STATICLIB
 #include "ares.h"
 #include "async-wrap.h"
@@ -46,10 +67,45 @@ using v8::Object;
 using v8::String;
 using v8::Value;
 
+namespace {
+
+inline const char* ToErrorCodeString(int status) {
+  switch (status) {
+#define V(code) case ARES_##code: return #code;
+    V(EADDRGETNETWORKPARAMS)
+    V(EBADFAMILY)
+    V(EBADFLAGS)
+    V(EBADHINTS)
+    V(EBADNAME)
+    V(EBADQUERY)
+    V(EBADRESP)
+    V(EBADSTR)
+    V(ECANCELLED)
+    V(ECONNREFUSED)
+    V(EDESTRUCTION)
+    V(EFILE)
+    V(EFORMERR)
+    V(ELOADIPHLPAPI)
+    V(ENODATA)
+    V(ENOMEM)
+    V(ENONAME)
+    V(ENOTFOUND)
+    V(ENOTIMP)
+    V(ENOTINITIALIZED)
+    V(EOF)
+    V(EREFUSED)
+    V(ESERVFAIL)
+    V(ETIMEOUT)
+#undef V
+  }
+
+  return "UNKNOWN_ARES_ERROR";
+}
 
 class GetAddrInfoReqWrap : public ReqWrap<uv_getaddrinfo_t> {
  public:
   GetAddrInfoReqWrap(Environment* env, Local<Object> req_wrap_obj);
+  ~GetAddrInfoReqWrap();
 
   size_t self_size() const override { return sizeof(*this); }
 };
@@ -60,15 +116,15 @@ GetAddrInfoReqWrap::GetAddrInfoReqWrap(Environment* env,
   Wrap(req_wrap_obj, this);
 }
 
-
-static void NewGetAddrInfoReqWrap(const FunctionCallbackInfo<Value>& args) {
-  CHECK(args.IsConstructCall());
+GetAddrInfoReqWrap::~GetAddrInfoReqWrap() {
+  ClearWrap(object());
 }
 
 
 class GetNameInfoReqWrap : public ReqWrap<uv_getnameinfo_t> {
  public:
   GetNameInfoReqWrap(Environment* env, Local<Object> req_wrap_obj);
+  ~GetNameInfoReqWrap();
 
   size_t self_size() const override { return sizeof(*this); }
 };
@@ -79,18 +135,12 @@ GetNameInfoReqWrap::GetNameInfoReqWrap(Environment* env,
   Wrap(req_wrap_obj, this);
 }
 
-
-static void NewGetNameInfoReqWrap(const FunctionCallbackInfo<Value>& args) {
-  CHECK(args.IsConstructCall());
+GetNameInfoReqWrap::~GetNameInfoReqWrap() {
+  ClearWrap(object());
 }
 
 
-static void NewQueryReqWrap(const FunctionCallbackInfo<Value>& args) {
-  CHECK(args.IsConstructCall());
-}
-
-
-static int cmp_ares_tasks(const node_ares_task* a, const node_ares_task* b) {
+int cmp_ares_tasks(const node_ares_task* a, const node_ares_task* b) {
   if (a->sock < b->sock)
     return -1;
   if (a->sock > b->sock)
@@ -105,14 +155,14 @@ RB_GENERATE_STATIC(node_ares_task_list, node_ares_task, node, cmp_ares_tasks)
 
 /* This is called once per second by loop->timer. It is used to constantly */
 /* call back into c-ares for possibly processing timeouts. */
-static void ares_timeout(uv_timer_t* handle) {
+void ares_timeout(uv_timer_t* handle) {
   Environment* env = Environment::from_cares_timer_handle(handle);
   CHECK_EQ(false, RB_EMPTY(env->cares_task_list()));
   ares_process_fd(env->cares_channel(), ARES_SOCKET_BAD, ARES_SOCKET_BAD);
 }
 
 
-static void ares_poll_cb(uv_poll_t* watcher, int status, int events) {
+void ares_poll_cb(uv_poll_t* watcher, int status, int events) {
   node_ares_task* task = ContainerOf(&node_ares_task::poll_watcher, watcher);
   Environment* env = task->env;
 
@@ -133,7 +183,7 @@ static void ares_poll_cb(uv_poll_t* watcher, int status, int events) {
 }
 
 
-static void ares_poll_close_cb(uv_handle_t* watcher) {
+void ares_poll_close_cb(uv_handle_t* watcher) {
   node_ares_task* task = ContainerOf(&node_ares_task::poll_watcher,
                                   reinterpret_cast<uv_poll_t*>(watcher));
   free(task);
@@ -141,9 +191,8 @@ static void ares_poll_close_cb(uv_handle_t* watcher) {
 
 
 /* Allocates and returns a new node_ares_task */
-static node_ares_task* ares_task_create(Environment* env, ares_socket_t sock) {
-  node_ares_task* task =
-    static_cast<node_ares_task*>(node::Malloc(sizeof(*task)));
+node_ares_task* ares_task_create(Environment* env, ares_socket_t sock) {
+  auto task = node::UncheckedMalloc<node_ares_task>(1);
 
   if (task == nullptr) {
     /* Out of memory. */
@@ -164,10 +213,10 @@ static node_ares_task* ares_task_create(Environment* env, ares_socket_t sock) {
 
 
 /* Callback from ares when socket operation is started */
-static void ares_sockstate_cb(void* data,
-                              ares_socket_t sock,
-                              int read,
-                              int write) {
+void ares_sockstate_cb(void* data,
+                       ares_socket_t sock,
+                       int read,
+                       int write) {
   Environment* env = static_cast<Environment*>(data);
   node_ares_task* task;
 
@@ -189,8 +238,8 @@ static void ares_sockstate_cb(void* data,
       task = ares_task_create(env, sock);
       if (task == nullptr) {
         /* This should never happen unless we're out of memory or something */
-        /* is seriously wrong. The socket won't be polled, but the the query */
-        /* will eventually time out. */
+        /* is seriously wrong. The socket won't be polled, but the query will */
+        /* eventually time out. */
         return;
       }
 
@@ -221,7 +270,7 @@ static void ares_sockstate_cb(void* data,
 }
 
 
-static Local<Array> HostentToAddresses(Environment* env, struct hostent* host) {
+Local<Array> HostentToAddresses(Environment* env, struct hostent* host) {
   EscapableHandleScope scope(env->isolate());
   Local<Array> addresses = Array::New(env->isolate());
 
@@ -236,7 +285,7 @@ static Local<Array> HostentToAddresses(Environment* env, struct hostent* host) {
 }
 
 
-static Local<Array> HostentToNames(Environment* env, struct hostent* host) {
+Local<Array> HostentToNames(Environment* env, struct hostent* host) {
   EscapableHandleScope scope(env->isolate());
   Local<Array> names = Array::New(env->isolate());
 
@@ -248,6 +297,157 @@ static Local<Array> HostentToNames(Environment* env, struct hostent* host) {
   return scope.Escape(names);
 }
 
+void safe_free_hostent(struct hostent* host) {
+  int idx;
+
+  if (host->h_addr_list != nullptr) {
+    idx = 0;
+    while (host->h_addr_list[idx]) {
+      free(host->h_addr_list[idx++]);
+    }
+    free(host->h_addr_list);
+    host->h_addr_list = 0;
+  }
+
+  if (host->h_aliases != nullptr) {
+    idx = 0;
+    while (host->h_aliases[idx]) {
+      free(host->h_aliases[idx++]);
+    }
+    free(host->h_aliases);
+    host->h_aliases = 0;
+  }
+
+  if (host->h_name != nullptr) {
+    free(host->h_name);
+  }
+
+  host->h_addrtype = host->h_length = 0;
+}
+
+void cares_wrap_hostent_cpy(struct hostent* dest, struct hostent* src) {
+  dest->h_addr_list = nullptr;
+  dest->h_addrtype = 0;
+  dest->h_aliases = nullptr;
+  dest->h_length = 0;
+  dest->h_name = nullptr;
+
+  /* copy `h_name` */
+  size_t name_size = strlen(src->h_name) + 1;
+  dest->h_name = node::Malloc<char>(name_size);
+  memcpy(dest->h_name, src->h_name, name_size);
+
+  /* copy `h_aliases` */
+  size_t alias_count;
+  size_t cur_alias_length;
+  for (alias_count = 0;
+      src->h_aliases[alias_count] != nullptr;
+      alias_count++) {
+  }
+
+  dest->h_aliases = node::Malloc<char*>(alias_count + 1);
+  for (size_t i = 0; i < alias_count; i++) {
+    cur_alias_length = strlen(src->h_aliases[i]);
+    dest->h_aliases[i] = node::Malloc(cur_alias_length + 1);
+    memcpy(dest->h_aliases[i], src->h_aliases[i], cur_alias_length + 1);
+  }
+  dest->h_aliases[alias_count] = nullptr;
+
+  /* copy `h_addr_list` */
+  size_t list_count;
+  for (list_count = 0;
+      src->h_addr_list[list_count] != nullptr;
+      list_count++) {
+  }
+
+  dest->h_addr_list = node::Malloc<char*>(list_count + 1);
+  for (size_t i = 0; i < list_count; i++) {
+    dest->h_addr_list[i] = node::Malloc(src->h_length);
+    memcpy(dest->h_addr_list[i], src->h_addr_list[i], src->h_length);
+  }
+  dest->h_addr_list[list_count] = nullptr;
+
+  /* work after work */
+  dest->h_length = src->h_length;
+  dest->h_addrtype = src->h_addrtype;
+}
+
+class QueryWrap;
+struct CaresAsyncData {
+  QueryWrap* wrap;
+  int status;
+  bool is_host;
+  union {
+    hostent* host;
+    unsigned char* buf;
+  } data;
+  int len;
+
+  uv_async_t async_handle;
+};
+
+void SetupCaresChannel(Environment* env) {
+  struct ares_options options;
+  memset(&options, 0, sizeof(options));
+  options.flags = ARES_FLAG_NOCHECKRESP;
+  options.sock_state_cb = ares_sockstate_cb;
+  options.sock_state_cb_data = env;
+
+  /* We do the call to ares_init_option for caller. */
+  int r = ares_init_options(env->cares_channel_ptr(),
+                            &options,
+                            ARES_OPT_FLAGS | ARES_OPT_SOCK_STATE_CB);
+
+  if (r != ARES_SUCCESS) {
+    ares_library_cleanup();
+    return env->ThrowError(ToErrorCodeString(r));
+  }
+}
+
+
+/**
+ * This function is to check whether current servers are fallback servers
+ * when cares initialized.
+ *
+ * The fallback servers of cares is [ "127.0.0.1" ] with no user additional
+ * setting.
+ */
+void AresEnsureServers(Environment* env) {
+  /* if last query is OK or servers are set by user self, do not check */
+  if (env->cares_query_last_ok() || !env->cares_is_servers_default()) {
+    return;
+  }
+
+  ares_channel channel = env->cares_channel();
+  ares_addr_node* servers = nullptr;
+
+  ares_get_servers(channel, &servers);
+
+  /* if no server or multi-servers, ignore */
+  if (servers == nullptr) return;
+  if (servers->next != nullptr) {
+    ares_free_data(servers);
+    env->set_cares_is_servers_default(false);
+    return;
+  }
+
+  /* if the only server is not 127.0.0.1, ignore */
+  if (servers[0].family != AF_INET ||
+      servers[0].addr.addr4.s_addr != htonl(INADDR_LOOPBACK)) {
+    ares_free_data(servers);
+    env->set_cares_is_servers_default(false);
+    return;
+  }
+
+  ares_free_data(servers);
+  servers = nullptr;
+
+  /* destroy channel and reset channel */
+  ares_destroy(channel);
+
+  SetupCaresChannel(env);
+}
+
 
 class QueryWrap : public AsyncWrap {
  public:
@@ -255,6 +455,7 @@ class QueryWrap : public AsyncWrap {
       : AsyncWrap(env, req_wrap_obj, AsyncWrap::PROVIDER_QUERYWRAP) {
     if (env->in_domain())
       req_wrap_obj->Set(env->domain_string(), env->domain_array()->Get(0));
+    Wrap(req_wrap_obj, this);
   }
 
   ~QueryWrap() override {
@@ -279,92 +480,114 @@ class QueryWrap : public AsyncWrap {
     return static_cast<void*>(this);
   }
 
-  static void Callback(void *arg, int status, int timeouts,
-      unsigned char* answer_buf, int answer_len) {
-    QueryWrap* wrap = static_cast<QueryWrap*>(arg);
-
-    if (status != ARES_SUCCESS) {
-      wrap->ParseError(status);
-    } else {
-      wrap->Parse(answer_buf, answer_len);
-    }
-
-    delete wrap;
+  static void AresQuery(Environment* env, const char* name,
+                        int dnsclass, int type, ares_callback callback,
+                        void* arg) {
+    AresEnsureServers(env);
+    ares_query(env->cares_channel(), name, dnsclass, type, callback, arg);
   }
 
-  static void Callback(void *arg, int status, int timeouts,
-      struct hostent* host) {
-    QueryWrap* wrap = static_cast<QueryWrap*>(arg);
+  static void CaresAsyncClose(uv_handle_t* handle) {
+    uv_async_t* async = reinterpret_cast<uv_async_t*>(handle);
+    auto data = static_cast<struct CaresAsyncData*>(async->data);
+    delete data->wrap;
+    delete data;
+  }
+
+  static void CaresAsyncCb(uv_async_t* handle) {
+    auto data = static_cast<struct CaresAsyncData*>(handle->data);
+
+    QueryWrap* wrap = data->wrap;
+    int status = data->status;
 
     if (status != ARES_SUCCESS) {
       wrap->ParseError(status);
+    } else if (!data->is_host) {
+      unsigned char* buf = data->data.buf;
+      wrap->Parse(buf, data->len);
+      free(buf);
     } else {
+      hostent* host = data->data.host;
       wrap->Parse(host);
+      safe_free_hostent(host);
+      free(host);
     }
 
-    delete wrap;
+    uv_close(reinterpret_cast<uv_handle_t*>(handle), CaresAsyncClose);
   }
 
-  void CallOnComplete(Local<Value> answer) {
-    HandleScope handle_scope(env()->isolate());
-    Context::Scope context_scope(env()->context());
-    Local<Value> argv[] = {
-      Integer::New(env()->isolate(), 0),
-      answer
-    };
-    MakeCallback(env()->oncomplete_string(), arraysize(argv), argv);
+  static void Callback(void *arg, int status, int timeouts,
+                       unsigned char* answer_buf, int answer_len) {
+    QueryWrap* wrap = static_cast<QueryWrap*>(arg);
+
+    unsigned char* buf_copy = nullptr;
+    if (status == ARES_SUCCESS) {
+      buf_copy = node::Malloc<unsigned char>(answer_len);
+      memcpy(buf_copy, answer_buf, answer_len);
+    }
+
+    CaresAsyncData* data = new CaresAsyncData();
+    data->status = status;
+    data->wrap = wrap;
+    data->is_host = false;
+    data->data.buf = buf_copy;
+    data->len = answer_len;
+
+    uv_async_t* async_handle = &data->async_handle;
+    CHECK_EQ(0, uv_async_init(wrap->env()->event_loop(),
+                              async_handle,
+                              CaresAsyncCb));
+
+    wrap->env()->set_cares_query_last_ok(status != ARES_ECONNREFUSED);
+    async_handle->data = data;
+    uv_async_send(async_handle);
   }
 
-  void CallOnComplete(Local<Value> answer, Local<Value> family) {
+  static void Callback(void *arg, int status, int timeouts,
+                       struct hostent* host) {
+    QueryWrap* wrap = static_cast<QueryWrap*>(arg);
+
+    struct hostent* host_copy = nullptr;
+    if (status == ARES_SUCCESS) {
+      host_copy = node::Malloc<hostent>(1);
+      cares_wrap_hostent_cpy(host_copy, host);
+    }
+
+    CaresAsyncData* data = new CaresAsyncData();
+    data->status = status;
+    data->data.host = host_copy;
+    data->wrap = wrap;
+    data->is_host = true;
+
+    uv_async_t* async_handle = &data->async_handle;
+    CHECK_EQ(0, uv_async_init(wrap->env()->event_loop(),
+                              async_handle,
+                              CaresAsyncCb));
+
+    wrap->env()->set_cares_query_last_ok(status != ARES_ECONNREFUSED);
+    async_handle->data = data;
+    uv_async_send(async_handle);
+  }
+
+  void CallOnComplete(Local<Value> answer,
+                      Local<Value> extra = Local<Value>()) {
     HandleScope handle_scope(env()->isolate());
     Context::Scope context_scope(env()->context());
     Local<Value> argv[] = {
       Integer::New(env()->isolate(), 0),
       answer,
-      family
+      extra
     };
-    MakeCallback(env()->oncomplete_string(), arraysize(argv), argv);
+    const int argc = arraysize(argv) - extra.IsEmpty();
+    MakeCallback(env()->oncomplete_string(), argc, argv);
   }
 
   void ParseError(int status) {
     CHECK_NE(status, ARES_SUCCESS);
     HandleScope handle_scope(env()->isolate());
     Context::Scope context_scope(env()->context());
-    Local<Value> arg;
-    switch (status) {
-#define V(code)                                                               \
-      case ARES_ ## code:                                                     \
-        arg = FIXED_ONE_BYTE_STRING(env()->isolate(), #code);                 \
-        break;
-      V(ENODATA)
-      V(EFORMERR)
-      V(ESERVFAIL)
-      V(ENOTFOUND)
-      V(ENOTIMP)
-      V(EREFUSED)
-      V(EBADQUERY)
-      V(EBADNAME)
-      V(EBADFAMILY)
-      V(EBADRESP)
-      V(ECONNREFUSED)
-      V(ETIMEOUT)
-      V(EOF)
-      V(EFILE)
-      V(ENOMEM)
-      V(EDESTRUCTION)
-      V(EBADSTR)
-      V(EBADFLAGS)
-      V(ENONAME)
-      V(EBADHINTS)
-      V(ENOTINITIALIZED)
-      V(ELOADIPHLPAPI)
-      V(EADDRGETNETWORKPARAMS)
-      V(ECANCELLED)
-#undef V
-      default:
-        arg = FIXED_ONE_BYTE_STRING(env()->isolate(), "UNKNOWN_ARES_ERROR");
-        break;
-    }
+    const char* code = ToErrorCodeString(status);
+    Local<Value> arg = OneByteString(env()->isolate(), code);
     MakeCallback(env()->oncomplete_string(), 1, &arg);
   }
 
@@ -386,12 +609,7 @@ class QueryAWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_a,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_a, Callback, GetQueryArg());
     return 0;
   }
 
@@ -402,18 +620,27 @@ class QueryAWrap: public QueryWrap {
     HandleScope handle_scope(env()->isolate());
     Context::Scope context_scope(env()->context());
 
-    struct hostent* host;
+    hostent* host;
+    ares_addrttl addrttls[256];
+    int naddrttls = arraysize(addrttls);
 
-    int status = ares_parse_a_reply(buf, len, &host, nullptr, nullptr);
+    int status = ares_parse_a_reply(buf, len, &host, addrttls, &naddrttls);
     if (status != ARES_SUCCESS) {
       ParseError(status);
       return;
     }
 
     Local<Array> addresses = HostentToAddresses(env(), host);
+    Local<Array> ttls = Array::New(env()->isolate(), naddrttls);
+
+    auto context = env()->context();
+    for (int i = 0; i < naddrttls; i += 1) {
+      auto value = Integer::New(env()->isolate(), addrttls[i].ttl);
+      ttls->Set(context, i, value).FromJust();
+    }
     ares_free_hostent(host);
 
-    this->CallOnComplete(addresses);
+    CallOnComplete(addresses, ttls);
   }
 };
 
@@ -425,12 +652,7 @@ class QueryAaaaWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_aaaa,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(),  name, ns_c_in, ns_t_aaaa, Callback, GetQueryArg());
     return 0;
   }
 
@@ -441,18 +663,27 @@ class QueryAaaaWrap: public QueryWrap {
     HandleScope handle_scope(env()->isolate());
     Context::Scope context_scope(env()->context());
 
-    struct hostent* host;
+    hostent* host;
+    ares_addr6ttl addrttls[256];
+    int naddrttls = arraysize(addrttls);
 
-    int status = ares_parse_aaaa_reply(buf, len, &host, nullptr, nullptr);
+    int status = ares_parse_aaaa_reply(buf, len, &host, addrttls, &naddrttls);
     if (status != ARES_SUCCESS) {
       ParseError(status);
       return;
     }
 
     Local<Array> addresses = HostentToAddresses(env(), host);
+    Local<Array> ttls = Array::New(env()->isolate(), naddrttls);
+
+    auto context = env()->context();
+    for (int i = 0; i < naddrttls; i += 1) {
+      auto value = Integer::New(env()->isolate(), addrttls[i].ttl);
+      ttls->Set(context, i, value).FromJust();
+    }
     ares_free_hostent(host);
 
-    this->CallOnComplete(addresses);
+    CallOnComplete(addresses, ttls);
   }
 };
 
@@ -464,12 +695,7 @@ class QueryCnameWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_cname,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_cname, Callback, GetQueryArg());
     return 0;
   }
 
@@ -505,12 +731,7 @@ class QueryMxWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_mx,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_mx, Callback, GetQueryArg());
     return 0;
   }
 
@@ -556,12 +777,7 @@ class QueryNsWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_ns,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_ns, Callback, GetQueryArg());
     return 0;
   }
 
@@ -594,12 +810,7 @@ class QueryTxtWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_txt,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_txt, Callback, GetQueryArg());
     return 0;
   }
 
@@ -651,12 +862,7 @@ class QuerySrvWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_srv,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_srv, Callback, GetQueryArg());
     return 0;
   }
 
@@ -707,12 +913,7 @@ class QueryPtrWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_ptr,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_ptr, Callback, GetQueryArg());
     return 0;
   }
 
@@ -750,12 +951,7 @@ class QueryNaptrWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_naptr,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_naptr, Callback, GetQueryArg());
     return 0;
   }
 
@@ -814,12 +1010,7 @@ class QuerySoaWrap: public QueryWrap {
   }
 
   int Send(const char* name) override {
-    ares_query(env()->cares_channel(),
-               name,
-               ns_c_in,
-               ns_t_soa,
-               Callback,
-               GetQueryArg());
+    AresQuery(env(), name, ns_c_in, ns_t_soa, Callback, GetQueryArg());
     return 0;
   }
 
@@ -1076,7 +1267,7 @@ void AfterGetNameInfo(uv_getnameinfo_t* req,
 }
 
 
-static void IsIP(const FunctionCallbackInfo<Value>& args) {
+void IsIP(const FunctionCallbackInfo<Value>& args) {
   node::Utf8Value ip(args.GetIsolate(), args[0]);
   char address_buffer[sizeof(struct in6_addr)];
 
@@ -1089,7 +1280,7 @@ static void IsIP(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(rc);
 }
 
-static void IsIPv4(const FunctionCallbackInfo<Value>& args) {
+void IsIPv4(const FunctionCallbackInfo<Value>& args) {
   node::Utf8Value ip(args.GetIsolate(), args[0]);
   char address_buffer[sizeof(struct in_addr)];
 
@@ -1100,7 +1291,7 @@ static void IsIPv4(const FunctionCallbackInfo<Value>& args) {
   }
 }
 
-static void IsIPv6(const FunctionCallbackInfo<Value>& args) {
+void IsIPv6(const FunctionCallbackInfo<Value>& args) {
   node::Utf8Value ip(args.GetIsolate(), args[0]);
   char address_buffer[sizeof(struct in6_addr)];
 
@@ -1111,7 +1302,7 @@ static void IsIPv6(const FunctionCallbackInfo<Value>& args) {
   }
 }
 
-static void GetAddrInfo(const FunctionCallbackInfo<Value>& args) {
+void GetAddrInfo(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   CHECK(args[0]->IsObject());
@@ -1135,7 +1326,6 @@ static void GetAddrInfo(const FunctionCallbackInfo<Value>& args) {
     break;
   default:
     CHECK(0 && "bad address family");
-    ABORT();
   }
 
   GetAddrInfoReqWrap* req_wrap = new GetAddrInfoReqWrap(env, req_wrap_obj);
@@ -1147,7 +1337,7 @@ static void GetAddrInfo(const FunctionCallbackInfo<Value>& args) {
   hints.ai_flags = flags;
 
   int err = uv_getaddrinfo(env->event_loop(),
-                           &req_wrap->req_,
+                           req_wrap->req(),
                            AfterGetAddrInfo,
                            *hostname,
                            nullptr,
@@ -1160,7 +1350,7 @@ static void GetAddrInfo(const FunctionCallbackInfo<Value>& args) {
 }
 
 
-static void GetNameInfo(const FunctionCallbackInfo<Value>& args) {
+void GetNameInfo(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   CHECK(args[0]->IsObject());
@@ -1177,7 +1367,7 @@ static void GetNameInfo(const FunctionCallbackInfo<Value>& args) {
   GetNameInfoReqWrap* req_wrap = new GetNameInfoReqWrap(env, req_wrap_obj);
 
   int err = uv_getnameinfo(env->event_loop(),
-                           &req_wrap->req_,
+                           req_wrap->req(),
                            AfterGetNameInfo,
                            (struct sockaddr*)&addr,
                            NI_NAMEREQD);
@@ -1189,7 +1379,7 @@ static void GetNameInfo(const FunctionCallbackInfo<Value>& args) {
 }
 
 
-static void GetServers(const FunctionCallbackInfo<Value>& args) {
+void GetServers(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   Local<Array> server_array = Array::New(env->isolate());
@@ -1218,7 +1408,7 @@ static void GetServers(const FunctionCallbackInfo<Value>& args) {
 }
 
 
-static void SetServers(const FunctionCallbackInfo<Value>& args) {
+void SetServers(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   CHECK(args[0]->IsArray());
@@ -1261,7 +1451,6 @@ static void SetServers(const FunctionCallbackInfo<Value>& args) {
         break;
       default:
         CHECK(0 && "Bad address family.");
-        ABORT();
     }
 
     if (err)
@@ -1282,50 +1471,44 @@ static void SetServers(const FunctionCallbackInfo<Value>& args) {
 
   delete[] servers;
 
+  if (err == ARES_SUCCESS)
+    env->set_cares_is_servers_default(false);
+
   args.GetReturnValue().Set(err);
 }
 
 
-static void StrError(const FunctionCallbackInfo<Value>& args) {
+void StrError(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   const char* errmsg = ares_strerror(args[0]->Int32Value());
   args.GetReturnValue().Set(OneByteString(env->isolate(), errmsg));
 }
 
 
-static void CaresTimerCloseCb(uv_handle_t* handle) {
+void CaresTimerCloseCb(uv_handle_t* handle) {
   Environment* env = Environment::from_cares_timer_handle(
       reinterpret_cast<uv_timer_t*>(handle));
   env->FinishHandleCleanup(handle);
 }
 
 
-static void CaresTimerClose(Environment* env,
+void CaresTimerClose(Environment* env,
                             uv_handle_t* handle,
                             void* arg) {
   uv_close(handle, CaresTimerCloseCb);
 }
 
 
-static void Initialize(Local<Object> target,
-                       Local<Value> unused,
-                       Local<Context> context) {
+void Initialize(Local<Object> target,
+                Local<Value> unused,
+                Local<Context> context) {
   Environment* env = Environment::GetCurrent(context);
 
   int r = ares_library_init(ARES_LIB_INIT_ALL);
-  CHECK_EQ(r, ARES_SUCCESS);
+  if (r != ARES_SUCCESS)
+    return env->ThrowError(ToErrorCodeString(r));
 
-  struct ares_options options;
-  memset(&options, 0, sizeof(options));
-  options.flags = ARES_FLAG_NOCHECKRESP;
-  options.sock_state_cb = ares_sockstate_cb;
-  options.sock_state_cb_data = env;
-
-  /* We do the call to ares_init_option for caller. */
-  r = ares_init_options(env->cares_channel_ptr(),
-                        &options,
-                        ARES_OPT_FLAGS | ARES_OPT_SOCK_STATE_CB);
-  CHECK_EQ(r, ARES_SUCCESS);
+  SetupCaresChannel(env);
 
   /* Initialize the timeout timer. The timer won't be started until the */
   /* first socket is opened. */
@@ -1368,31 +1551,40 @@ static void Initialize(Local<Object> target,
   target->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "AI_V4MAPPED"),
               Integer::New(env->isolate(), AI_V4MAPPED));
 
+  auto is_construct_call_callback =
+      [](const FunctionCallbackInfo<Value>& args) {
+    CHECK(args.IsConstructCall());
+    ClearWrap(args.This());
+  };
   Local<FunctionTemplate> aiw =
-      FunctionTemplate::New(env->isolate(), NewGetAddrInfoReqWrap);
+      FunctionTemplate::New(env->isolate(), is_construct_call_callback);
   aiw->InstanceTemplate()->SetInternalFieldCount(1);
+  env->SetProtoMethod(aiw, "getAsyncId", AsyncWrap::GetAsyncId);
   aiw->SetClassName(
       FIXED_ONE_BYTE_STRING(env->isolate(), "GetAddrInfoReqWrap"));
   target->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "GetAddrInfoReqWrap"),
               aiw->GetFunction());
 
   Local<FunctionTemplate> niw =
-      FunctionTemplate::New(env->isolate(), NewGetNameInfoReqWrap);
+      FunctionTemplate::New(env->isolate(), is_construct_call_callback);
   niw->InstanceTemplate()->SetInternalFieldCount(1);
+  env->SetProtoMethod(niw, "getAsyncId", AsyncWrap::GetAsyncId);
   niw->SetClassName(
       FIXED_ONE_BYTE_STRING(env->isolate(), "GetNameInfoReqWrap"));
   target->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "GetNameInfoReqWrap"),
               niw->GetFunction());
 
   Local<FunctionTemplate> qrw =
-      FunctionTemplate::New(env->isolate(), NewQueryReqWrap);
+      FunctionTemplate::New(env->isolate(), is_construct_call_callback);
   qrw->InstanceTemplate()->SetInternalFieldCount(1);
+  env->SetProtoMethod(qrw, "getAsyncId", AsyncWrap::GetAsyncId);
   qrw->SetClassName(
       FIXED_ONE_BYTE_STRING(env->isolate(), "QueryReqWrap"));
   target->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "QueryReqWrap"),
               qrw->GetFunction());
 }
 
+}  // anonymous namespace
 }  // namespace cares_wrap
 }  // namespace node
 

@@ -23,13 +23,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define UnsignedMultiply128 _umul128
-ULONG64
-UnsignedMultiply128 (
-    IN ULONG64  Multiplier,
-    IN ULONG64  Multiplicand,
-    OUT ULONG64 *HighProduct
-    );
 #ifdef _MSC_VER
 #pragma intrinsic(_umul128)
 #endif // _MSC_VER
@@ -434,7 +427,7 @@ UIntToULong(
     OUT ULONG* pulResult)
 {
     *pulResult = (ULONG)uOperand;
-    
+
     return S_OK;
 }
 
@@ -552,7 +545,7 @@ ULongToUInt(
     OUT UINT* puResult)
 {
     *puResult = (UINT)ulOperand;
-    
+
     return S_OK;
 }
 
@@ -673,13 +666,13 @@ ULongLongToULong(
 {
     HRESULT hr = INTSAFE_E_ARITHMETIC_OVERFLOW;
     *pulResult = ULONG_ERROR;
-    
+
     if (ullOperand <= ULONG_MAX)
     {
         *pulResult = (ULONG)ullOperand;
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -727,13 +720,13 @@ ULongLongToUInt(
 {
     HRESULT hr = INTSAFE_E_ARITHMETIC_OVERFLOW;
     *puResult = UINT_ERROR;
-    
+
     if (ullOperand <= UINT_MAX)
     {
         *puResult = (UINT)ullOperand;
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1120,7 +1113,7 @@ UShortAdd(
         *pusResult = (usAugend + usAddend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1147,7 +1140,7 @@ UIntAdd(
         *puResult = (uAugend + uAddend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1174,7 +1167,7 @@ ULongAdd(
         *pulResult = (ulAugend + ulAddend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1223,7 +1216,7 @@ SizeTAdd(
         *pResult = (Augend + Addend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1250,7 +1243,7 @@ ULongLongAdd(
         *pullResult = (ullAugend + ullAddend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1272,7 +1265,7 @@ UShortSub(
         *pusResult = (usMinuend - usSubtrahend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1300,7 +1293,7 @@ UIntSub(
         *puResult = (uMinuend - uSubtrahend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1327,7 +1320,7 @@ ULongSub(
         *pulResult = (ulMinuend - ulSubtrahend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1377,7 +1370,7 @@ SizeTSub(
         *pResult = (Minuend - Subtrahend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1404,7 +1397,7 @@ ULongLongSub(
         *pullResult = (ullMinuend - ullSubtrahend);
         hr = S_OK;
     }
-    
+
     return hr;
 }
 
@@ -1419,7 +1412,7 @@ UShortMult(
     OUT USHORT* pusResult)
 {
     ULONG ulResult = ((ULONG)usMultiplicand) * (ULONG)usMultiplier;
-    
+
     return ULongToUShort(ulResult, pusResult);
 }
 
@@ -1446,9 +1439,7 @@ UIntMult(
 //
 // UINT_PTR multiplication
 //
-#ifdef _WIN64
-#define UIntPtrMult     ULongLongMult
-#else
+#ifndef _WIN64
 __inline
 HRESULT
 UIntPtrMult(
@@ -1471,16 +1462,14 @@ ULongMult(
     OUT ULONG* pulResult)
 {
     ULONGLONG ull64Result = UInt32x32To64(ulMultiplicand, ulMultiplier);
-    
+
     return ULongLongToULong(ull64Result, pulResult);
 }
 
 //
 // ULONG_PTR multiplication
 //
-#ifdef _WIN64
-#define ULongPtrMult    ULongLongMult
-#else
+#ifndef _WIN64
 __inline
 HRESULT
 ULongPtrMult(
@@ -1512,105 +1501,5 @@ ULongPtrMult(
 // SIZE_T multiplication
 //
 #define SIZETMult		ULongPtrMult
-
-//
-// ULONGLONG multiplication
-//
-__inline
-HRESULT
-ULongLongMult(
-    IN ULONGLONG ullMultiplicand,
-    IN ULONGLONG ullMultiplier,
-    OUT ULONGLONG* pullResult)
-{
-    HRESULT hr = INTSAFE_E_ARITHMETIC_OVERFLOW;
-#ifdef _AMD64_
-    ULONGLONG u64ResultHigh;
-    ULONGLONG u64ResultLow;
-    
-    *pullResult = ULONGLONG_ERROR;
-    
-    u64ResultLow = UnsignedMultiply128(ullMultiplicand, ullMultiplier, &u64ResultHigh);
-    if (u64ResultHigh == 0)
-    {
-        *pullResult = u64ResultLow;
-        hr = S_OK;
-    }
-#else
-    // 64x64 into 128 is like 32.32 x 32.32.
-    //
-    // a.b * c.d = a*(c.d) + .b*(c.d) = a*c + a*.d + .b*c + .b*.d
-    // back in non-decimal notation where A=a*2^32 and C=c*2^32:  
-    // A*C + A*d + b*C + b*d
-    // So there are four components to add together.
-    //   result = (a*c*2^64) + (a*d*2^32) + (b*c*2^32) + (b*d)
-    //
-    // a * c must be 0 or there would be bits in the high 64-bits
-    // a * d must be less than 2^32 or there would be bits in the high 64-bits
-    // b * c must be less than 2^32 or there would be bits in the high 64-bits
-    // then there must be no overflow of the resulting values summed up.
-    
-    ULONG dw_a;
-    ULONG dw_b;
-    ULONG dw_c;
-    ULONG dw_d;
-    ULONGLONG ad = 0;
-    ULONGLONG bc = 0;
-    ULONGLONG bd = 0;
-    ULONGLONG ullResult = 0;
-    
-    *pullResult = ULONGLONG_ERROR;
-
-    dw_a = (ULONG)(ullMultiplicand >> 32);
-    dw_c = (ULONG)(ullMultiplier >> 32);
-
-    // common case -- if high dwords are both zero, no chance for overflow
-    if ((dw_a == 0) && (dw_c == 0))
-    {
-        dw_b = (DWORD)ullMultiplicand;
-        dw_d = (DWORD)ullMultiplier;
-
-        *pullResult = (((ULONGLONG)dw_b) * (ULONGLONG)dw_d);
-        hr = S_OK;
-    }
-    else
-    {
-        // a * c must be 0 or there would be bits set in the high 64-bits
-        if ((dw_a == 0) ||
-            (dw_c == 0))
-        {
-            dw_d = (DWORD)ullMultiplier;
-
-            // a * d must be less than 2^32 or there would be bits set in the high 64-bits
-            ad = (((ULONGLONG)dw_a) * (ULONGLONG)dw_d);
-            if ((ad & HIDWORD_MASK) == 0)
-            {
-                dw_b = (DWORD)ullMultiplicand;
-
-                // b * c must be less than 2^32 or there would be bits set in the high 64-bits
-                bc = (((ULONGLONG)dw_b) * (ULONGLONG)dw_c);
-                if ((bc & HIDWORD_MASK) == 0)
-                {
-                    // now sum them all up checking for overflow.
-                    // shifting is safe because we already checked for overflow above
-                    if (SUCCEEDED(ULongLongAdd(bc << 32, ad << 32, &ullResult)))                        
-                    {
-                        // b * d
-                        bd = (((ULONGLONG)dw_b) * (ULONGLONG)dw_d);
-                    
-                        if (SUCCEEDED(ULongLongAdd(ullResult, bd, &ullResult)))
-                        {
-                            *pullResult = ullResult;
-                            hr = S_OK;
-                        }
-                    }
-                }
-            }
-        }
-    }
-#endif // _AMD64_  
-    
-    return hr;
-}
 
 #endif // _INTSAFE_H_INCLUDED_

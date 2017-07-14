@@ -3,7 +3,7 @@
 const common = require('../common');
 const assert = require('assert');
 const execFile = require('child_process').execFile;
-const warnmod = require.resolve(common.fixturesDir + '/warnings.js');
+const warnmod = require.resolve(`${common.fixturesDir}/warnings.js`);
 const node = process.execPath;
 
 const normal = [warnmod];
@@ -12,25 +12,25 @@ const traceWarn = ['--trace-warnings', warnmod];
 
 execFile(node, normal, function(er, stdout, stderr) {
   // Show Process Warnings
-  assert.equal(er, null);
-  assert.equal(stdout, '');
+  assert.strictEqual(er, null);
+  assert.strictEqual(stdout, '');
   assert(/^\(.+\)\sWarning: a bad practice warning/.test(stderr));
 });
 
 execFile(node, noWarn, function(er, stdout, stderr) {
   // Hide Process Warnings
-  assert.equal(er, null);
-  assert.equal(stdout, '');
+  assert.strictEqual(er, null);
+  assert.strictEqual(stdout, '');
   assert(!/^\(.+\)\sWarning: a bad practice warning/.test(stderr));
 });
 
 execFile(node, traceWarn, function(er, stdout, stderr) {
   // Show Warning Trace
-  assert.equal(er, null);
-  assert.equal(stdout, '');
+  assert.strictEqual(er, null);
+  assert.strictEqual(stdout, '');
   assert(/^\(.+\)\sWarning: a bad practice warning/.test(stderr));
   assert(common.engineSpecificMessage({
-    v8: /at Object\.\<anonymous\>\s\(.+warnings.js:3:9\)/,
-    chakra: /at Anonymous function\s\(.+warnings.js:3:1\)/
+    v8: /at Object\.<anonymous>\s\(.+warnings\.js:3:9\)/,
+    chakra: /at Anonymous function\s\(.+warnings\.js:3:1\)/
   }).test(stderr));
 });
