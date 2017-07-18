@@ -31,7 +31,7 @@
         [ 'target_arch=="ia32"', { 'defines': [ '__i386__=1' ] } ],
         [ 'target_arch=="x64"', { 'defines': [ '__x86_64__=1' ] } ],
         [ 'target_arch=="arm"', { 'defines': [ '__arm__=1' ] } ],
-        ['node_engine=="chakracore"', {
+        ['node_engine=="chakracore" or node_engine=="chakra"', {
           'dependencies': [
             'chakracore.gyp:chakracore#host',
           ],

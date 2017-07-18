@@ -1350,7 +1350,7 @@ def configure_engine(o):
   o['variables']['node_engine'] = engine
   if engine != 'v8':
     o['variables']['node_use_bundled_v8'] = b(False)
-  if engine == 'chakracore':
+  if engine == 'chakra':
     o['variables']['chakracore_build_config'] = o['default_configuration']
     if options.chakracore_test_build:
       o['variables']['chakracore_build_config'] = 'Test'

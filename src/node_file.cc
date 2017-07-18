@@ -178,6 +178,7 @@ void After(uv_fs_t *req) {
   // (Feel free to increase this if you need more)
   Local<Value> argv[2];
   MaybeLocal<Value> link;
+  MaybeLocal<Value> value;
   Local<Value> error;
 
   if (req->result < 0) {
@@ -267,9 +268,11 @@ void After(uv_fs_t *req) {
       case UV_FS_UWPSTORAGEDIR:
         wstr.assign(req->file.pathw);
         str.assign(wstr.begin(), wstr.end());
-        argv[1] = StringBytes::Encode(env->isolate(),
+        value = StringBytes::Encode(env->isolate(),
                                       static_cast<const char*>(str.c_str()),
-                                      req_wrap->encoding_);
+                                      req_wrap->encoding_,
+                                      &error);
+        argv[1] = value.ToLocalChecked();
         break;
 #endif
 
@@ -1491,7 +1494,9 @@ static void UWPinstalldir(const FunctionCallbackInfo<Value>& args) {
     SYNC_CALL(uwpinstalldir, 0);
     std::wstring wstr(SYNC_REQ.file.pathw);
     std::string str(wstr.begin(), wstr.end());
-    Local<Value> rc = StringBytes::Encode(env->isolate(), str.c_str(), UTF8);
+    Local<Value> error;
+    MaybeLocal<Value> mrc = StringBytes::Encode(env->isolate(), str.c_str(), UTF8, &error);
+    Local<Value> rc = mrc.ToLocalChecked();
     args.GetReturnValue().Set(rc);
   }
 }
@@ -1505,7 +1510,9 @@ static void UWPstoragedir(const FunctionCallbackInfo<Value>& args) {
     SYNC_CALL(uwpstoragedir, 0);
     std::wstring wstr(SYNC_REQ.file.pathw);
     std::string str(wstr.begin(), wstr.end());
-    Local<Value> rc = StringBytes::Encode(env->isolate(), str.c_str(), UTF8);
+    Local<Value> error;
+    MaybeLocal<Value> mrc = StringBytes::Encode(env->isolate(), str.c_str(), UTF8, &error);
+    Local<Value> rc = mrc.ToLocalChecked();
     args.GetReturnValue().Set(rc);
   }
 }

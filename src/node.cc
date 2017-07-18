@@ -1013,14 +1013,12 @@ bool SafeGetenv(const char* key, std::string* text) {
     goto fail;
 #endif
 
-#ifdef UWP_DLL
-  goto fail;
-#endif
-
+#ifndef UWP_DLL
   if (const char* value = getenv(key)) {
     *text = value;
     return true;
   }
+#endif
 
 fail:
   text->clear();
@@ -5072,11 +5070,13 @@ int Start(int argc, char** argv) {
           "Must set replay source info when replaying.\n");
   }
 
+#ifndef UWP_DLL
   if (s_doTTRecord) {
     // Apply the environment variable to be inherited by child processes.
     putenv("DO_TTD_RECORD=1");
   }
-#endif
+#endif // UWP_DLL
+#endif // ENABLE_TDD_MODE
 
 
 #if ENABLE_TTD_NODE

@@ -64,7 +64,7 @@
 #endif
 
 #include <memory>
-#include <jsrt.h>
+#include "ChakraCore.h"
 #include "v8-version.h"
 #include "v8config.h"
 

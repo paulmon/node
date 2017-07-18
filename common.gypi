@@ -93,7 +93,13 @@
       },
       'variables': {
         'node_engine_include_dir%': 'deps/chakrashim/include',
-        'node_engine_libs': '-lchakrart.lib',
+        'conditions': [
+          ['OS == "win"', {
+            'node_engine_libs': '-lchakrart.lib',
+          }, {
+            'node_engine_libs': '',
+          }],
+        ],
       },
     }],
   ],

@@ -211,11 +211,7 @@ void CALLBACK TTFlushAndCloseStreamCallback(JsTTDStreamHandle handle,
 /////////////////////////////////////////////////
 
 namespace v8 {
-#ifdef NODE_ENGINE_CHAKRA
-bool g_disableIdleGc;
-#else
 extern bool g_disableIdleGc;
-#endif
 }
 namespace jsrt {
 

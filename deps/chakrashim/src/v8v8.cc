@@ -41,7 +41,21 @@ static const size_t kMaxVersionLength = 32;
 bool g_disposed = false;
 bool g_exposeGC = false;
 bool g_useStrict = false;
+bool g_disableIdleGc = false;
+bool g_trace_debug_json = false;
+
 ArrayBuffer::Allocator* g_arrayBufferAllocator = nullptr;
+
+HeapStatistics::HeapStatistics()
+    : total_heap_size_(0),
+      total_heap_size_executable_(0),
+      total_physical_size_(0),
+      total_available_size_(0),
+      used_heap_size_(0),
+      heap_size_limit_(0),
+      malloced_memory_(0),
+      peak_malloced_memory_(0),
+      does_zap_garbage_(0) {}
 
 const char *V8::GetVersion() {
   static char versionStr[kMaxVersionLength] = {};

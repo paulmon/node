@@ -112,14 +112,21 @@
           'defines': [ 'NODE_FIPS_MODE' ],
         }],
         [ 'node_shared_openssl=="false"', {
-          'dependencies': [
-            './deps/openssl/openssl.gyp:openssl',
-
-            # For tests
-            './deps/openssl/openssl.gyp:openssl-cli',
-          ],
           # Do not let unused OpenSSL symbols to slip away
           'conditions': [
+            ['node_uwp_dll!="true"', {
+              'dependencies': [
+                './deps/openssl/openssl.gyp:openssl',
+
+                # For tests
+                './deps/openssl/openssl.gyp:openssl-cli',
+              ],
+            }],
+            ['node_uwp_dll=="true"', {
+              'dependencies': [
+                './deps/openssl_uwp/openssl.gyp:openssl',
+              ],
+            }],
             # -force_load or --whole-archive are not applicable for
             # the static library
             [ 'node_target_type!="static_library"', {
@@ -239,7 +246,7 @@
         }],
       ],
     }],
-    ['node_engine=="chakracore"', {
+    ['node_engine=="chakra"', {
       'include_dirs': [
         'deps/chakrashim', # include/v8_platform.h
       ],
@@ -287,7 +294,26 @@
         'NODE_PLATFORM="win32"',
         '_UNICODE=1',
       ],
-      'libraries': [ '-lpsapi.lib' ]
+      'conditions' : [
+        [ 'node_uwp_dll!="true"', {
+          'libraries': [ '-lpsapi.lib' ],
+        }],
+        [ 'node_uwp_dll=="true"', {
+          'type': 'loadable_module',
+          'sources': [
+            'tools/win/patch/stubs.cc',
+          ],
+          'include_dirs': [ 'deps/logger/include' ],
+          'dependencies': [ 'deps/logger/logger.gyp:logger' ],
+          'libraries': [ '-lchakrart' ],
+          'msvs_disabled_warnings': [4146],
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
+            }
+          },
+        }],
+      ],
     }, { # POSIX
       'defines': [ '__POSIX__' ],
       'sources': [ 'src/backtrace_posix.cc' ],
