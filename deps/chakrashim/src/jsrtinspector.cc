@@ -58,10 +58,14 @@ static JsValueRef CHAKRA_CALLBACK JsGetScripts(
     unsigned short argumentCount,  // NOLINT(runtime/int)
     void *callbackState) {
   JsValueRef sourcesList;
+#ifdef NODE_ENGINE_CHAKRA
+  return JS_INVALID_REFERENCE;
+#else
   JsErrorCode errorCode = JsDiagGetScripts(&sourcesList);
   CHAKRA_VERIFY_NOERROR(errorCode);
 
   return sourcesList;
+#endif
 }
 
 static JsValueRef CHAKRA_CALLBACK JsSetBreakpoint(
@@ -75,13 +79,14 @@ static JsValueRef CHAKRA_CALLBACK JsSetBreakpoint(
   int column;
   JsValueRef bpObject = JS_INVALID_REFERENCE;
 
+#ifndef NODE_ENGINE_CHAKRA
   if (argumentCount >= 4 &&
       jsrt::ValueToInt(arguments[1], &scriptId) == JsNoError &&
       jsrt::ValueToInt(arguments[2], &line) == JsNoError &&
       jsrt::ValueToInt(arguments[3], &column) == JsNoError) {
     JsDiagSetBreakpoint(scriptId, line, column, &bpObject);
   }
-
+#endif
   return bpObject;
 }
 

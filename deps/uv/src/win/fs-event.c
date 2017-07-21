@@ -211,6 +211,7 @@ int uv_fs_event_start(uv_fs_event_t* handle,
 
 #ifdef UWP_DLL
     /* Short path doesn't exist in UWP, so use long path for both */
+      short_path = short_path_buffer;
       wcscpy_s(short_path, ARRAY_SIZE(short_path), pathw);
 #else
     /* Convert to short path. */

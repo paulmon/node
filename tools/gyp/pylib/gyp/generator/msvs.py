@@ -2723,9 +2723,6 @@ def _GetMSBuildGlobalProperties(spec, version, guid, gyp_file_name):
 
   if platform_name == 'ARM':
     properties[0].append(['WindowsSDKDesktopARMSupport', 'true'])
-  if msvs_windows_sdk_version:
-    properties[0].append(['WindowsTargetPlatformVersion',
-                          str(msvs_windows_sdk_version)])
 
   return properties
 

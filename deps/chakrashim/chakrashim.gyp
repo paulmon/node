@@ -31,12 +31,17 @@
         [ 'target_arch=="ia32"', { 'defines': [ '__i386__=1' ] } ],
         [ 'target_arch=="x64"', { 'defines': [ '__x86_64__=1' ] } ],
         [ 'target_arch=="arm"', { 'defines': [ '__arm__=1' ] } ],
-        ['node_engine=="chakracore" or node_engine=="chakra"', {
+        ['node_engine=="chakracore"', {
           'dependencies': [
             'chakracore.gyp:chakracore#host',
           ],
           'export_dependent_settings': [
             'chakracore.gyp:chakracore#host',
+          ],
+        }],
+        ['node_engine=="chakra"', {
+          'dependencies': [
+            'chakrartstub.gyp:chakrartstub#host',
           ],
         }],
         [ 'OS in "linux"', {
@@ -97,6 +102,7 @@
         'src/base/macros.h',
         'src/base/platform/platform.cc',
         'src/base/platform/platform.h',
+        'src/iotstub.cc',
         'src/jsrtcachedpropertyidref.inc',
         'src/jsrtcontextcachedobj.inc',
         'src/jsrtcontextshim.cc',

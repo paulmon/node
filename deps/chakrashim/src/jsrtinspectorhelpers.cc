@@ -501,6 +501,9 @@ namespace jsrt {
     JsValueRef diagProperties = JS_INVALID_REFERENCE;
     JsErrorCode err = JsDiagGetProperties(handle, 0, MaxPropertyCount,
                                           &diagProperties);
+#ifdef NODE_ENGINE_CHAKRA
+    return v8::Local<v8::Value>();
+#else
     if (err == JsErrorDiagInvalidHandle) {
       // The handle is no longer valid, this is likely due to a pending
       // request that wasn't serviced before the last continuation.
@@ -527,6 +530,7 @@ namespace jsrt {
                                             &allPropsArray));
 
     return InspectorHelpers::WrapPropertiesArray(allPropsArray);
+#endif
   }
 
   v8::Local<v8::Value> InspectorHelpers::GetWrappedStackLocals(
@@ -594,6 +598,9 @@ namespace jsrt {
       int ordinal, JsValueRef expression, bool returnByValue, bool* isError) {
     CHAKRA_VERIFY(ordinal >= 0);
 
+#ifdef NODE_ENGINE_CHAKRA
+    return v8::Local<v8::Value>();
+#else
     if (isError != nullptr) {
       *isError = false;
     }
@@ -615,6 +622,7 @@ namespace jsrt {
 
     CHAKRA_VERIFY_NOERROR(err);
     return WrapEvaluateObject(evalResult);
+#endif
   }
 
   v8::Local<v8::Value> InspectorHelpers::EvaluateOnCallFrame(

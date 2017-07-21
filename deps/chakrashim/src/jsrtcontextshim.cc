@@ -42,6 +42,7 @@ ContextShim * ContextShim::New(IsolateShim * isolateShim, bool exposeGC,
                                JsValueRef globalObjectTemplateInstance) {
   JsRuntimeHandle handle = isolateShim->GetRuntimeHandle();
   JsContextRef context;
+#if ENABLE_TTD_NODE
   if (useGlobalTTState) {
     if (JsTTDCreateContext(handle, useGlobalTTState, &context) != JsNoError) {
       return nullptr;
@@ -51,6 +52,11 @@ ContextShim * ContextShim::New(IsolateShim * isolateShim, bool exposeGC,
     return nullptr;
     }
   }
+#else
+  if (JsCreateContext(handle, &context) != JsNoError) {
+      return nullptr;
+  }
+#endif
 
   // AddRef on globalObjectTemplateInstance if specified. Save and use later.
   if (globalObjectTemplateInstance != JS_INVALID_REFERENCE &&
