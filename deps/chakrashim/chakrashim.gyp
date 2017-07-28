@@ -13,6 +13,7 @@
     {
       'target_name': 'chakrashim',
       'type': '<(library)',
+      'msvs_disabled_warnings': [4703],
 
       'dependencies': [
         'chakra_js2c#host',
@@ -63,6 +64,13 @@
             'src/inspector/inspector.gyp:protocol_generated_sources',
           ],
         }],
+        [ 'node_uwp_dll=="true"', {
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
+            }
+          },
+        }],
       ],
       'msvs_use_library_dependency_inputs': 1,
 
@@ -86,6 +94,13 @@
               '-lversion.lib',
             ],
           }],
+          [ 'node_uwp_dll=="true"', {
+            'msvs_settings': {
+              'VCCLCompilerTool': {
+                'CompileAsWinRT': 'false',
+              }
+            },
+          }],
         ],
       },
 
@@ -102,6 +117,7 @@
         'src/base/macros.h',
         'src/base/platform/platform.cc',
         'src/base/platform/platform.h',
+        'src/codexassert.cpp'
         'src/iotstub.cc',
         'src/jsrtcachedpropertyidref.inc',
         'src/jsrtcontextcachedobj.inc',
@@ -120,6 +136,8 @@
         'src/jsrtproxyutils.h',
         'src/jsrtutils.cc',
         'src/jsrtutils.h',
+        'src/utf8codex.cc',
+        'src/utf8codex.h',
         'src/v8array.cc',
         'src/v8arraybuffer.cc',
         'src/v8boolean.cc',
