@@ -39,8 +39,6 @@
         return JsErrorInvalidArgument; \
     } \
 
-//typedef WCHAR char16;
-
 CHAKRA_API JsTTDNotifyLongLivedReferenceAdd(_In_ JsValueRef value)  
 { 
     fprintf(stderr, "ERROR: Not Implemented: JsTTDNotifyLongLivedReferenceAdd\r\n");
@@ -162,6 +160,7 @@ CHAKRA_API JsCopyString(
 }
 #endif
 
+#if 0
 CHAKRA_API
     JsCopyStringUtf16(
         _In_ JsValueRef value,
@@ -173,7 +172,78 @@ CHAKRA_API
     fprintf(stderr, "ERROR: Not Implemented: JsCopyStringUtf16\r\n");
     return JsErrorNotImplemented;
 }
+#else
+template <class CopyFunc>
+JsErrorCode WriteStringCopy(
+    JsValueRef value,
+    int start,
+    int length,
+    _Out_opt_ size_t* written,
+    const CopyFunc& copyFunc)
+{
+    if (written)
+    {
+        *written = 0;  // init to 0 for default
+    }
 
+    const char16* str = nullptr;
+    size_t strLength = 0;
+    JsErrorCode errorCode = JsStringToPointer(value, &str, &strLength);
+    if (errorCode != JsNoError)
+    {
+        return errorCode;
+    }
+
+    if (start < 0 || (size_t)start > strLength)
+    {
+        return JsErrorInvalidArgument;  // start out of range, no chars written
+    }
+
+    size_t count = min(static_cast<size_t>(length), strLength - start);
+    if (count == 0)
+    {
+        return JsNoError;  // no chars written
+    }
+
+    errorCode = copyFunc(str + start, count, written);
+    if (errorCode != JsNoError)
+    {
+        return errorCode;
+    }
+
+    if (written)
+    {
+        *written = count;
+    }
+
+    return JsNoError;
+}
+
+CHAKRA_API JsCopyStringUtf16(
+    _In_ JsValueRef value,
+    _In_ int start,
+    _In_ int length,
+    _Out_opt_ uint16_t* buffer,
+    _Out_opt_ size_t* written)
+{
+    PARAM_NOT_NULL(value);
+    VALIDATE_JSREF(value);
+
+    return WriteStringCopy(value, start, length, written,
+        [buffer](const char16* src, size_t count, size_t *needed)
+    {
+        if (buffer)
+        {
+            memmove(buffer, src, sizeof(char16) * count);
+        }
+        else
+        {
+            *needed = count;
+        }
+        return JsNoError;
+    });
+}
+#endif
 
 CHAKRA_API
     JsCreateString(
@@ -205,25 +275,42 @@ CHAKRA_API
     return JsPointerToString(reinterpret_cast<const WCHAR*>(content), length, value);
 }
 
+#if 0
 CHAKRA_API
     JsCreatePropertyId(
         _In_z_ const char *name,
         _In_ size_t length,
         _Out_ JsPropertyIdRef *propertyId)
 {
-    //fprintf(stderr, "ERROR: Not Implemented: JsCreatePropertyId\r\n");
-    //return JsErrorNotImplemented;
-    wchar_t* wname = new wchar_t[length+1];
-    if (wname)
-    {
-        size_t newLen = 0;
-        mbstowcs_s(&newLen, wname, length + 1, name, length);
-        JsErrorCode result = JsGetPropertyIdFromName(wname, propertyId);
-        delete[] wname;
-        return result;
-    }
-    return JsErrorOutOfMemory;
+    fprintf(stderr, "ERROR: Not Implemented: JsCreatePropertyId\r\n");
+    return JsErrorNotImplemented;
+    //wchar_t* wname = new wchar_t[length+1];
+    //if (wname)
+    //{
+    //    size_t newLen = 0;
+    //    mbstowcs_s(&newLen, wname, length + 1, name, length);
+    //    JsErrorCode result = JsGetPropertyIdFromName(wname, propertyId);
+    //    delete[] wname;
+    //    return result;
+    //}
+    //return JsErrorOutOfMemory;
 }
+#else
+CHAKRA_API JsCreatePropertyId(
+    _In_z_ const char *name,
+    _In_ size_t length,
+    _Out_ JsPropertyIdRef *propertyId)
+{
+    PARAM_NOT_NULL(name);
+    utf8::NarrowToWide wname(name, length);
+    if (!wname)
+    {
+        return JsErrorOutOfMemory;
+    }
+
+    return JsGetPropertyIdFromName(wname, propertyId);
+}
+#endif
 
 CHAKRA_API
     JsGetWeakReferenceValue(
@@ -234,6 +321,7 @@ CHAKRA_API
     return JsErrorNotImplemented;
 }
 
+#if 1
 CHAKRA_API
     JsParse(
         _In_ JsValueRef script,
@@ -276,6 +364,89 @@ CHAKRA_API
 
     return errorCode;
 }
+#else
+#define _ALWAYSINLINE __forceinline
+_ALWAYSINLINE JsErrorCode CompileRun(
+    JsValueRef scriptVal,
+    JsSourceContext sourceContext,
+    JsValueRef sourceUrl,
+    JsParseScriptAttributes parseAttributes,
+    _Out_ JsValueRef *result,
+    bool parseOnly)
+{
+    PARAM_NOT_NULL(scriptVal);
+    VALIDATE_JSREF(scriptVal);
+    PARAM_NOT_NULL(sourceUrl);
+
+    bool isExternalArray = Js::ExternalArrayBuffer::Is(scriptVal),
+        isString = false;
+    bool isUtf8 = !(parseAttributes & JsParseScriptAttributeArrayBufferIsUtf16Encoded);
+
+    LoadScriptFlag scriptFlag = LoadScriptFlag_None;
+    const byte* script;
+    size_t cb;
+    const WCHAR *url;
+
+    if (isExternalArray)
+    {
+        script = ((Js::ExternalArrayBuffer*)(scriptVal))->GetBuffer();
+
+        cb = ((Js::ExternalArrayBuffer*)(scriptVal))->GetByteLength();
+
+        scriptFlag = (LoadScriptFlag)(isUtf8 ?
+            LoadScriptFlag_ExternalArrayBuffer | LoadScriptFlag_Utf8Source :
+            LoadScriptFlag_ExternalArrayBuffer);
+    }
+    else
+    {
+        isString = Js::JavascriptString::Is(scriptVal);
+        if (!isString)
+        {
+            return JsErrorInvalidArgument;
+        }
+    }
+
+    JsErrorCode error = GlobalAPIWrapper_NoRecord([&]() -> JsErrorCode {
+        if (isString)
+        {
+            Js::JavascriptString* jsString = Js::JavascriptString::FromVar(scriptVal);
+            script = (const byte*)jsString->GetSz();
+
+            // JavascriptString is 2 bytes (WCHAR/char16)
+            cb = jsString->GetLength() * sizeof(WCHAR);
+        }
+
+        if (!Js::JavascriptString::Is(sourceUrl))
+        {
+            return JsErrorInvalidArgument;
+        }
+
+        url = Js::JavascriptString::FromVar(sourceUrl)->GetSz();
+
+        return JsNoError;
+
+    });
+
+    if (error != JsNoError)
+    {
+        return error;
+    }
+
+    return RunScriptCore(scriptVal, script, cb, scriptFlag,
+        sourceContext, url, parseOnly, parseAttributes, false, result);
+}
+
+CHAKRA_API JsParse(
+    _In_ JsValueRef scriptVal,
+    _In_ JsSourceContext sourceContext,
+    _In_ JsValueRef sourceUrl,
+    _In_ JsParseScriptAttributes parseAttributes,
+    _Out_ JsValueRef *result)
+{
+    return CompileRun(scriptVal, sourceContext, sourceUrl, parseAttributes,
+        result, true);
+}
+#endif
 
 CHAKRA_API
         JsDiagGetBreakpoints(
@@ -501,6 +672,7 @@ CHAKRA_API
     return JsErrorNotImplemented;
 }
 
+#if 1
 CHAKRA_API
 JsGetAndClearExceptionWithMetadata(
     _Out_ JsValueRef *metadata)
@@ -508,6 +680,96 @@ JsGetAndClearExceptionWithMetadata(
     fprintf(stderr, "ERROR: Not Implemented: JsGetAndClearExceptionWithMetadata\r\n");
     return JsErrorNotImplemented;
 }
+#else
+CHAKRA_API JsGetAndClearExceptionWithMetadata(_Out_ JsValueRef *metadata)
+{
+    PARAM_NOT_NULL(metadata);
+    *metadata = nullptr;
+
+    JsrtContext *currentContext = JsrtContext::GetCurrent();
+
+    if (currentContext == nullptr)
+    {
+        return JsErrorNoCurrentContext;
+    }
+
+    Js::ScriptContext *scriptContext = currentContext->GetScriptContext();
+    Assert(scriptContext != nullptr);
+
+    if (scriptContext->GetRecycler() && scriptContext->GetRecycler()->IsHeapEnumInProgress())
+    {
+        return JsErrorHeapEnumInProgress;
+    }
+    else if (scriptContext->GetThreadContext()->IsInThreadServiceCallback())
+    {
+        return JsErrorInThreadServiceCallback;
+    }
+
+    if (scriptContext->GetThreadContext()->IsExecutionDisabled())
+    {
+        return JsErrorInDisabledState;
+    }
+
+    HRESULT hr = S_OK;
+    Js::JavascriptExceptionObject *recordedException = nullptr;
+
+    BEGIN_TRANSLATE_OOM_TO_HRESULT
+        if (scriptContext->HasRecordedException())
+        {
+            recordedException = scriptContext->GetAndClearRecordedException();
+        }
+    END_TRANSLATE_OOM_TO_HRESULT(hr)
+
+        if (hr == E_OUTOFMEMORY)
+        {
+            recordedException = scriptContext->GetThreadContext()->GetRecordedException();
+        }
+    if (recordedException == nullptr)
+    {
+        return JsErrorInvalidArgument;
+    }
+
+    Js::Var exception = recordedException->GetThrownObject(nullptr);
+
+    if (exception == nullptr)
+    {
+        // TODO: How does this early bailout impact TTD?
+        return JsErrorInvalidArgument;
+    }
+
+    return ContextAPIWrapper<false>([&](Js::ScriptContext* scriptContext, TTDRecorder& _actionEntryPopper) -> JsErrorCode {
+        Js::Var exceptionMetadata = Js::JavascriptExceptionMetadata::CreateMetadataVar(scriptContext);
+        Js::JavascriptOperators::OP_SetProperty(exceptionMetadata, Js::PropertyIds::exception, exception, scriptContext);
+
+        Js::FunctionBody *functionBody = recordedException->GetFunctionBody();
+        if (functionBody == nullptr)
+        {
+            // This is probably a parse error. We can get the error location metadata from the thrown object.
+            Js::JavascriptExceptionMetadata::PopulateMetadataFromCompileException(exceptionMetadata, exception, scriptContext);
+        }
+        else
+        {
+            if (!Js::JavascriptExceptionMetadata::PopulateMetadataFromException(exceptionMetadata, recordedException, scriptContext))
+            {
+                return JsErrorInvalidArgument;
+            }
+        }
+
+        *metadata = exceptionMetadata;
+
+#if ENABLE_TTD
+        if (hr != E_OUTOFMEMORY)
+        {
+            PERFORM_JSRT_TTD_RECORD_ACTION(scriptContext, RecordJsRTGetAndClearExceptionWithMetadata);
+            PERFORM_JSRT_TTD_RECORD_ACTION_RESULT(scriptContext, metadata);
+        }
+#endif
+
+
+        return JsNoError;
+    });
+}
+#endif
 
 CHAKRA_API
         JsTTDMoveToTopLevelEvent(

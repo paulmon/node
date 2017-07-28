@@ -461,9 +461,12 @@ for /d %%F in (test\addons\??_*) do (
   rd /s /q %%F
 )
 :: generate
+echo "%node_exe%" tools\doc\addon-verify.js
 "%node_exe%" tools\doc\addon-verify.js
+echo errorlevel=%errorlevel%
 if %errorlevel% neq 0 exit /b %errorlevel%
 :: building addons
+echo setlocal EnableDelayedExpansion
 setlocal EnableDelayedExpansion
 for /d %%F in (test\addons\*) do (
   %node_gyp_exe% rebuild ^
@@ -493,6 +496,7 @@ endlocal
 goto run-tests
 
 :run-tests
+echo run-tests
 if defined test_check_deopts goto node-check-deopts
 if defined test_node_inspect goto node-test-inspect
 goto node-tests
@@ -508,11 +512,14 @@ set USE_EMBEDDED_NODE_INSPECT=1
 goto node-tests
 
 :node-tests
+echo node-tests
 if "%test_args%"=="" goto cpplint
 if "%config%"=="Debug" set test_args=--mode=debug %test_args%
 if "%config%"=="Release" set test_args=--mode=release %test_args%
 echo running 'cctest %cctest_args%'
 "%config%\cctest" %cctest_args%
+echo python tools\test.py %test_args%
+pause
 call :run-python tools\test.py %test_args%
 goto cpplint
 

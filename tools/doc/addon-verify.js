@@ -1,19 +1,24 @@
 'use strict';
-
+console.log("checkpoint 10")
 const fs = require('fs');
+console.log("checkpoint 11")
 const path = require('path');
+console.log("checkpoint 12")
 const marked = require('marked');
 
+console.log("checkpoint 20")
 const rootDir = path.resolve(__dirname, '..', '..');
 const doc = path.resolve(rootDir, 'doc', 'api', 'addons.md');
 const verifyDir = path.resolve(rootDir, 'test', 'addons');
 
+console.log("checkpoint 30")
 const contents = fs.readFileSync(doc).toString();
 
 const tokens = marked.lexer(contents);
 let files = null;
 let id = 0;
 
+console.log("checkpoint 40")
 // Just to make sure that all examples will be processed
 tokens.push({ type: 'heading' });
 

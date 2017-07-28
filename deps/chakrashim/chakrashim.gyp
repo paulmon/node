@@ -117,7 +117,7 @@
         'src/base/macros.h',
         'src/base/platform/platform.cc',
         'src/base/platform/platform.h',
-        'src/codexassert.cpp'
+        'src/codexassert.cpp',
         'src/iotstub.cc',
         'src/jsrtcachedpropertyidref.inc',
         'src/jsrtcontextcachedobj.inc',
@@ -136,7 +136,7 @@
         'src/jsrtproxyutils.h',
         'src/jsrtutils.cc',
         'src/jsrtutils.h',
-        'src/utf8codex.cc',
+        'src/utf8codex.cpp',
         'src/utf8codex.h',
         'src/v8array.cc',
         'src/v8arraybuffer.cc',

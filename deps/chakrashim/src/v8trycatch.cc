@@ -79,7 +79,11 @@ void TryCatch::GetAndClearException() {
 
   if (hasException) {
     JsValueRef metadataRef;
+#if NODE_ENGINE_CHAKRA
+    errorCode = JsGetAndClearException(&metadataRef);
+#else
     errorCode = JsGetAndClearExceptionWithMetadata(&metadataRef);
+#endif
     // We came here through JsHasException, so script shouldn't be in disabled
     // state.
     CHAKRA_ASSERT(errorCode != JsErrorInDisabledState);
