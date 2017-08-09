@@ -309,7 +309,7 @@
           ],
           'include_dirs': [ 'deps/logger/include' ],
           'dependencies': [ 'deps/logger/logger.gyp:logger' ],
-          'libraries': [ '-lchakrart' ],
+          'libraries': [],
           'msvs_disabled_warnings': [4146],
           'msvs_settings': {
             'VCCLCompilerTool': {

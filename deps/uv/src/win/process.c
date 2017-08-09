@@ -868,10 +868,8 @@ void uv_process_proc_exit(uv_loop_t* loop, uv_process_t* handle) {
     (loop);
     (handle);
 #else
-  DWORD status;
-#ifdef UWP_DLL
   int64_t exit_code;
-#endif
+  DWORD status;
 
   assert(handle->exit_cb_pending);
   handle->exit_cb_pending = 0;

@@ -265,13 +265,16 @@ void After(uv_fs_t *req) {
 #ifdef UWP_DLL
       case UV_FS_UWPINSTALLDIR:
       case UV_FS_UWPSTORAGEDIR:
-        wstr.assign(req->file.pathw);
-        str.assign(wstr.begin(), wstr.end());
-        value = StringBytes::Encode(env->isolate(),
-                                      static_cast<const char*>(str.c_str()),
-                                      req_wrap->encoding_,
-                                      &error);
-        argv[1] = value.ToLocalChecked();
+        {
+          MaybeLocal<Value> value;
+          wstr.assign(req->file.pathw);
+          str.assign(wstr.begin(), wstr.end());
+          value = StringBytes::Encode(env->isolate(),
+                                        static_cast<const char*>(str.c_str()),
+                                        req_wrap->encoding_,
+                                        &error);
+          argv[1] = value.ToLocalChecked();
+        }
         break;
 #endif
 

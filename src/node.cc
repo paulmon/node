@@ -5121,7 +5121,6 @@ int Start(int argc, char** argv) {
 }
 
 #ifdef UWP_DLL
-#error "we're there!"
 int _cdecl Start(int argc, char *argv[], const logger::ILogger* logger) {
   node::logger::SetLogger(logger);
   return Start(argc, argv);

@@ -27,7 +27,7 @@
 #include "libplatform/v8-tracing.h"
 #include "jsrtplatform.h"
 
-#ifndef _WIN32
+#if !defined(_WIN32) || defined(UWP_DLL)
 #include "ChakraCoreVersion.h"
 #endif
 
@@ -58,10 +58,8 @@ const char *V8::GetVersion() {
   if (versionStr[0] == '\0') {
 #ifdef UWP_DLL
     sprintf_s(versionStr, "%d.%d.%d.%d",
-	    NODE_MAJOR_VERSION,
-	    NODE_MINOR_VERSION,
-	    NODE_PATCH_VERSION,
-	    NODE_TAG);
+	            CHAKRA_CORE_MAJOR_VERSION, CHAKRA_CORE_MINOR_VERSION,
+              CHAKRA_CORE_VERSION_RELEASE, CHAKRA_CORE_VERSION_RELEASE_QFE);
 #elif defined(_WIN32)
     HMODULE hModule;
     if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
