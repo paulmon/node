@@ -24,7 +24,9 @@
 /* library-private global and unique instance vars */
 
 #ifdef USE_WINSOCK
+#ifndef UWP_DLL
 fpGetNetworkParams_t ares_fpGetNetworkParams = ZERO_NULL;
+#endif
 fpSystemFunction036_t ares_fpSystemFunction036 = ZERO_NULL;
 fpGetAdaptersAddresses_t ares_fpGetAdaptersAddresses = ZERO_NULL;
 #endif
@@ -50,6 +52,7 @@ static int ares_win32_init(void)
 #ifdef USE_WINSOCK
 
   hnd_iphlpapi = 0;
+#ifndef UWP_DLL
   hnd_iphlpapi = LoadLibraryW(L"iphlpapi.dll");
   if (!hnd_iphlpapi)
     return ARES_ELOADIPHLPAPI;
@@ -61,9 +64,14 @@ static int ares_win32_init(void)
       FreeLibrary(hnd_iphlpapi);
       return ARES_EADDRGETNETWORKPARAMS;
     }
+#endif /* UWP_DLL */
 
+#ifndef UWP_DLL
   ares_fpGetAdaptersAddresses = (fpGetAdaptersAddresses_t)
     GetProcAddress(hnd_iphlpapi, "GetAdaptersAddresses");
+#else
+  ares_fpGetAdaptersAddresses = &GetAdaptersAddresses;
+#endif /* UWP_DLL */
   if (!ares_fpGetAdaptersAddresses)
     {
       /* This can happen on clients before WinXP, I don't
@@ -78,13 +86,20 @@ static int ares_win32_init(void)
    */
 
   hnd_advapi32 = 0;
+#ifndef UWP_DLL
   hnd_advapi32 = LoadLibraryW(L"advapi32.dll");
   if (hnd_advapi32)
     {
       ares_fpSystemFunction036 = (fpSystemFunction036_t)
         GetProcAddress(hnd_advapi32, "SystemFunction036");
     }
-
+#else
+  /*
+   * UWP doesn't support SystemFunction036 nor RtlGenRandom().  Fallback to
+   * the cross-platform albeit less secure mechanism using rand().  See
+   * randomize_key() for detail.
+   */
+#endif /* UWP_DLL */
 #endif
   return ARES_SUCCESS;
 }

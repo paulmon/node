@@ -61,6 +61,18 @@
                 'USE_FILE32API'
               ],
             }],
+            ['node_uwp_dll=="true"', {
+              'sources': [
+                'contrib\minizip\ioapi.c',
+                'contrib\minizip\iowin32.c',
+                'contrib\minizip\unzip.c',
+              ],
+              'msvs_settings': {
+                'VCCLCompilerTool': {       
+                  'CompileAsWinRT': 'false',        
+                }
+              },
+            }],
           ],
         },
       ],

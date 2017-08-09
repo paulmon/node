@@ -23,7 +23,13 @@
             },
           },
         }],
-        ['debug_nghttp2 == 1', {
+        [ 'node_uwp_dll=="true"', {
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
+            }
+          },
+        }],        ['debug_nghttp2 == 1', {
           'defines': [ 'DEBUGBUILD=1' ]
         }]
       ],

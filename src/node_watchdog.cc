@@ -175,6 +175,9 @@ bool SigintWatchdogHelper::InformWatchdogsAboutSignal() {
 
 
 int SigintWatchdogHelper::Start() {
+#ifdef UWP_DLL
+  return ERROR_NOT_SUPPORTED;
+#else
   Mutex::ScopedLock lock(mutex_);
 
   if (start_stop_count_++ > 0) {
@@ -205,11 +208,16 @@ int SigintWatchdogHelper::Start() {
   }
 #endif
 
+#endif
+
   return 0;
 }
 
 
 bool SigintWatchdogHelper::Stop() {
+#ifdef UWP_DLL
+  return false;
+#else
   bool had_pending_signal;
   Mutex::ScopedLock lock(mutex_);
 
@@ -253,6 +261,7 @@ bool SigintWatchdogHelper::Stop() {
   has_pending_signal_ = false;
 
   return had_pending_signal;
+#endif
 }
 
 

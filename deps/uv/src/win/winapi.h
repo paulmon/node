@@ -4688,6 +4688,7 @@ typedef DWORD (WINAPI* sGetFinalPathNameByHandleW)
               DWORD cchFilePath,
               DWORD dwFlags);
 
+#ifndef UWP_DLL
 /* from powerbase.h */
 #ifndef DEVICE_NOTIFY_CALLBACK
 # define DEVICE_NOTIFY_CALLBACK 2
@@ -4731,6 +4732,7 @@ extern sNtQueryVolumeInformationFile pNtQueryVolumeInformationFile;
 extern sNtQueryDirectoryFile pNtQueryDirectoryFile;
 extern sNtQuerySystemInformation pNtQuerySystemInformation;
 
+#endif
 
 /* Kernel32 function pointers */
 extern sGetQueuedCompletionStatusEx pGetQueuedCompletionStatusEx;
@@ -4746,7 +4748,9 @@ extern sCancelSynchronousIo pCancelSynchronousIo;
 extern sGetFinalPathNameByHandleW pGetFinalPathNameByHandleW;
 
 
+#ifndef UWP_DLL
 /* Powrprof.dll function pointer */
 extern sPowerRegisterSuspendResumeNotification pPowerRegisterSuspendResumeNotification;
+#endif
 
 #endif /* UV_WIN_WINAPI_H_ */

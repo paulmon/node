@@ -286,6 +286,10 @@ int uv_ntstatus_to_winsock_error(NTSTATUS status) {
 int WSAAPI uv_wsarecv_workaround(SOCKET socket, WSABUF* buffers,
     DWORD buffer_count, DWORD* bytes, DWORD* flags, WSAOVERLAPPED *overlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE completion_routine) {
+#ifdef UWP_DLL
+  (bytes), (flags), (overlapped), (completion_routine);
+  return SOCKET_ERROR;
+#else
   NTSTATUS status;
   void* apc_context;
   IO_STATUS_BLOCK* iosb = (IO_STATUS_BLOCK*) &overlapped->Internal;
@@ -373,6 +377,7 @@ int WSAAPI uv_wsarecv_workaround(SOCKET socket, WSABUF* buffers,
   } else {
     return SOCKET_ERROR;
   }
+#endif
 }
 
 
@@ -381,6 +386,11 @@ int WSAAPI uv_wsarecvfrom_workaround(SOCKET socket, WSABUF* buffers,
     DWORD buffer_count, DWORD* bytes, DWORD* flags, struct sockaddr* addr,
     int* addr_len, WSAOVERLAPPED *overlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE completion_routine) {
+#ifdef UWP_DLL
+  (buffers), (buffer_count), (bytes), (flags), (addr),
+  (addr_len), (overlapped), (completion_routine);
+  return SOCKET_ERROR;
+#else
   NTSTATUS status;
   void* apc_context;
   IO_STATUS_BLOCK* iosb = (IO_STATUS_BLOCK*) &overlapped->Internal;
@@ -471,6 +481,7 @@ int WSAAPI uv_wsarecvfrom_workaround(SOCKET socket, WSABUF* buffers,
   } else {
     return SOCKET_ERROR;
   }
+#endif
 }
 
 
@@ -480,7 +491,7 @@ int WSAAPI uv_msafd_poll(SOCKET socket, AFD_POLL_INFO* info_in,
   IO_STATUS_BLOCK* iosb_ptr;
   HANDLE event = NULL;
   void* apc_context;
-  NTSTATUS status;
+  NTSTATUS status = STATUS_PENDING;
   DWORD error;
 
   if (overlapped != NULL) {
@@ -507,6 +518,7 @@ int WSAAPI uv_msafd_poll(SOCKET socket, AFD_POLL_INFO* info_in,
   }
 
   iosb_ptr->Status = STATUS_PENDING;
+#ifndef UWP_DLL
   status = pNtDeviceIoControlFile((HANDLE) socket,
                                   event,
                                   NULL,
@@ -517,12 +529,17 @@ int WSAAPI uv_msafd_poll(SOCKET socket, AFD_POLL_INFO* info_in,
                                   sizeof *info_in,
                                   info_out,
                                   sizeof *info_out);
+#endif
 
   if (overlapped == NULL) {
     /* If this is a blocking operation, wait for the event to become */
     /* signaled, and then grab the real status from the io status block. */
     if (status == STATUS_PENDING) {
+#ifdef UWP_DLL
+      DWORD r = WaitForSingleObjectEx(event, INFINITE, FALSE);
+#else
       DWORD r = WaitForSingleObject(event, INFINITE);
+#endif
 
       if (r == WAIT_FAILED) {
         DWORD saved_error = GetLastError();

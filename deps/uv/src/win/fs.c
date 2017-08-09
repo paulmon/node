@@ -113,6 +113,36 @@ const WCHAR LONG_PATH_PREFIX_LEN = 4;
 const WCHAR UNC_PATH_PREFIX[] = L"\\\\?\\UNC\\";
 const WCHAR UNC_PATH_PREFIX_LEN = 8;
 
+#ifdef UWP_DLL
+HRESULT GetLocalStoragePath(WCHAR* path);
+#endif
+
+HANDLE fs__win_create_file(const WCHAR* fileName, DWORD access, DWORD share, DWORD disposition, DWORD attributes, DWORD flags)
+{
+#ifdef UWP_DLL
+    CREATEFILE2_EXTENDED_PARAMETERS params = { 0 };
+    params.dwSize = sizeof(CREATEFILE2_EXTENDED_PARAMETERS);
+    params.dwFileAttributes = attributes;
+    params.dwFileFlags = flags;
+    params.dwSecurityQosFlags = 0;
+    params.hTemplateFile = NULL;
+    params.lpSecurityAttributes = NULL;
+
+    return CreateFile2(fileName,
+        access,
+        share,
+        disposition,
+        &params);
+#else
+    return CreateFileW(fileName,
+        access,
+        share,
+        NULL,
+        disposition,
+        attributes | flags,
+        NULL);
+#endif
+}
 
 void uv_fs_init(void) {
   _fmode = _O_BINARY;
@@ -283,7 +313,12 @@ static int fs__wide_to_utf8(WCHAR* w_source_ptr,
 
 INLINE static int fs__readlink_handle(HANDLE handle, char** target_ptr,
     uint64_t* target_len_ptr) {
-  char buffer[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+#ifdef UWP_DLL
+    (handle), (target_ptr), (target_len_ptr);
+    SetLastError(ERROR_SYMLINK_NOT_SUPPORTED);
+    return -1;
+#else
+    char buffer[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
   REPARSE_DATA_BUFFER* reparse_data = (REPARSE_DATA_BUFFER*) buffer;
   WCHAR* w_target;
   DWORD w_target_len;
@@ -380,6 +415,7 @@ INLINE static int fs__readlink_handle(HANDLE handle, char** target_ptr,
   }
 
   return fs__wide_to_utf8(w_target, w_target_len, target_ptr, target_len_ptr);
+#endif
 }
 
 
@@ -390,7 +426,11 @@ void fs__open(uv_fs_t* req) {
   DWORD attributes = 0;
   HANDLE file;
   int fd, current_umask;
+#ifdef UWP_DLL
+  DWORD flags = 0;
+#else
   int flags = req->fs.info.file_flags;
+#endif
 
   /* Obtain the active umask. umask() never fails and returns the previous */
   /* umask. */
@@ -401,6 +441,9 @@ void fs__open(uv_fs_t* req) {
   switch (flags & (_O_RDONLY | _O_WRONLY | _O_RDWR)) {
   case _O_RDONLY:
     access = FILE_GENERIC_READ;
+#ifdef UWP_DLL
+    flags |= FILE_FLAG_BACKUP_SEMANTICS;
+#endif
     break;
   case _O_WRONLY:
     access = FILE_GENERIC_WRITE;
@@ -415,6 +458,9 @@ void fs__open(uv_fs_t* req) {
   if (flags & _O_APPEND) {
     access &= ~FILE_WRITE_DATA;
     access |= FILE_APPEND_DATA;
+#ifdef UWP_DLL
+    flags &= ~FILE_FLAG_BACKUP_SEMANTICS;
+#endif
   }
 
   /*
@@ -456,7 +502,12 @@ void fs__open(uv_fs_t* req) {
   }
 
   if (flags & _O_TEMPORARY ) {
+#ifdef UWP_DLL
+    attributes |= FILE_ATTRIBUTE_TEMPORARY;
+    flags |= FILE_FLAG_DELETE_ON_CLOSE;
+#else
     attributes |= FILE_FLAG_DELETE_ON_CLOSE | FILE_ATTRIBUTE_TEMPORARY;
+#endif
     access |= DELETE;
   }
 
@@ -468,25 +519,63 @@ void fs__open(uv_fs_t* req) {
   case 0:
     break;
   case _O_SEQUENTIAL:
+#ifdef UWP_DLL
+    flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+#else
     attributes |= FILE_FLAG_SEQUENTIAL_SCAN;
+#endif
     break;
   case _O_RANDOM:
+#ifdef UWP_DLL
+    flags |= FILE_FLAG_RANDOM_ACCESS;
+#else
     attributes |= FILE_FLAG_RANDOM_ACCESS;
+#endif
     break;
   default:
     goto einval;
   }
 
   /* Setting this flag makes it possible to open a directory. */
+#ifdef UWP_DLL
+  flags |= FILE_FLAG_BACKUP_SEMANTICS;
+#else
   attributes |= FILE_FLAG_BACKUP_SEMANTICS;
+#endif
 
-  file = CreateFileW(req->file.pathw,
-                     access,
-                     share,
-                     NULL,
-                     disposition,
-                     attributes,
-                     NULL);
+#ifdef UWP_DLL
+  /* Change working directory to the local storage */
+  /* directory of the UWP app. Scripts and other files */
+  /* in a UWP app will be deployed to this location. */
+  /* By default, the app only has write permissions */
+  /* within this directory */
+  size_t size;
+  char localStoragePath[MAX_PATH];
+  WCHAR localStoragePathW[MAX_PATH];
+  HRESULT hr = GetLocalStoragePath(localStoragePathW);
+  if (FAILED(hr) && hr != HRESULT_FROM_WIN32(APPMODEL_ERROR_NO_PACKAGE)) {
+      SET_REQ_WIN32_ERROR(req, HRESULT_CODE(hr));
+    return;
+  }
+  else if (SUCCEEDED(hr))
+  {
+    wcstombs_s(&size, localStoragePath, sizeof(localStoragePath),
+        localStoragePathW, sizeof(localStoragePathW));
+    int err = uv_chdir(localStoragePath);
+    if (err) {
+      SET_REQ_WIN32_ERROR(req, err);
+      return;
+    }
+  }
+#endif
+
+  file = fs__win_create_file(req->file.pathw,
+    access,
+    share,
+    disposition,
+    attributes,
+    flags);
+
   if (file == INVALID_HANDLE_VALUE) {
     DWORD error = GetLastError();
     if (error == ERROR_FILE_EXISTS && (flags & _O_CREAT) &&
@@ -691,6 +780,20 @@ void fs__rmdir(uv_fs_t* req) {
 
 void fs__unlink(uv_fs_t* req) {
   const WCHAR* pathw = req->file.pathw;
+#ifdef UWP_DLL
+  /* Remove read-only attribute before trying to delete */
+  if (!SetFileAttributesW(pathw, GetFileAttributesW(pathw) & ~FILE_ATTRIBUTE_READONLY)) {
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+  }
+
+  if (!DeleteFileW(pathw)) {
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+  }
+  else {
+    SET_REQ_SUCCESS(req);
+  }
+#else
+
   HANDLE handle;
   BY_HANDLE_FILE_INFORMATION info;
   FILE_DISPOSITION_INFORMATION disposition;
@@ -772,6 +875,7 @@ void fs__unlink(uv_fs_t* req) {
   }
 
   CloseHandle(handle);
+#endif
 }
 
 
@@ -791,9 +895,12 @@ void fs__mkdtemp(uv_fs_t* req) {
   WCHAR *cp, *ep;
   unsigned int tries, i;
   size_t len;
+#ifdef UWP_DLL
+  NTSTATUS ntstatus;
+#else
   HCRYPTPROV h_crypt_prov;
+#endif
   uint64_t v;
-  BOOL released;
 
   len = wcslen(req->file.pathw);
   ep = req->file.pathw + len;
@@ -802,18 +909,28 @@ void fs__mkdtemp(uv_fs_t* req) {
     return;
   }
 
+#ifndef UWP_DLL
   if (!CryptAcquireContext(&h_crypt_prov, NULL, NULL, PROV_RSA_FULL,
                            CRYPT_VERIFYCONTEXT)) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
     return;
   }
+#endif
 
   tries = TMP_MAX;
   do {
+#ifdef UWP_DLL
+    ntstatus = BCryptGenRandom(NULL, (PUCHAR)&v, sizeof(v), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    if (STATUS_SUCCESS != ntstatus) {
+      SET_REQ_WIN32_ERROR(req, ntstatus);
+      break;
+    }
+#else
     if (!CryptGenRandom(h_crypt_prov, sizeof(v), (BYTE*) &v)) {
       SET_REQ_WIN32_ERROR(req, GetLastError());
       break;
     }
+#endif
 
     cp = ep - num_x;
     for (i = 0; i < num_x; i++) {
@@ -832,8 +949,10 @@ void fs__mkdtemp(uv_fs_t* req) {
     }
   } while (--tries);
 
-  released = CryptReleaseContext(h_crypt_prov, 0);
+#ifndef UWP_DLL
+  BOOL released = CryptReleaseContext(h_crypt_prov, 0);
   assert(released);
+#endif
   if (tries == 0) {
     SET_REQ_RESULT(req, -1);
   }
@@ -841,6 +960,9 @@ void fs__mkdtemp(uv_fs_t* req) {
 
 
 void fs__scandir(uv_fs_t* req) {
+#ifdef UWP_DLL
+#define FILE_DIRECTORY_INFORMATION FILE_FULL_DIR_INFO
+#endif
   static const size_t dirents_initial_size = 32;
 
   HANDLE dir_handle = INVALID_HANDLE_VALUE;
@@ -850,7 +972,11 @@ void fs__scandir(uv_fs_t* req) {
   size_t dirents_used = 0;
 
   IO_STATUS_BLOCK iosb;
+#ifndef UWP_DLL
   NTSTATUS status;
+#else
+  BOOL status;
+#endif
 
   /* Buffer to hold directory entries returned by NtQueryDirectoryFile.
    * It's important that this buffer can hold at least one entry, regardless
@@ -869,17 +995,17 @@ void fs__scandir(uv_fs_t* req) {
 
   /* Open the directory. */
   dir_handle =
-      CreateFileW(req->file.pathw,
+      fs__win_create_file(req->file.pathw,
                   FILE_LIST_DIRECTORY | SYNCHRONIZE,
                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                  NULL,
                   OPEN_EXISTING,
-                  FILE_FLAG_BACKUP_SEMANTICS,
-                  NULL);
+                          0,
+                          FILE_FLAG_BACKUP_SEMANTICS);
   if (dir_handle == INVALID_HANDLE_VALUE)
     goto win32_error;
 
   /* Read the first chunk. */
+#ifndef UWP_DLL
   status = pNtQueryDirectoryFile(dir_handle,
                                  NULL,
                                  NULL,
@@ -891,14 +1017,29 @@ void fs__scandir(uv_fs_t* req) {
                                  FALSE,
                                  NULL,
                                  TRUE);
+#else
+  status = GetFileInformationByHandleEx(dir_handle, 
+                                        FileFullDirectoryInfo,
+                                        &buffer,
+                                        sizeof buffer);
+#endif
 
   /* If the handle is not a directory, we'll get STATUS_INVALID_PARAMETER.
    * This should be reported back as UV_ENOTDIR.
    */
+#ifndef UWP_DLL
   if (status == STATUS_INVALID_PARAMETER)
     goto not_a_directory_error;
+#else
+  if (!status)
+    goto nt_error;
+#endif
 
+#ifndef UWP_DLL
   while (NT_SUCCESS(status)) {
+#else
+  while (status) {
+#endif
     char* position = buffer;
     size_t next_entry_offset = 0;
 
@@ -990,6 +1131,7 @@ void fs__scandir(uv_fs_t* req) {
     } while (next_entry_offset != 0);
 
     /* Read the next chunk. */
+#ifndef UWP_DLL
     status = pNtQueryDirectoryFile(dir_handle,
                                    NULL,
                                    NULL,
@@ -1001,16 +1143,28 @@ void fs__scandir(uv_fs_t* req) {
                                    FALSE,
                                    NULL,
                                    FALSE);
+#else
+    status = GetFileInformationByHandleEx(dir_handle,
+                                          FileFullDirectoryInfo,
+                                          &buffer,
+                                          sizeof buffer);
+#endif
 
     /* After the first pNtQueryDirectoryFile call, the function may return
      * STATUS_SUCCESS even if the buffer was too small to hold at least one
      * directory entry.
      */
+#ifndef UWP_DLL
     if (status == STATUS_SUCCESS && iosb.Information == 0)
       status = STATUS_BUFFER_OVERFLOW;
+#endif
   }
 
+#ifndef UWP_DLL
   if (status != STATUS_NO_MORE_FILES)
+#else
+  if (!status && ERROR_NO_MORE_FILES != GetLastError())
+#endif
     goto nt_error;
 
   CloseHandle(dir_handle);
@@ -1028,7 +1182,11 @@ void fs__scandir(uv_fs_t* req) {
   return;
 
 nt_error:
+#ifndef UWP_DLL
   SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
+#else
+  SET_REQ_WIN32_ERROR(req, GetLastError());
+#endif
   goto cleanup;
 
 win32_error:
@@ -1050,10 +1208,28 @@ cleanup:
     uv__free(dirents[--dirents_used]);
   if (dirents != NULL)
     uv__free(dirents);
+#ifdef UWP_DLL
+#undef FILE_DIRECTORY_INFORMATION
+#endif
 }
 
 
 INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf) {
+#ifdef UWP_DLL
+  FILE_BASIC_INFO file_basic_info = { 0 };
+  FILE_STANDARD_INFO  file_standard_info = { 0 };
+
+  if (!GetFileInformationByHandleEx(handle, FileBasicInfo, &file_basic_info, sizeof(FILE_BASIC_INFO))) {
+    return -1;
+  }
+
+  if (!GetFileInformationByHandleEx(handle, FileStandardInfo, &file_standard_info, sizeof(FILE_STANDARD_INFO))) {
+    return -1;
+  }
+
+  statbuf->st_dev = 0;
+
+#else
   FILE_ALL_INFORMATION file_info;
   FILE_FS_VOLUME_INFORMATION volume_info;
   NTSTATUS nt_status;
@@ -1086,6 +1262,7 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf) {
   } else {
     statbuf->st_dev = volume_info.VolumeSerialNumber;
   }
+#endif
 
   /* Todo: st_mode should probably always be 0666 for everyone. We might also
    * want to report 0777 if the file is a .exe or a directory.
@@ -1108,7 +1285,11 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf) {
    */
   statbuf->st_mode = 0;
 
+#ifdef UWP_DLL
+  if (file_basic_info.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+#else
   if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+#endif
     /*
      * It is possible for a file to have FILE_ATTRIBUTE_REPARSE_POINT but not have
      * any link data. In that case DeviceIoControl() in fs__readlink_handle() sets
@@ -1124,21 +1305,47 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf) {
   }
 
   if (statbuf->st_mode == 0) {
-    if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+#ifdef UWP_DLL
+  if (file_basic_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+#else
+  if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+#endif
       statbuf->st_mode |= _S_IFDIR;
       statbuf->st_size = 0;
     } else {
       statbuf->st_mode |= _S_IFREG;
+#ifdef UWP_DLL
+      statbuf->st_size = file_standard_info.EndOfFile.QuadPart;
+#else
       statbuf->st_size = file_info.StandardInformation.EndOfFile.QuadPart;
+#endif
     }
   }
 
+#ifdef UWP_DLL
+  if (file_basic_info.FileAttributes & FILE_ATTRIBUTE_READONLY)
+#else
   if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_READONLY)
+#endif
     statbuf->st_mode |= _S_IREAD | (_S_IREAD >> 3) | (_S_IREAD >> 6);
   else
     statbuf->st_mode |= (_S_IREAD | _S_IWRITE) | ((_S_IREAD | _S_IWRITE) >> 3) |
                         ((_S_IREAD | _S_IWRITE) >> 6);
 
+#ifdef UWP_DLL
+  FILETIME_TO_TIMESPEC(statbuf->st_atim, file_basic_info.LastAccessTime);
+  FILETIME_TO_TIMESPEC(statbuf->st_ctim, file_basic_info.ChangeTime);
+  FILETIME_TO_TIMESPEC(statbuf->st_mtim, file_basic_info.LastWriteTime);
+  FILETIME_TO_TIMESPEC(statbuf->st_birthtim, file_basic_info.CreationTime);
+
+  statbuf->st_ino = 0;
+  /* st_blocks contains the on-disk allocation size in 512-byte units. */
+  statbuf->st_blocks =
+      file_standard_info.AllocationSize.QuadPart >> 9ULL;
+
+  statbuf->st_nlink = file_standard_info.NumberOfLinks;
+
+#else
   FILETIME_TO_TIMESPEC(statbuf->st_atim, file_info.BasicInformation.LastAccessTime);
   FILETIME_TO_TIMESPEC(statbuf->st_ctim, file_info.BasicInformation.ChangeTime);
   FILETIME_TO_TIMESPEC(statbuf->st_mtim, file_info.BasicInformation.LastWriteTime);
@@ -1151,6 +1358,7 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf) {
       file_info.StandardInformation.AllocationSize.QuadPart >> 9ULL;
 
   statbuf->st_nlink = file_info.StandardInformation.NumberOfLinks;
+#endif
 
   /* The st_blksize is supposed to be the 'optimal' number of bytes for reading
    * and writing to the disk. That is, for any definition of 'optimal' - it's
@@ -1203,13 +1411,13 @@ INLINE static void fs__stat_impl(uv_fs_t* req, int do_lstat) {
     flags |= FILE_FLAG_OPEN_REPARSE_POINT;
   }
 
-  handle = CreateFileW(req->file.pathw,
+  handle = fs__win_create_file(req->file.pathw,
                        FILE_READ_ATTRIBUTES,
                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                       NULL,
                        OPEN_EXISTING,
-                       flags,
-                       NULL);
+    0,
+    flags);
+
   if (handle == INVALID_HANDLE_VALUE) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
     return;
@@ -1307,6 +1515,9 @@ static void fs__fdatasync(uv_fs_t* req) {
 
 
 static void fs__ftruncate(uv_fs_t* req) {
+#ifdef UWP_DLL
+    SET_REQ_WIN32_ERROR(req, ERROR_NOT_SUPPORTED);
+#else
   int fd = req->file.fd;
   HANDLE handle;
   NTSTATUS status;
@@ -1330,6 +1541,7 @@ static void fs__ftruncate(uv_fs_t* req) {
   } else {
     SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
   }
+#endif
 }
 
 
@@ -1381,7 +1593,18 @@ static void fs__sendfile(uv_fs_t* req) {
 
 
 static void fs__access(uv_fs_t* req) {
+#ifdef UWP_DLL
+  DWORD attr = INVALID_FILE_ATTRIBUTES;
+  WIN32_FILE_ATTRIBUTE_DATA attrData;
+  if (!GetFileAttributesExW(req->file.pathw, GetFileExInfoStandard, &attrData)) {
+      SET_REQ_WIN32_ERROR(req, GetLastError());
+      return;
+  }
+
+  attr = attrData.dwFileAttributes;
+#else
   DWORD attr = GetFileAttributesW(req->file.pathw);
+#endif
 
   if (attr == INVALID_FILE_ATTRIBUTES) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
@@ -1415,13 +1638,27 @@ static void fs__chmod(uv_fs_t* req) {
 static void fs__fchmod(uv_fs_t* req) {
   int fd = req->file.fd;
   HANDLE handle;
-  NTSTATUS nt_status;
-  IO_STATUS_BLOCK io_status;
   FILE_BASIC_INFORMATION file_info;
 
   VERIFY_FD(fd, req);
 
   handle = uv__get_osfhandle(fd);
+
+#ifdef UWP_DLL
+  if (!GetFileInformationByHandleEx(handle, FileBasicInfo, &file_info, sizeof(FILE_BASIC_INFO))) {
+    SET_REQ_WIN32_ERROR(req, GetLastError());
+    return;
+  }
+
+  if (req->fs.info.mode & _S_IWRITE) {
+    file_info.FileAttributes &= ~FILE_ATTRIBUTE_READONLY;
+  } else {
+    file_info.FileAttributes |= FILE_ATTRIBUTE_READONLY;
+  }
+
+#else
+  NTSTATUS nt_status;
+  IO_STATUS_BLOCK io_status;
 
   nt_status = pNtQueryInformationFile(handle,
                                       &io_status,
@@ -1433,13 +1670,19 @@ static void fs__fchmod(uv_fs_t* req) {
     SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(nt_status));
     return;
   }
+#endif
 
   if (req->fs.info.mode & _S_IWRITE) {
     file_info.FileAttributes &= ~FILE_ATTRIBUTE_READONLY;
   } else {
     file_info.FileAttributes |= FILE_ATTRIBUTE_READONLY;
   }
-
+#ifdef UWP_DLL
+  if (!SetFileInformationByHandle(handle, FileBasicInfo, &file_info, sizeof(FILE_BASIC_INFO))) {
+      SET_REQ_WIN32_ERROR(req, GetLastError());
+      return;
+  }
+#else
   nt_status = pNtSetInformationFile(handle,
                                     &io_status,
                                     &file_info,
@@ -1450,7 +1693,7 @@ static void fs__fchmod(uv_fs_t* req) {
     SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(nt_status));
     return;
   }
-
+#endif
   SET_REQ_SUCCESS(req);
 }
 
@@ -1472,13 +1715,12 @@ INLINE static int fs__utime_handle(HANDLE handle, double atime, double mtime) {
 static void fs__utime(uv_fs_t* req) {
   HANDLE handle;
 
-  handle = CreateFileW(req->file.pathw,
+  handle = fs__win_create_file(req->file.pathw,
                        FILE_WRITE_ATTRIBUTES,
                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                       NULL,
                        OPEN_EXISTING,
-                       FILE_FLAG_BACKUP_SEMANTICS,
-                       NULL);
+    0,
+    FILE_FLAG_BACKUP_SEMANTICS);
 
   if (handle == INVALID_HANDLE_VALUE) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
@@ -1519,17 +1761,26 @@ static void fs__futime(uv_fs_t* req) {
 
 
 static void fs__link(uv_fs_t* req) {
+#ifdef UWP_DLL
+    SET_REQ_WIN32_ERROR(req, ERROR_NOT_SUPPORTED);
+#else
   DWORD r = CreateHardLinkW(req->fs.info.new_pathw, req->file.pathw, NULL);
   if (r == 0) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
   } else {
     req->result = 0;
   }
+#endif
 }
 
 
 static void fs__create_junction(uv_fs_t* req, const WCHAR* path,
     const WCHAR* new_path) {
+#ifdef UWP_DLL
+    (path);
+    (new_path);
+    SET_REQ_WIN32_ERROR(req, ERROR_NOT_SUPPORTED);
+#else
   HANDLE handle = INVALID_HANDLE_VALUE;
   REPARSE_DATA_BUFFER *buffer = NULL;
   int created = 0;
@@ -1695,6 +1946,7 @@ error:
   if (created) {
     RemoveDirectoryW(new_path);
   }
+#endif
 }
 
 
@@ -1725,13 +1977,12 @@ static void fs__symlink(uv_fs_t* req) {
 static void fs__readlink(uv_fs_t* req) {
   HANDLE handle;
 
-  handle = CreateFileW(req->file.pathw,
+  handle = fs__win_create_file(req->file.pathw,
                        0,
                        0,
-                       NULL,
                        OPEN_EXISTING,
-                       FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
-                       NULL);
+    0,
+    FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS);
 
   if (handle == INVALID_HANDLE_VALUE) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
@@ -1750,6 +2001,11 @@ static void fs__readlink(uv_fs_t* req) {
   CloseHandle(handle);
 }
 
+#ifdef UWP_DLL
+static void fs__realpath(uv_fs_t* req) {
+    SET_REQ_WIN32_ERROR(req, ERROR_NOT_SUPPORTED);
+}
+#else
 
 static size_t fs__realpath_handle(HANDLE handle, char** realpath_ptr) {
   int r;
@@ -1831,7 +2087,7 @@ static void fs__realpath(uv_fs_t* req) {
   req->flags |= UV_FS_FREE_PTR;
   SET_REQ_RESULT(req, 0);
 }
-
+#endif
 
 static void fs__chown(uv_fs_t* req) {
   req->result = 0;
@@ -1841,6 +2097,36 @@ static void fs__chown(uv_fs_t* req) {
 static void fs__fchown(uv_fs_t* req) {
   req->result = 0;
 }
+
+
+#ifdef UWP_DLL
+void fs__uwpinstalldir(uv_fs_t* req) {
+  req->file.pathw = (WCHAR*)calloc(MAX_PATH, sizeof(WCHAR));
+  req->flags |= UV_FS_FREE_PATHS;
+
+  HRESULT hr = GetInstalledLocationPath(req->file.pathw);
+  if (FAILED(hr)) {
+   SET_REQ_WIN32_ERROR(req, HRESULT_CODE(hr));
+   return;
+  }
+
+  SET_REQ_WIN32_ERROR(req, 0);
+}
+
+
+void fs__uwpstoragedir(uv_fs_t* req) {
+  req->file.pathw = (WCHAR*)calloc(MAX_PATH, sizeof(WCHAR));
+  req->flags |= UV_FS_FREE_PATHS;
+
+  HRESULT hr = GetLocalStoragePath(req->file.pathw);
+  if (FAILED(hr)) {
+   SET_REQ_WIN32_ERROR(req, HRESULT_CODE(hr));
+   return;
+  }
+
+  SET_REQ_WIN32_ERROR(req, 0);
+}
+#endif
 
 
 static void uv__fs_work(struct uv__work* w) {
@@ -1878,7 +2164,12 @@ static void uv__fs_work(struct uv__work* w) {
     XX(READLINK, readlink)
     XX(REALPATH, realpath)
     XX(CHOWN, chown)
-    XX(FCHOWN, fchown);
+    XX(FCHOWN, fchown)
+#ifdef UWP_DLL
+    XX(UWPINSTALLDIR, uwpinstalldir)
+    XX(UWPSTORAGEDIR, uwpstoragedir)
+#endif
+    ;
     default:
       assert(!"bad uv_fs_type");
   }
@@ -2514,3 +2805,38 @@ int uv_fs_futime(uv_loop_t* loop, uv_fs_t* req, uv_file fd, double atime,
     return req->result;
   }
 }
+
+
+#ifdef UWP_DLL
+int uv_fs_uwpinstalldir(uv_loop_t* loop, uv_fs_t* req,
+    uv_fs_cb cb) {
+  int err;
+
+  uv_fs_req_init(loop, req, UV_FS_UWPINSTALLDIR, cb);
+
+  if (cb) {
+    QUEUE_FS_TP_JOB(loop, req);
+    return 0;
+  } else {
+    fs__uwpinstalldir(req);
+    return req->result;
+  }
+}
+
+
+int uv_fs_uwpstoragedir(uv_loop_t* loop, uv_fs_t* req,
+    uv_fs_cb cb) {
+  int err;
+
+  uv_fs_req_init(loop, req, UV_FS_UWPSTORAGEDIR, cb);
+
+  if (cb) {
+    QUEUE_FS_TP_JOB(loop, req);
+    return 0;
+  } else {
+    fs__uwpstoragedir(req);
+    return req->result;
+  }
+}
+#endif
+

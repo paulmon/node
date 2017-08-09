@@ -168,7 +168,17 @@
               '-lnsl'
             ]
           }
-        }]
+        }],
+        [ 'node_uwp_dll=="true"', {
+          'defines': [
+            '_WINSOCK_DEPRECATED_NO_WARNINGS'
+          ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {		
+              'CompileAsWinRT': 'false',		
+            }
+          },
+        }],
       ]
     }
   ]

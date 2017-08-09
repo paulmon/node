@@ -248,7 +248,11 @@ STATIC_TESTABLE int single_domain(ares_channel channel, const char *name, char *
   if (!(channel->flags & ARES_FLAG_NOALIASES) && !strchr(name, '.'))
     {
       /* The name might be a host alias. */
+#ifndef UWP_DLL
       hostaliases = getenv("HOSTALIASES");
+#else
+      hostaliases = NULL;
+#endif
       if (hostaliases)
         {
           fp = fopen(hostaliases, "r");

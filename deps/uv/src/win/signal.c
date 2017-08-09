@@ -41,8 +41,10 @@ int uv__signal_start(uv_signal_t* handle,
 
 void uv_signals_init(void) {
   InitializeCriticalSection(&uv__signal_lock);
+#ifndef UWP_DLL
   if (!SetConsoleCtrlHandler(uv__signal_control_handler, TRUE))
     abort();
+#endif
 }
 
 

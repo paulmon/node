@@ -56,7 +56,13 @@ const char *V8::GetVersion() {
   static char versionStr[kMaxVersionLength] = {};
 
   if (versionStr[0] == '\0') {
-#ifdef _WIN32
+#ifdef UWP_DLL
+    sprintf_s(versionStr, "%d.%d.%d.%d",
+	    NODE_MAJOR_VERSION,
+	    NODE_MINOR_VERSION,
+	    NODE_PATCH_VERSION,
+	    NODE_TAG);
+#elif defined(_WIN32)
     HMODULE hModule;
     if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                           TEXT(NODE_ENGINE), &hModule)) {

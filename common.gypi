@@ -322,6 +322,45 @@
           'BUILDING_UV_SHARED=1',
         ],
       }],
+      ['node_uwp_dll=="true"', {
+        'target_conditions': [
+          ['_type!="none"', {
+            'defines': [
+              'UWP_DLL=1',
+              'WINAPI_FAMILY=WINAPI_FAMILY_APP',
+              '_WIN32_WINNT=0x0A00'
+            ],
+            'libraries': [
+              '-lonecore.lib',
+            ],
+            'configurations': {
+              'Release': {
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'RuntimeLibrary': '2',
+                  }
+                },
+              },
+              'Debug': {
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'RuntimeLibrary': '3',
+                  }
+                },
+              }
+            },
+            'msvs_enable_winrt': 1,
+            'msvs_settings': {
+              'VCLinkerTool': {
+                'IgnoreDefaultLibraryNames' : [
+                  'kernel32.lib',
+                  'advapi32.lib',
+                ],
+              },
+            },
+          }],
+        ],
+      }],
       [ 'OS in "linux freebsd openbsd solaris aix"', {
         'cflags': [ '-pthread', ],
         'ldflags': [ '-pthread' ],

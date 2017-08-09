@@ -22,6 +22,7 @@
     'node_enable_v8_vtunejit%': 'false',
     'node_engine%': 'v8',
     'node_core_target_name%': 'node',
+    'node_uwp_dll%': 'false',
     'library_files': [
       'lib/internal/bootstrap_node.js',
       'lib/async_hooks.js',
@@ -731,7 +732,7 @@
                 'deps/zlib/zlib.gyp:zlib',
               ]
             }],
-            [ 'node_shared_openssl=="false" and node_shared=="false"', {
+            [ 'node_shared_openssl=="false" and node_shared=="false" and node_uwp_dll!="true"', {
               'dependencies': [
                 'deps/openssl/openssl.gyp:openssl'
               ]

@@ -339,7 +339,10 @@ static int file_lookup(const char *name, int family, struct hostent **host)
   int status;
   int error;
 
-#ifdef WIN32
+#ifdef UWP_DLL
+  char* PATH_HOSTS = NULL; // Dummy variable to prevent compiler error below.
+  return ARES_ENOTFOUND;
+#elif defined(WIN32)
   char PATH_HOSTS[MAX_PATH];
   win_platform platform;
 

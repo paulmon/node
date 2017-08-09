@@ -129,10 +129,12 @@ UV_DESTRUCTOR(static void cleanup(void)) {
 
 static void init_threads(void) {
   unsigned int i;
-  const char* val;
+  const char* val = NULL;
 
   nthreads = ARRAY_SIZE(default_threads);
+#ifndef UWP_DLL
   val = getenv("UV_THREADPOOL_SIZE");
+#endif
   if (val != NULL)
     nthreads = atoi(val);
   if (nthreads == 0)

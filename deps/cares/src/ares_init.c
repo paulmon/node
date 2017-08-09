@@ -537,6 +537,9 @@ static int init_by_options(ares_channel channel,
 
 static int init_by_environment(ares_channel channel)
 {
+#ifdef UWP_DLL
+  /* Environment variables don't exist in UWP. */
+#else
   const char *localdomain, *res_options;
   int status;
 
@@ -555,11 +558,12 @@ static int init_by_environment(ares_channel channel)
       if (status != ARES_SUCCESS)
         return status;  /* LCOV_EXCL_LINE: set_options() never fails */
     }
-
+#endif
   return ARES_SUCCESS;
 }
 
 #ifdef WIN32
+#ifndef UWP_DLL
 /*
  * get_REG_SZ()
  *
@@ -798,6 +802,8 @@ done:
   return 1;
 }
 
+#endif /* UWP_DLL */
+
 /*
  * get_DNS_Registry()
  *
@@ -811,6 +817,11 @@ done:
  */
 static int get_DNS_Registry(char **outptr)
 {
+#ifdef UWP_DLL
+  /* UWP doesn't support querying the registry. */
+  *outptr = NULL;
+  return 0;
+#else
   win_platform platform;
   int gotString = 0;
 
@@ -827,6 +838,7 @@ static int get_DNS_Registry(char **outptr)
     return 0;
 
   return 1;
+#endif /* UWP_DLL */
 }
 
 /*
@@ -874,6 +886,11 @@ static void commajoin(char **dst, const char *src)
  */
 static int get_DNS_NetworkParams(char **outptr)
 {
+#ifdef UWP_DLL
+  /* UWP doesn't support GetNetworkParams(). */
+  *outptr = NULL;
+  return 0;
+#else
   FIXED_INFO       *fi, *newfi;
   struct ares_addr namesrvr;
   char             *txtaddr;
@@ -938,6 +955,7 @@ done:
     return 0;
 
   return 1;
+#endif /* UWP_DLL */
 }
 
 /*
@@ -2013,7 +2031,7 @@ static void randomize_key(unsigned char* key,int key_data_len)
 {
   int randomized = 0;
   int counter=0;
-#ifdef WIN32
+#if defined(WIN32) && !defined(UWP_DLL)
   BOOLEAN res;
   if (ares_fpSystemFunction036)
     {

@@ -531,6 +531,11 @@ parser.add_option('--without-bundled-v8',
     help='do not use V8 includes from the bundled deps folder. ' +
          '(This mode is not officially supported for regular applications)')
 
+parser.add_option("--uwp-dll",
+    action="store_true",
+    dest="uwp_dll",
+    help="Build Node.js as a DLL for consumption within a Universal Windows Platform application")
+
 # Create compile_commands.json in out/Debug and out/Release.
 parser.add_option('-C',
     action='store_true',
@@ -926,6 +931,10 @@ def configure_node(o):
     raise Exception('Performance counter is only supported on Windows.')
   else:
     o['variables']['node_use_perfctr'] = 'false'
+
+  # Assign variables for to support Universal Windows Platform
+  if flavor == 'win':
+    o['variables']['node_uwp_dll'] = b(options.uwp_dll)
 
   if options.tag:
     o['variables']['node_tag'] = '-' + options.tag

@@ -58,6 +58,30 @@
 #define MAX_INPUT_BUFFER_LENGTH 8192
 #define MAX_CONSOLE_CHAR 8192
 
+#ifdef UWP_DLL
+#if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+typedef struct _SMALL_RECT {
+    SHORT Left;
+    SHORT Top;
+    SHORT Right;
+    SHORT Bottom;
+} SMALL_RECT, *PSMALL_RECT;
+
+typedef struct _CONSOLE_SCREEN_BUFFER_INFO {
+    COORD dwSize;
+    COORD dwCursorPosition;
+    WORD  wAttributes;
+    SMALL_RECT srWindow;
+    COORD dwMaximumWindowSize;
+} CONSOLE_SCREEN_BUFFER_INFO, *PCONSOLE_SCREEN_BUFFER_INFO;
+
+typedef struct _CONSOLE_CURSOR_INFO {
+    DWORD  dwSize;
+    BOOL   bVisible;
+} CONSOLE_CURSOR_INFO, *PCONSOLE_CURSOR_INFO;
+#endif
+#endif
+
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 #endif
@@ -145,6 +169,13 @@ void uv_console_init(void) {
 
 
 int uv_tty_init(uv_loop_t* loop, uv_tty_t* tty, uv_file fd, int readable) {
+#if defined(UWP_DLL)
+    (loop);
+    (tty);
+    (fd);
+    (readable);
+    return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
+#else
   HANDLE handle;
   CONSOLE_SCREEN_BUFFER_INFO screen_buffer_info;
 
@@ -234,6 +265,7 @@ int uv_tty_init(uv_loop_t* loop, uv_tty_t* tty, uv_file fd, int readable) {
   }
 
   return 0;
+#endif
 }
 
 
@@ -294,10 +326,21 @@ static void uv_tty_capture_initial_style(CONSOLE_SCREEN_BUFFER_INFO* info) {
 
 
 int uv_tty_set_mode(uv_tty_t* tty, uv_tty_mode_t mode) {
+#if defined(UWP_DLL)
+    (tty);
+    (mode);
+    return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
+#else
+
   DWORD flags;
   unsigned char was_reading;
+#ifdef UWP_DLL
+  uv_alloc_cb alloc_cb = NULL;
+  uv_read_cb read_cb = NULL;
+#else
   uv_alloc_cb alloc_cb;
   uv_read_cb read_cb;
+#endif
   int err;
 
   if (!(tty->flags & UV_HANDLE_TTY_READABLE)) {
@@ -355,16 +398,29 @@ int uv_tty_set_mode(uv_tty_t* tty, uv_tty_mode_t mode) {
   }
 
   return 0;
+#endif
 }
 
 
 int uv_is_tty(uv_file file) {
-  DWORD result;
+#if defined(UWP_DLL)
+    (file);
+    return 0;
+#else
+    DWORD result;
   return GetConsoleMode((HANDLE) _get_osfhandle(file), &result) != 0;
+#endif
 }
 
 
 int uv_tty_get_winsize(uv_tty_t* tty, int* width, int* height) {
+#if defined(UWP_DLL)
+    (tty);
+    (width);
+    (height);
+    return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
+#else
+
   CONSOLE_SCREEN_BUFFER_INFO info;
 
   if (!GetConsoleScreenBufferInfo(tty->handle, &info)) {
@@ -379,6 +435,7 @@ int uv_tty_get_winsize(uv_tty_t* tty, int* width, int* height) {
   *height = uv_tty_virtual_height;
 
   return 0;
+#endif
 }
 
 
@@ -394,7 +451,9 @@ static void CALLBACK uv_tty_post_raw_read(void* data, BOOLEAN didTimeout) {
   handle = (uv_tty_t*) req->data;
   loop = handle->loop;
 
+#ifndef UWP_DLL
   UnregisterWait(handle->tty.rd.read_raw_wait);
+#endif
   handle->tty.rd.read_raw_wait = NULL;
 
   SET_REQ_SUCCESS(req);
@@ -416,12 +475,17 @@ static void uv_tty_queue_read_raw(uv_loop_t* loop, uv_tty_t* handle) {
   req = &handle->read_req;
   memset(&req->u.io.overlapped, 0, sizeof(req->u.io.overlapped));
 
+#ifdef UWP_DLL
+  r = 0;
+  SetLastError(ERROR_NOT_SUPPORTED);
+#else
   r = RegisterWaitForSingleObject(&handle->tty.rd.read_raw_wait,
                                   handle->handle,
                                   uv_tty_post_raw_read,
                                   (void*) req,
                                   INFINITE,
                                   WT_EXECUTEINWAITTHREAD | WT_EXECUTEONLYONCE);
+#endif
   if (!r) {
     handle->tty.rd.read_raw_wait = NULL;
     SET_REQ_ERROR(req, GetLastError());
@@ -471,6 +535,9 @@ static DWORD CALLBACK uv_tty_line_read_thread(void* data) {
     POST_COMPLETION_FOR_REQ(loop, req);
     return 0;
   }
+#if defined(UWP_DLL)
+  SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED );
+#else
 
   read_console_success = ReadConsoleW(handle->handle,
                                       (void*) utf16,
@@ -523,6 +590,8 @@ static DWORD CALLBACK uv_tty_line_read_thread(void* data) {
     }
     uv_sem_post(&uv_tty_output_lock);
   }
+#endif
+
   POST_COMPLETION_FOR_REQ(loop, req);
   return 0;
 }
@@ -555,9 +624,15 @@ static void uv_tty_queue_read_line(uv_loop_t* loop, uv_tty_t* handle) {
      QueueUserWorkItem*/
   uv__restore_screen_state = FALSE;
   uv__read_console_status = NOT_STARTED;
+
+#ifdef UWP_DLL
+  r = 0;
+  SetLastError(ERROR_NOT_SUPPORTED);
+#else
   r = QueueUserWorkItem(uv_tty_line_read_thread,
                         (void*) req,
                         WT_EXECUTELONGFUNCTION);
+#endif
   if (!r) {
     SET_REQ_ERROR(req, GetLastError());
     uv_insert_pending_req(loop, (uv_req_t*)req);
@@ -645,6 +720,12 @@ static const char* get_vt100_fn_key(DWORD code, char shift, char ctrl,
 
 void uv_process_tty_read_raw_req(uv_loop_t* loop, uv_tty_t* handle,
     uv_req_t* req) {
+#if defined(UWP_DLL)
+    (loop);
+    (handle);
+    SET_REQ_ERROR(req, ERROR_NOT_SUPPORTED);
+#else
+
   /* Shortcut for handle->tty.rd.last_input_record.Event.KeyEvent. */
 #define KEV handle->tty.rd.last_input_record.Event.KeyEvent
 
@@ -912,6 +993,7 @@ void uv_process_tty_read_raw_req(uv_loop_t* loop, uv_tty_t* handle,
   DECREASE_PENDING_REQ_COUNT(handle);
 
 #undef KEV
+#endif
 }
 
 
@@ -1017,6 +1099,9 @@ int uv_tty_read_start(uv_tty_t* handle, uv_alloc_cb alloc_cb,
 
 
 int uv_tty_read_stop(uv_tty_t* handle) {
+#if defined(UWP_DLL)
+  return ERROR_NOT_SUPPORTED;
+#else
   INPUT_RECORD record;
   DWORD written, err;
 
@@ -1043,9 +1128,13 @@ int uv_tty_read_stop(uv_tty_t* handle) {
   }
 
   return 0;
+#endif
 }
 
 static int uv__cancel_read_console(uv_tty_t* handle) {
+#if defined(UWP_DLL)
+  return ERROR_NOT_SUPPORTED;
+#else
   HANDLE active_screen_buffer = INVALID_HANDLE_VALUE;
   INPUT_RECORD record;
   DWORD written;
@@ -1098,6 +1187,7 @@ static int uv__cancel_read_console(uv_tty_t* handle) {
     CloseHandle(active_screen_buffer);
 
   return err;
+#endif
 }
 
 
@@ -1174,6 +1264,11 @@ static COORD uv_tty_make_real_coord(uv_tty_t* handle,
 
 static int uv_tty_emit_text(uv_tty_t* handle, WCHAR buffer[], DWORD length,
     DWORD* error) {
+#if defined(UWP_DLL)
+  (handle), (buffer), (length);
+  *error = ERROR_NOT_SUPPORTED;
+  return -1;
+#else
   DWORD written;
 
   if (*error != ERROR_SUCCESS) {
@@ -1190,11 +1285,18 @@ static int uv_tty_emit_text(uv_tty_t* handle, WCHAR buffer[], DWORD length,
   }
 
   return 0;
+#endif
 }
 
 
 static int uv_tty_move_caret(uv_tty_t* handle, int x, unsigned char x_relative,
     int y, unsigned char y_relative, DWORD* error) {
+#if defined(UWP_DLL)
+    (handle), (x), (y), (x_relative), (y_relative);
+    *error = ERROR_NOT_SUPPORTED;
+    return -1;
+#else
+
   CONSOLE_SCREEN_BUFFER_INFO info;
   COORD pos;
 
@@ -1220,10 +1322,16 @@ static int uv_tty_move_caret(uv_tty_t* handle, int x, unsigned char x_relative,
   }
 
   return 0;
+#endif
 }
 
 
 static int uv_tty_reset(uv_tty_t* handle, DWORD* error) {
+#if defined(UWP_DLL)
+    (handle);
+    *error = ERROR_NOT_SUPPORTED;
+    return -1;
+#else
   const COORD origin = {0, 0};
   const WORD char_attrs = uv_tty_default_text_attributes;
   CONSOLE_SCREEN_BUFFER_INFO info;
@@ -1278,11 +1386,18 @@ static int uv_tty_reset(uv_tty_t* handle, DWORD* error) {
   uv_tty_update_virtual_window(&info);
 
   return 0;
+#endif
 }
 
 
 static int uv_tty_clear(uv_tty_t* handle, int dir, char entire_screen,
     DWORD* error) {
+#if defined(UWP_DLL)
+    (handle), (dir), (entire_screen);
+    *error = ERROR_NOT_SUPPORTED;
+    return -1;
+#else
+
   CONSOLE_SCREEN_BUFFER_INFO info;
   COORD start, end;
   DWORD count, written;
@@ -1358,6 +1473,7 @@ static int uv_tty_clear(uv_tty_t* handle, int dir, char entire_screen,
   }
 
   return 0;
+#endif;
 }
 
 #define FLIP_FGBG                                                             \
@@ -1370,6 +1486,11 @@ static int uv_tty_clear(uv_tty_t* handle, int dir, char entire_screen,
     } while (0)
 
 static int uv_tty_set_style(uv_tty_t* handle, DWORD* error) {
+#if defined(UWP_DLL)
+    (handle);
+    *error = ERROR_NOT_SUPPORTED;
+    return -1;
+#else
   unsigned short argc = handle->tty.wr.ansi_csi_argc;
   unsigned short* argv = handle->tty.wr.ansi_csi_argv;
   int i;
@@ -1522,11 +1643,17 @@ static int uv_tty_set_style(uv_tty_t* handle, DWORD* error) {
   }
 
   return 0;
+#endif
 }
 
 
 static int uv_tty_save_state(uv_tty_t* handle, unsigned char save_attributes,
     DWORD* error) {
+#if defined(UWP_DLL)
+  (handle), (save_attributes);
+  *error = ERROR_NOT_SUPPORTED;
+  return -1;
+#else
   CONSOLE_SCREEN_BUFFER_INFO info;
 
   if (*error != ERROR_SUCCESS) {
@@ -1551,11 +1678,18 @@ static int uv_tty_save_state(uv_tty_t* handle, unsigned char save_attributes,
   }
 
   return 0;
+#endif
 }
 
 
 static int uv_tty_restore_state(uv_tty_t* handle,
     unsigned char restore_attributes, DWORD* error) {
+#if defined(UWP_DLL)
+    (handle), (restore_attributes);
+    *error = ERROR_NOT_SUPPORTED;
+    return -1;
+#else
+
   CONSOLE_SCREEN_BUFFER_INFO info;
   WORD new_attributes;
 
@@ -1592,11 +1726,18 @@ static int uv_tty_restore_state(uv_tty_t* handle,
   }
 
   return 0;
+#endif
 }
 
 static int uv_tty_set_cursor_visibility(uv_tty_t* handle,
                                         BOOL visible,
                                         DWORD* error) {
+#if defined(UWP_DLL)
+    (handle);
+    (visible);
+    *error = ERROR_NOT_SUPPORTED;
+    return -1;
+#else
   CONSOLE_CURSOR_INFO cursor_info;
 
   if (!GetConsoleCursorInfo(handle->handle, &cursor_info)) {
@@ -1612,6 +1753,7 @@ static int uv_tty_set_cursor_visibility(uv_tty_t* handle,
   }
 
   return 0;
+#endif
 }
 
 static int uv_tty_write_bufs(uv_tty_t* handle,

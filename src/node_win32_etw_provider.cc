@@ -193,7 +193,11 @@ void init_etw() {
 
 
 void shutdown_etw() {
+#ifndef UWP_DLL
+  if (event_unregister && node_provider) {
+#else
   if (advapi && event_unregister && node_provider) {
+#endif
     event_unregister(node_provider);
     node_provider = 0;
   }
@@ -203,10 +207,12 @@ void shutdown_etw() {
       v8::kJitCodeEventDefault,
       nullptr);
 
+#ifndef UWP_DLL
   if (advapi) {
     FreeLibrary(advapi);
     advapi = nullptr;
   }
+#endif
 }
 
 }  // namespace node

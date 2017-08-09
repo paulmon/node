@@ -125,17 +125,20 @@
             'src/win/winsock.c',
             'src/win/winsock.h',
           ],
-          'link_settings': {
-            'libraries': [
-              '-ladvapi32',
-              '-liphlpapi',
-              '-lpsapi',
-              '-lshell32',
-              '-luser32',
-              '-luserenv',
-              '-lws2_32'
+          'conditions': [
+           [ 'node_uwp_dll!="true"', {
+            'link_settings': {
+              'libraries': [
+                '-ladvapi32',
+                '-liphlpapi',
+                '-lpsapi',
+                '-lshell32',
+                '-luser32',
+                '-luserenv',
+                '-lws2_32'
             ],
           },
+          }]],
         }, { # Not Windows i.e. POSIX
           'sources': [
             'include/uv-unix.h',
@@ -197,6 +200,14 @@
               'product_extension': 'so.1',
             }],
           ],
+        }],
+        ['node_uwp_dll=="true"', {
+          'sources': [ 'src/win/uwp.cpp' ],
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
+            }
+          },
         }],
         [ 'OS in "linux mac ios android os390"', {
           'sources': [ 'src/unix/proctitle.c' ],

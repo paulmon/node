@@ -132,6 +132,10 @@ uint32_t s_ttdSnapHistoryLength = 2;
 uint64_t s_ttdStartupMode = 0x1;
 #endif
 
+#ifdef UWP_DLL
+#include "node_logger.h"
+#endif
+
 namespace node {
 
 using v8::Array;
@@ -168,6 +172,10 @@ using v8::TryCatch;
 using v8::Uint32Array;
 using v8::V8;
 using v8::Value;
+
+#ifdef UWP_DLL
+using namespace node::logger;
+#endif
 
 using AsyncHooks = node::Environment::AsyncHooks;
 
@@ -336,6 +344,7 @@ static void PrintErrorString(const char* format, ...) {
   va_list ap;
   va_start(ap, format);
 #ifdef _WIN32
+#ifndef UWP_DLL
   HANDLE stderr_handle = GetStdHandle(STD_ERROR_HANDLE);
 
   // Check if stderr is something other than a tty/console
@@ -347,11 +356,13 @@ static void PrintErrorString(const char* format, ...) {
     return;
   }
 
+#endif
   // Fill in any placeholders
   int n = _vscprintf(format, ap);
   std::vector<char> out(n + 1);
   vsprintf(out.data(), format, ap);
 
+#ifndef UWP_DLL
   // Get required wide buffer size
   n = MultiByteToWideChar(CP_UTF8, 0, out.data(), -1, nullptr, 0);
 
@@ -361,6 +372,9 @@ static void PrintErrorString(const char* format, ...) {
   // Don't include the null character in the output
   CHECK_GT(n, 0);
   WriteConsoleW(stderr_handle, wbuf.data(), n - 1, nullptr, nullptr);
+#else
+  NODE_LOGGER_LOG(node::logger::ILogger::Error, out.data());
+#endif
 #else
   vfprintf(stderr, format, ap);
 #endif
@@ -1003,10 +1017,12 @@ bool SafeGetenv(const char* key, std::string* text) {
     goto fail;
 #endif
 
+#ifndef UWP_DLL
   if (const char* value = getenv(key)) {
     *text = value;
     return true;
   }
+#endif
 
 fail:
   text->clear();
@@ -2869,6 +2885,7 @@ static void ProcessTitleSetter(Local<Name> property,
 }
 
 
+#ifndef UWP_DLL
 static void EnvGetter(Local<Name> property,
                       const PropertyCallbackInfo<Value>& info) {
   Isolate* isolate = info.GetIsolate();
@@ -3037,6 +3054,7 @@ static void EnvEnumerator(const PropertyCallbackInfo<Array>& info) {
 
   info.GetReturnValue().Set(envarr);
 }
+#endif
 
 
 static Local<Object> GetFeatures(Environment* env) {
@@ -3353,6 +3371,7 @@ void SetupProcessObject(Environment* env,
                exec_arguments);
 
   // create process.env
+#ifndef UWP_DLL
   Local<ObjectTemplate> process_env_template =
       ObjectTemplate::New(env->isolate());
   process_env_template->SetHandler(NamedPropertyHandlerConfiguration(
@@ -3365,6 +3384,11 @@ void SetupProcessObject(Environment* env,
 
   Local<Object> process_env =
       process_env_template->NewInstance(env->context()).ToLocalChecked();
+#else
+  // Since there are no environment variables in UWP, process.env will be an
+  // empty object.
+  Local<Object> process_env = Object::New(env->isolate());
+#endif
   process->Set(FIXED_ONE_BYTE_STRING(env->isolate(), "env"), process_env);
 
   READONLY_PROPERTY(process, "pid", Integer::New(env->isolate(), getpid()));
@@ -3467,6 +3491,13 @@ void SetupProcessObject(Environment* env,
     READONLY_DONT_ENUM_PROPERTY(process,
                                 "_invalidDebug", True(env->isolate()));
   }
+#if defined(UWP_DLL)
+  READONLY_PROPERTY(process, "hasConsole", False(env->isolate()));
+  READONLY_PROPERTY(process, "uwpDLL", True(env->isolate()));
+#else
+  READONLY_PROPERTY(process, "hasConsole", True(env->isolate()));
+  READONLY_PROPERTY(process, "uwpDLL", False(env->isolate()));
+#endif
 
   // --security-revert flags
 #define V(code, _, __)                                                        \
@@ -4204,6 +4235,7 @@ static int GetDebugSignalHandlerMappingName(DWORD pid, wchar_t* buf,
 
 static void DebugProcess(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
+#ifndef UWP_DLL
   Isolate* isolate = args.GetIsolate();
   DWORD pid;
   HANDLE process = nullptr;
@@ -4288,6 +4320,9 @@ static void DebugProcess(const FunctionCallbackInfo<Value>& args) {
     UnmapViewOfFile(handler);
   if (mapping != nullptr)
     CloseHandle(mapping);
+#else
+  env->ThrowError("_debugProcess not supported.");
+#endif
 }
 #endif  // _WIN32
 
@@ -5048,11 +5083,13 @@ int Start(int argc, char** argv) {
           "Must set replay source info when replaying.\n");
   }
 
+#ifndef UWP_DLL
   if (s_doTTRecord) {
     // Apply the environment variable to be inherited by child processes.
     putenv("DO_TTD_RECORD=1");
   }
-#endif
+#endif // UWP_DLL
+#endif // ENABLE_TDD_MODE
 
 
 #if ENABLE_TTD_NODE
@@ -5083,6 +5120,13 @@ int Start(int argc, char** argv) {
   return exit_code;
 }
 
+#ifdef UWP_DLL
+#error "we're there!"
+int _cdecl Start(int argc, char *argv[], const logger::ILogger* logger) {
+  node::logger::SetLogger(logger);
+  return Start(argc, argv);
+}
+#endif
 
 }  // namespace node
 

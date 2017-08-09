@@ -58,6 +58,13 @@
             'src/inspector/inspector.gyp:protocol_generated_sources',
           ],
         }],
+        [ 'node_uwp_dll=="true"', {
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
+            }
+          },
+        }],
       ],
       'msvs_use_library_dependency_inputs': 1,
 
@@ -75,11 +82,18 @@
           [ 'target_arch=="arm"', {
             'defines': [ '__arm__=1' ]
           }],
-          ['OS == "win"', {
+          [ 'node_uwp_dll!="true"', {
             'libraries': [
               '-lole32.lib',
               '-lversion.lib',
             ],
+          }],
+          [ 'node_uwp_dll=="true"', {
+            'msvs_settings': {
+              'VCCLCompilerTool': {
+                'CompileAsWinRT': 'false',
+              }
+            },
           }],
         ],
       },

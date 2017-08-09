@@ -118,6 +118,7 @@ if /i "%1"=="chakracore"    set engine=chakracore&goto arg-ok
 if /i "%1"=="no-NODE-OPTIONS"	set no_NODE_OPTIONS=1&goto arg-ok
 if /i "%1"=="debug-http2"   set debug_http2=1&goto arg-ok
 if /i "%1"=="debug-nghttp2" set debug_nghttp2=1&goto arg-ok
+if /i "%1"=="uwp-dll"       set target_type=uwp-dll&goto arg-ok
 
 echo Error: invalid command line option `%1`.
 exit /b 1
@@ -164,6 +165,10 @@ if "%i18n_arg%"=="full-icu" set configure_flags=%configure_flags% --with-intl=fu
 if "%i18n_arg%"=="small-icu" set configure_flags=%configure_flags% --with-intl=small-icu
 if "%i18n_arg%"=="intl-none" set configure_flags=%configure_flags% --with-intl=none
 if "%i18n_arg%"=="without-intl" set configure_flags=%configure_flags% --without-intl
+
+if "%target_type%"=="uwp-dll" (
+  set configure_flags=%configure_flags% --shared --uwp-dll
+)
 
 if "%engine%"=="chakracore" (
   set configure_flags=%configure_flags% --without-bundled-v8
@@ -267,6 +272,7 @@ goto run
 if defined noprojgen goto msbuild
 
 @rem Generate the VS project.
+echo configure %configure_flags% --engine=%engine% --dest-cpu=%target_arch% --tag=%TAG%
 call :run-python configure %configure_flags% --engine=%engine% --dest-cpu=%target_arch% --tag=%TAG%
 if errorlevel 1 goto create-msvs-files-failed
 if not exist node.sln goto create-msvs-files-failed
