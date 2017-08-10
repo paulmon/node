@@ -17,7 +17,7 @@
         'src/node_logger.cpp', 
       ],
       'conditions': [
-        ['node_engine=="chakra"', {
+        ['node_engine=="chakracore"', {
           'defines': [
             'BUILDING_CHAKRASHIM=1',  # other deps don't import chakrashim exports
           ],

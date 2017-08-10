@@ -85,7 +85,7 @@ Local<Context> Context::New(Isolate* external_isolate,
     // debugContext is available and chakra_inspector.js is compiled. Inject
     // v8debug object from chakra_inspector.js into this context's global
     // object.
-    JsContextRef debugContextRef;
+    JsContextRef debugContextRef = JS_INVALID_REFERENCE;
     isoShim->NewContext(&debugContextRef, false, false, *glob);
     jsrt::ContextShim* debugContextShim = isoShim->GetContextShim(
         debugContextRef);

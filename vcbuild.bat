@@ -167,7 +167,7 @@ if "%i18n_arg%"=="intl-none" set configure_flags=%configure_flags% --with-intl=n
 if "%i18n_arg%"=="without-intl" set configure_flags=%configure_flags% --without-intl
 
 if "%target_type%"=="uwp-dll" (
-  set configure_flags=%configure_flags% --shared --uwp-dll --without-intl --without-inspector --without-v8-platform --without-perfctr
+  set configure_flags=%configure_flags% --uwp-dll --without-intl --without-inspector --without-v8-platform --without-perfctr
 )
 
 if "%engine%"=="chakracore" (
