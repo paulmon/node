@@ -654,7 +654,7 @@ int ParseGeneralReply(Environment* env,
                       int* naddrttls = nullptr) {
   HandleScope handle_scope(env->isolate());
   auto context = env->context();
-  hostent* host;
+  hostent* host = nullptr;
 
   int status;
   switch (*type) {
