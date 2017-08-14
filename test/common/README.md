@@ -51,28 +51,41 @@ Platform normalizes the `dd` command
 Check if there is more than 1gb of total memory.
 
 ### expectsError([fn, ]settings[, exact])
-* `fn` [&lt;Function>]
+* `fn` [&lt;Function>] a function that should throw.
 * `settings` [&lt;Object>]
-  with the following optional properties:
+  that must contain the `code` property plus any of the other following
+  properties (some properties only apply for `AssertionError`):
   * `code` [&lt;String>]
-    expected error must have this value for its `code` property
+    expected error must have this value for its `code` property.
   * `type` [&lt;Function>]
-    expected error must be an instance of `type`
-  * `message` [&lt;String>]
-    or [&lt;RegExp>]
+    expected error must be an instance of `type` and must be an Error subclass.
+  * `message` [&lt;String>] or [&lt;RegExp>]
     if a string is provided for `message`, expected error must have it for its
     `message` property; if a regular expression is provided for `message`, the
-    regular expression must match the `message` property of the expected error
+    regular expression must match the `message` property of the expected error.
+  * `name` [&lt;String>]
+    expected error must have this value for its `name` property.
+  * `generatedMessage` [&lt;String>]
+    (`AssertionError` only) expected error must have this value for its
+    `generatedMessage` property.
+  * `actual` &lt;any>
+    (`AssertionError` only) expected error must have this value for its
+    `actual` property.
+  * `expected` &lt;any>
+    (`AssertionError` only) expected error must have this value for its
+    `expected` property.
+  * `operator` &lt;any>
+    (`AssertionError` only) expected error must have this value for its
+    `operator` property.
 * `exact` [&lt;Number>] default = 1
+* return [&lt;Function>]
 
-* return function suitable for use as a validation function passed as the second
-  argument to e.g. `assert.throws()`. If the returned function has not been
-  called exactly `exact` number of times when the test is complete, then the
-  test will fail.
-
-If `fn` is provided, it will be passed to `assert.throws` as first argument.
-
-The expected error should be [subclassed by the `internal/errors` module](https://github.com/nodejs/node/blob/master/doc/guides/using-internal-errors.md#api).
+  If `fn` is provided, it will be passed to `assert.throws` as first argument
+  and `undefined` will be returned.
+  Otherwise a function suitable as callback or for use as a validation function
+  passed as the second argument to `assert.throws()` will be returned. If the
+  returned function has not been called exactly `exact` number of times when the
+  test is complete, then the test will fail.
 
 ### expectWarning(name, expected)
 * `name` [&lt;String>]
@@ -155,7 +168,7 @@ the number of calls.
 
 Checks whether free BSD Jail is true or false.
 
-### isAix
+### isAIX
 * return [&lt;Boolean>]
 
 Platform check for Advanced Interactive eXecutive (AIX).
@@ -324,6 +337,73 @@ The realpath of the 'tmp' directory.
 * return [&lt;String>]
 
 Name of the temp directory used by tests.
+
+## Countdown Module
+
+The `Countdown` module provides a simple countdown mechanism for tests that
+require a particular action to be taken after a given number of completed
+tasks (for instance, shutting down an HTTP server after a specific number of
+requests).
+
+<!-- eslint-disable strict, required-modules -->
+```js
+const Countdown = require('../common/countdown');
+
+function doSomething() {
+  console.log('.');
+}
+
+const countdown = new Countdown(2, doSomething);
+countdown.dec();
+countdown.dec();
+```
+
+### new Countdown(limit, callback)
+
+* `limit` {number}
+* `callback` {function}
+
+Creates a new `Countdown` instance.
+
+### Countdown.prototype.dec()
+
+Decrements the `Countdown` counter.
+
+### Coutndown.prototype.remaining
+
+Specifies the remaining number of times `Countdown.prototype.dec()` must be
+called before the callback is invoked.
+
+## Fixtures Module
+
+The `common/fixtures` module provides convenience methods for working with
+files in the `test/fixtures` directory.
+
+### fixtures.fixturesDir
+
+* [&lt;String>]
+
+The absolute path to the `test/fixtures/` directory.
+
+### fixtures.path(...args)
+
+* `...args` [&lt;String>]
+
+Returns the result of `path.join(fixtures.fixturesDir, ...args)`.
+
+### fixtures.readSync(args[, enc])
+
+* `args` [&lt;String>] | [&lt;Array>]
+
+Returns the result of
+`fs.readFileSync(path.join(fixtures.fixturesDir, ...args), 'enc')`.
+
+### fixtures.readKey(arg[, enc])
+
+* `arg` [&lt;String>]
+
+Returns the result of
+`fs.readFileSync(path.join(fixtures.fixturesDir, 'keys', arg), 'enc')`.
 
 ## WPT Module
 

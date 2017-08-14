@@ -305,6 +305,20 @@ CommonNumber:
                 PropertyString * propertyString = (PropertyString *)propName;
                 *propertyRecord = propertyString->GetPropertyRecord();
             }
+            else if (VirtualTableInfo<Js::LiteralStringWithPropertyStringPtr>::HasVirtualTable(propName))
+            {
+                LiteralStringWithPropertyStringPtr * str = (LiteralStringWithPropertyStringPtr *)propName;
+                if (str->GetPropertyString())
+                {
+                    *propertyRecord = str->GetPropertyString()->GetPropertyRecord();
+                }
+                else
+                {
+                    scriptContext->GetOrAddPropertyRecord(propName->GetString(), propName->GetLength(), propertyRecord);
+                    PropertyString * propStr = scriptContext->GetPropertyString((*propertyRecord)->GetPropertyId());
+                    str->SetPropertyString(propStr);
+                }
+            }
             else
             {
                 scriptContext->GetOrAddPropertyRecord(propName->GetString(), propName->GetLength(), propertyRecord);
@@ -442,27 +456,28 @@ CommonNumber:
     }
 
     //----------------------------------------------------------------------------
-    //7.1.16 CanonicalNumericIndexString(argument)
+    //https://tc39.github.io/ecma262/#sec-canonicalnumericindexstring
     //1. Assert : Type(argument) is String.
     //2. If argument is "-0", then return -0.
     //3. Let n be ToNumber(argument).
     //4. If SameValue(ToString(n), argument) is false, then return undefined.
     //5. Return n.
     //----------------------------------------------------------------------------
-    BOOL JavascriptConversion::CanonicalNumericIndexString(Var aValue, double *indexValue, ScriptContext * scriptContext)
+    BOOL JavascriptConversion::CanonicalNumericIndexString(JavascriptString *aValue, double *indexValue, ScriptContext * scriptContext)
     {
-        AssertMsg(JavascriptString::Is(aValue), "CanonicalNumericIndexString expects only string");
-        if (JavascriptString::IsNegZero(JavascriptString::FromVar(aValue)))
+        if (JavascriptString::IsNegZero(aValue))
         {
             *indexValue = -0;
             return TRUE;
         }
-        Var indexNumberValue = JavascriptOperators::ToNumber(aValue, scriptContext);
-        if (JavascriptString::Equals(JavascriptConversion::ToString(indexNumberValue, scriptContext), aValue))
+
+        double indexDoubleValue = aValue->ToDouble();
+        if (JavascriptString::Equals(JavascriptNumber::ToStringRadix10(indexDoubleValue, scriptContext), aValue))
         {
-            *indexValue = JavascriptNumber::GetValue(indexNumberValue);
+            *indexValue = indexDoubleValue;
             return TRUE;
         }
+
         return FALSE;
     }
 
@@ -481,7 +496,7 @@ CommonNumber:
         //  3. If func is either undefined or null, return undefined.
         //  4. If IsCallable(func) is false, throw a TypeError exception.
         //  5. Return func.
-        Var varMethod;
+        Var varMethod = nullptr;
 
         if (!(requestContext->GetConfig()->IsES6ToPrimitiveEnabled()
             && JavascriptOperators::GetPropertyReference(recyclableObject, PropertyIds::_symbolToPrimitive, &varMethod, requestContext)
@@ -502,15 +517,15 @@ CommonNumber:
 
         if (hint == JavascriptHint::HintString)
         {
-            hintString = requestContext->GetLibrary()->CreateStringFromCppLiteral(_u("string"));
+            hintString = requestContext->GetLibrary()->GetStringTypeDisplayString();
         }
         else if (hint == JavascriptHint::HintNumber)
         {
-            hintString = requestContext->GetLibrary()->CreateStringFromCppLiteral(_u("number"));
+            hintString = requestContext->GetLibrary()->GetNumberTypeDisplayString();
         }
         else
         {
-            hintString = requestContext->GetLibrary()->CreateStringFromCppLiteral(_u("default"));
+            hintString = requestContext->GetPropertyString(PropertyIds::default_);
         }
 
         // If exoticToPrim is not undefined, then
@@ -1529,10 +1544,13 @@ CommonNumber:
         return static_cast<double>(aValue);
     }
 
+    // Windows x64 version implemented in masm to work around precision limitation
+#if !defined(_WIN32 ) || !defined(_M_X64)
     double JavascriptConversion::ULongToDouble(unsigned __int64 aValue)
     {
         return static_cast<double>(aValue);
     }
+#endif
 
     float JavascriptConversion::LongToFloat(__int64 aValue)
     {

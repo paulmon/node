@@ -512,10 +512,10 @@ void AsyncWrap::Initialize(Local<Object> target,
       static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete);
 
 #define FORCE_SET_TARGET_FIELD(obj, str, field)                               \
-  (obj)->ForceSet(context,                                                    \
-                  FIXED_ONE_BYTE_STRING(isolate, str),                        \
-                  field,                                                      \
-                  ReadOnlyDontDelete).FromJust()
+  (obj)->DefineOwnProperty(context,                                           \
+                           FIXED_ONE_BYTE_STRING(isolate, str),               \
+                           field,                                             \
+                           ReadOnlyDontDelete).FromJust()
 
   // Attach the uint32_t[] where each slot contains the count of the number of
   // callbacks waiting to be called on a particular event. It can then be
@@ -654,6 +654,8 @@ void AsyncWrap::EmitAsyncInit(Environment* env,
                               Local<String> type,
                               double async_id,
                               double trigger_id) {
+  CHECK(!object.IsEmpty());
+  CHECK(!type.IsEmpty());
   AsyncHooks* async_hooks = env->async_hooks();
 
   // Nothing to execute, so can continue normally.
@@ -682,9 +684,9 @@ void AsyncWrap::EmitAsyncInit(Environment* env,
 }
 
 
-Local<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
-                                     int argc,
-                                     Local<Value>* argv) {
+MaybeLocal<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
+                                          int argc,
+                                          Local<Value>* argv) {
   CHECK(env()->context() == env()->isolate()->GetCurrentContext());
 
   Environment::AsyncCallbackScope callback_scope(env());
@@ -694,15 +696,14 @@ Local<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
                                                 get_trigger_id());
 
   if (!PreCallbackExecution(this, true)) {
-    return Local<Value>();
+    return MaybeLocal<Value>();
   }
 
   // Finally... Get to running the user's callback.
   MaybeLocal<Value> ret = cb->Call(env()->context(), object(), argc, argv);
 
-  Local<Value> ret_v;
-  if (!ret.ToLocal(&ret_v)) {
-    return Local<Value>();
+  if (ret.IsEmpty()) {
+    return ret;
   }
 
   if (!PostCallbackExecution(this, true)) {
@@ -712,7 +713,7 @@ Local<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
   exec_scope.Dispose();
 
   if (callback_scope.in_makecallback()) {
-    return ret_v;
+    return ret;
   }
 
   Environment::TickInfo* tick_info = env()->tick_info();
@@ -730,7 +731,7 @@ Local<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
 
   if (tick_info->length() == 0) {
     tick_info->set_index(0);
-    return ret_v;
+    return ret;
   }
 
   MaybeLocal<Value> rcheck =
@@ -743,7 +744,7 @@ Local<Value> AsyncWrap::MakeCallback(const Local<Function> cb,
   CHECK_EQ(env()->current_async_id(), 0);
   CHECK_EQ(env()->trigger_id(), 0);
 
-  return rcheck.IsEmpty() ? Local<Value>() : ret_v;
+  return rcheck.IsEmpty() ? MaybeLocal<Value>() : ret;
 }
 
 
@@ -754,17 +755,9 @@ async_id AsyncHooksGetExecutionAsyncId(Isolate* isolate) {
   return Environment::GetCurrent(isolate)->current_async_id();
 }
 
-async_id AsyncHooksGetCurrentId(Isolate* isolate) {
-  return AsyncHooksGetExecutionAsyncId(isolate);
-}
-
 
 async_id AsyncHooksGetTriggerAsyncId(Isolate* isolate) {
   return Environment::GetCurrent(isolate)->trigger_id();
-}
-
-async_id AsyncHooksGetTriggerId(Isolate* isolate) {
-  return AsyncHooksGetTriggerAsyncId(isolate);
 }
 
 

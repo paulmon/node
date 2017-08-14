@@ -5,6 +5,11 @@
 
 #include "RuntimeBasePch.h"
 
+// Originally defined in ntstatus.h, define here because including windows.h (via PCH
+// above) with ntstatus.h causes macro redefinition errors for the common errors defined
+// in both header files.
+#define STATUS_PROCESS_IS_TERMINATING    ((NTSTATUS)0xC000010AL)
+
 #if ENABLE_NATIVE_CODEGEN
 #include "CodeGenAllocators.h"
 #include "ServerThreadContext.h"
@@ -12,9 +17,12 @@
 
 ThreadContextInfo::ThreadContextInfo() :
     m_isAllJITCodeInPreReservedRegion(true),
-    wellKnownHostTypeHTMLAllCollectionTypeId(Js::TypeIds_Undefined),
     m_isClosed(false)
 {
+    for (int i = 0; i <= WellKnownHostType_Last; ++i)
+    {
+        wellKnownHostTypeIds[i] = Js::TypeIds_Undefined;
+    }
 }
 
 #if ENABLE_NATIVE_CODEGEN
@@ -68,12 +76,6 @@ intptr_t
 ThreadContextInfo::GetUIntConvertConstAddr() const
 {
     return SHIFT_ADDR(this, &Js::JavascriptNumber::UIntConvertConst);
-}
-
-intptr_t
-ThreadContextInfo::GetUInt64ConvertConstAddr() const
-{
-    return SHIFT_ADDR(this, &Js::JavascriptNumber::UInt64ConvertConst);
 }
 
 intptr_t
@@ -393,7 +395,7 @@ ThreadContextInfo::IsCFGEnabled()
     PROCESS_MITIGATION_CONTROL_FLOW_GUARD_POLICY CfgPolicy;
     m_delayLoadWinCoreProcessThreads.EnsureFromSystemDirOnly();
     BOOL isGetMitigationPolicySucceeded = m_delayLoadWinCoreProcessThreads.GetMitigationPolicyForProcess(
-        this->GetProcessHandle(),
+        GetCurrentProcess(),
         ProcessControlFlowGuardPolicy,
         &CfgPolicy,
         sizeof(CfgPolicy));
@@ -442,10 +444,17 @@ ThreadContextInfo::SetValidCallTargetForCFG(PVOID callTargetAddress, bool isSetV
 
         if (!isCallTargetRegistrationSucceed)
         {
-            if (GetLastError() == ERROR_COMMITMENT_LIMIT)
+            DWORD gle = GetLastError();
+            if (gle == ERROR_COMMITMENT_LIMIT)
             {
                 //Throw OOM, if there is not enough virtual memory for paging (required for CFG BitMap)
                 Js::Throw::OutOfMemory();
+            }
+            else if (gle == STATUS_PROCESS_IS_TERMINATING)
+            {
+                // When this error is set, the target process is exiting and thus cannot proceed with
+                // JIT output. Throw this exception to safely abort this call.
+                throw Js::OperationAbortedException();
             }
             else
             {

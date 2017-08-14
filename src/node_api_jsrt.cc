@@ -13,6 +13,7 @@
 #include <node_buffer.h>
 #include <node_object_wrap.h>
 #include <env.h>
+#include <array>
 #include <vector>
 #include <algorithm>
 #include "ChakraCore.h"
@@ -240,32 +241,88 @@ class ExternalCallback {
   void* _data;
 };
 
+class StringUtf8 {
+ public:
+  StringUtf8() : _str(nullptr), _length(0) {}
+  ~StringUtf8() {
+    if (_str != nullptr) {
+      free(_str);
+      _str = nullptr;
+      _length = 0;
+    }
+  }
+  char *operator*() { return _str; }
+  operator const char *() const { return _str; }
+  int length() const { return static_cast<int>(_length); }
+
+  napi_status From(JsValueRef strRef) {
+    CHAKRA_ASSERT(!_str);
+
+    int strLength = 0;
+    CHECK_JSRT_EXPECTED(JsGetStringLength(strRef, &strLength),
+                        napi_string_expected);
+
+    // assume string contains ascii characters only
+    _str = reinterpret_cast<char*>(malloc(strLength + 1));
+
+    size_t written = 0;
+    size_t actualLength = 0;
+    CHECK_JSRT_EXPECTED(
+      JsCopyString(strRef, _str, strLength, &written, &actualLength),
+                   napi_string_expected);
+
+    // if string contains unicode characters, take slow path
+    if (actualLength != written) {
+      // free previously allocated buffer
+      free(_str);
+
+      _str = reinterpret_cast<char*>(malloc(actualLength + 1));
+      if (_str == nullptr) {
+        return napi_set_last_error(napi_generic_failure);
+      }
+      CHECK_JSRT_EXPECTED(
+        JsCopyString(strRef, _str, actualLength, &written, nullptr),
+                     napi_string_expected);
+      assert(actualLength == written);
+    } else if (strLength != written) {
+      return napi_set_last_error(napi_generic_failure);
+    }
+
+    _str[written] = '\0';
+    _length = written;
+    return napi_ok;
+  }
+
+ private:
+  // Disallow copying and assigning
+  StringUtf8(const StringUtf8&);
+  void operator=(const StringUtf8&);
+
+  char* _str;
+  int _length;
+};
+
 inline napi_status JsPropertyIdFromKey(JsValueRef key,
-                                        JsPropertyIdRef* propertyId) {
+                                       JsPropertyIdRef* propertyId) {
   JsValueType keyType;
   CHECK_JSRT(JsGetValueType(key, &keyType));
 
   if (keyType == JsString) {
-    size_t length;
-    CHECK_JSRT_EXPECTED(
-      JsCopyString(key, nullptr, 0, &length), napi_string_expected);
+    StringUtf8 str;
+    CHECK_NAPI(str.From(key));
 
-    std::vector<uint8_t> name;
-    name.reserve(length + 1);
-    CHECK_JSRT(JsCopyString(
-      key, reinterpret_cast<char*>(name.data()), length + 1, &length));
-
-    CHECK_JSRT(JsCreatePropertyId(
-      reinterpret_cast<char*>(name.data()), length, propertyId));
-  } else {
+    CHECK_JSRT(JsCreatePropertyId(*str, str.length(), propertyId));
+  } else if (keyType == JsSymbol) {
     CHECK_JSRT(JsGetPropertyIdFromSymbol(key, propertyId));
+  } else {
+    return napi_set_last_error(napi_name_expected);
   }
   return napi_ok;
 }
 
 inline napi_status
 JsPropertyIdFromPropertyDescriptor(const napi_property_descriptor* p,
-                                    JsPropertyIdRef* propertyId) {
+                                   JsPropertyIdRef* propertyId) {
   if (p->utf8name != nullptr) {
     CHECK_JSRT(JsCreatePropertyId(
       p->utf8name, strlen(p->utf8name), propertyId));
@@ -310,6 +367,105 @@ inline napi_status FindWrapper(JsValueRef obj, JsValueRef* result) {
   } while (!hasExternalData);
 
   *result = wrapper;
+  return napi_ok;
+}
+
+static napi_status SetErrorCode(JsValueRef error,
+                                napi_value code,
+                                const char* codeString) {
+  if ((code != nullptr) || (codeString != nullptr)) {
+    JsValueRef codeValue = reinterpret_cast<JsValueRef>(code);
+    if (codeValue != JS_INVALID_REFERENCE) {
+      JsValueType valueType = JsUndefined;
+      CHECK_JSRT(JsGetValueType(codeValue, &valueType));
+      RETURN_STATUS_IF_FALSE(valueType == JsString, napi_string_expected);
+    } else {
+      CHECK_JSRT(JsCreateString(codeString, strlen(codeString), &codeValue));
+    }
+
+    const char* codePropIdName = "code";
+    JsPropertyIdRef codePropId = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreatePropertyId(codePropIdName,
+                                  strlen(codePropIdName),
+                                  &codePropId));
+
+    CHECK_JSRT(JsSetProperty(error, codePropId, codeValue, true));
+
+    JsValueRef nameArray = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreateArray(0, &nameArray));
+
+    const char* pushPropIdName = "push";
+    JsPropertyIdRef pushPropId = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreatePropertyId(pushPropIdName,
+                                  strlen(pushPropIdName),
+                                  &pushPropId));
+
+    JsValueRef pushFunction = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsGetProperty(nameArray, pushPropId, &pushFunction));
+
+    const char* namePropIdName = "name";
+    JsPropertyIdRef namePropId = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreatePropertyId(namePropIdName,
+                                  strlen(namePropIdName),
+                                  &namePropId));
+
+    bool hasProp = false;
+    CHECK_JSRT(JsHasProperty(error, namePropId, &hasProp));
+
+    JsValueRef nameValue = JS_INVALID_REFERENCE;
+    std::array<JsValueRef, 2> args = { nameArray, JS_INVALID_REFERENCE };
+
+    if (hasProp) {
+      CHECK_JSRT(JsGetProperty(error, namePropId, &nameValue));
+
+      args[1] = nameValue;
+      CHECK_JSRT(JsCallFunction(pushFunction,
+                                args.data(),
+                                args.size(),
+                                nullptr));
+    }
+
+    const char* openBracket = " [";
+    JsValueRef openBracketValue = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreateString(openBracket,
+                              strlen(openBracket),
+                              &openBracketValue));
+
+    args[1] = openBracketValue;
+    CHECK_JSRT(JsCallFunction(pushFunction, args.data(), args.size(), nullptr));
+
+    args[1] = codeValue;
+    CHECK_JSRT(JsCallFunction(pushFunction, args.data(), args.size(), nullptr));
+
+    const char* closeBracket = "]";
+    JsValueRef closeBracketValue = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreateString(closeBracket,
+                              strlen(closeBracket),
+                              &closeBracketValue));
+
+    args[1] = closeBracketValue;
+    CHECK_JSRT(JsCallFunction(pushFunction, args.data(), args.size(), nullptr));
+
+    JsValueRef emptyValue = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreateString("", 0, &emptyValue));
+
+    const char* joinPropIdName = "join";
+    JsPropertyIdRef joinPropId = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsCreatePropertyId(joinPropIdName,
+                                  strlen(joinPropIdName),
+                                  &joinPropId));
+
+    JsValueRef joinFunction = JS_INVALID_REFERENCE;
+    CHECK_JSRT(JsGetProperty(nameArray, joinPropId, &joinFunction));
+
+    args[1] = emptyValue;
+    CHECK_JSRT(JsCallFunction(joinFunction,
+                              args.data(),
+                              args.size(),
+                              &nameValue));
+
+    CHECK_JSRT(JsSetProperty(error, namePropId, nameValue, true));
+  }
   return napi_ok;
 }
 
@@ -429,10 +585,9 @@ napi_status napi_set_last_error(JsErrorCode jsError, void* engine_reserved) {
   return status;
 }
 
-// Stub for now
-napi_status napi_get_current_env(napi_env* e) {
-  *e = nullptr;
-  return napi_ok;
+NAPI_NO_RETURN void napi_fatal_error(const char* location,
+                                     const char* message) {
+  node::FatalError(location, message);
 }
 
 napi_status napi_create_function(napi_env env,
@@ -616,6 +771,18 @@ napi_status napi_delete_property(napi_env env,
   return napi_ok;
 }
 
+NAPI_EXTERN napi_status napi_has_own_property(napi_env env,
+                                              napi_value object,
+                                              napi_value key,
+                                              bool* result) {
+  CHECK_ARG(result);
+  JsPropertyIdRef propertyId;
+  CHECK_NAPI(jsrtimpl::JsPropertyIdFromKey(key, &propertyId));
+  JsValueRef obj = reinterpret_cast<JsValueRef>(object);
+  CHECK_JSRT(JsHasOwnProperty(obj, propertyId, result));
+  return napi_ok;
+}
+
 napi_status napi_set_named_property(napi_env env,
                                     napi_value object,
                                     const char* utf8name,
@@ -755,7 +922,10 @@ napi_status napi_instanceof(napi_env env,
   napi_valuetype valuetype;
   CHECK_NAPI(napi_typeof(env, c, &valuetype));
   if (valuetype != napi_function) {
-    napi_throw_type_error(env, "constructor must be a function");
+    napi_throw_type_error(env,
+                          "ERR_NAPI_CONS_FUNCTION",
+                          "constructor must be a function");
+
     return napi_set_last_error(napi_invalid_arg);
   }
 
@@ -952,11 +1122,37 @@ napi_status napi_create_string_utf16(napi_env env,
   return napi_ok;
 }
 
-napi_status napi_create_number(napi_env env,
+napi_status napi_create_double(napi_env env,
                                double value,
                                napi_value* result) {
   CHECK_ARG(result);
   CHECK_JSRT(JsDoubleToNumber(value, reinterpret_cast<JsValueRef*>(result)));
+  return napi_ok;
+}
+
+napi_status napi_create_int32(napi_env env,
+                              int32_t value,
+                              napi_value* result) {
+  CHECK_ARG(result);
+  CHECK_JSRT(JsIntToNumber(value, reinterpret_cast<JsValueRef*>(result)));
+  return napi_ok;
+}
+
+napi_status napi_create_uint32(napi_env env,
+                               uint32_t value,
+                               napi_value* result) {
+  CHECK_ARG(result);
+  CHECK_JSRT(JsDoubleToNumber(static_cast<double>(value),
+                              reinterpret_cast<JsValueRef*>(result)));
+  return napi_ok;
+}
+
+napi_status napi_create_int64(napi_env env,
+                              int64_t value,
+                              napi_value* result) {
+  CHECK_ARG(result);
+  CHECK_JSRT(JsDoubleToNumber(static_cast<double>(value),
+                              reinterpret_cast<JsValueRef*>(result)));
   return napi_ok;
 }
 
@@ -977,30 +1173,48 @@ napi_status napi_create_symbol(napi_env env,
 }
 
 napi_status napi_create_error(napi_env env,
+                              napi_value code,
                               napi_value msg,
                               napi_value* result) {
   CHECK_ARG(result);
   JsValueRef message = reinterpret_cast<JsValueRef>(msg);
-  CHECK_JSRT(JsCreateError(message, reinterpret_cast<JsValueRef*>(result)));
+
+  JsValueRef error = JS_INVALID_REFERENCE;
+  CHECK_JSRT(JsCreateError(message, &error));
+  CHECK_NAPI(jsrtimpl::SetErrorCode(error, code, nullptr));
+
+  *result = reinterpret_cast<napi_value>(error);
   return napi_ok;
 }
 
 napi_status napi_create_type_error(napi_env env,
+                                   napi_value code,
                                    napi_value msg,
                                    napi_value* result) {
   CHECK_ARG(result);
   JsValueRef message = reinterpret_cast<JsValueRef>(msg);
-  CHECK_JSRT(JsCreateTypeError(message, reinterpret_cast<JsValueRef*>(result)));
+
+  JsValueRef error = JS_INVALID_REFERENCE;
+  CHECK_JSRT(JsCreateTypeError(message,  &error));
+  CHECK_NAPI(jsrtimpl::SetErrorCode(error, code, nullptr));
+
+  *result = reinterpret_cast<napi_value>(error);
   return napi_ok;
 }
 
 napi_status napi_create_range_error(napi_env env,
+                                    napi_value code,
                                     napi_value msg,
                                     napi_value* result) {
   CHECK_ARG(result);
   JsValueRef message = reinterpret_cast<JsValueRef>(msg);
+
+  JsValueRef error = JS_INVALID_REFERENCE;
   CHECK_JSRT(
-    JsCreateRangeError(message, reinterpret_cast<JsValueRef*>(result)));
+    JsCreateRangeError(message,  &error));
+  CHECK_NAPI(jsrtimpl::SetErrorCode(error, code, nullptr));
+
+  *result = reinterpret_cast<napi_value>(error);
   return napi_ok;
 }
 
@@ -1137,32 +1351,41 @@ napi_status napi_throw(napi_env env, napi_value error) {
   return napi_ok;
 }
 
-napi_status napi_throw_error(napi_env env, const char* msg) {
+napi_status napi_throw_error(napi_env env,
+                             const char* code,
+                             const char* msg) {
   JsValueRef strRef;
   JsValueRef exception;
   size_t length = strlen(msg);
   CHECK_JSRT(JsCreateString(msg, length, &strRef));
   CHECK_JSRT(JsCreateError(strRef, &exception));
+  CHECK_NAPI(jsrtimpl::SetErrorCode(exception, nullptr, code));
   CHECK_JSRT(JsSetException(exception));
   return napi_ok;
 }
 
-napi_status napi_throw_type_error(napi_env env, const char* msg) {
+napi_status napi_throw_type_error(napi_env env,
+                                  const char* code,
+                                  const char* msg) {
   JsValueRef strRef;
   JsValueRef exception;
   size_t length = strlen(msg);
   CHECK_JSRT(JsCreateString(msg, length, &strRef));
   CHECK_JSRT(JsCreateTypeError(strRef, &exception));
+  CHECK_NAPI(jsrtimpl::SetErrorCode(exception, nullptr, code));
   CHECK_JSRT(JsSetException(exception));
   return napi_ok;
 }
 
-napi_status napi_throw_range_error(napi_env env, const char* msg) {
+napi_status napi_throw_range_error(napi_env env,
+                                   const char* code,
+                                   const char* msg) {
   JsValueRef strRef;
   JsValueRef exception;
   size_t length = strlen(msg);
   CHECK_JSRT(JsCreateString(msg, length, &strRef));
   CHECK_JSRT(JsCreateRangeError(strRef, &exception));
+  CHECK_NAPI(jsrtimpl::SetErrorCode(exception, nullptr, code));
   CHECK_JSRT(JsSetException(exception));
   return napi_ok;
 }
@@ -1244,14 +1467,14 @@ napi_status napi_get_value_string_latin1(napi_env env,
   if (!buf) {
     CHECK_ARG(result);
 
-    JsErrorCode err = JsCopyString(js_value, nullptr, 0, result);
+    JsErrorCode err = JsCopyString(js_value, nullptr, 0, nullptr, result);
     if (err != JsErrorInvalidArgument) {
       return napi_set_last_error(err);
     }
   } else {
     size_t copied = 0;
     CHECK_JSRT_EXPECTED(
-      JsCopyString(js_value, buf, bufsize - 1, &copied),
+      JsCopyString(js_value, buf, bufsize - 1, &copied, nullptr),
       napi_string_expected);
 
     if (copied < bufsize - 1) {
@@ -1287,14 +1510,14 @@ napi_status napi_get_value_string_utf8(napi_env env,
   if (!buf) {
     CHECK_ARG(result);
 
-    JsErrorCode err = JsCopyString(js_value, nullptr, 0, result);
+    JsErrorCode err = JsCopyString(js_value, nullptr, 0, nullptr, result);
     if (err != JsErrorInvalidArgument) {
       return napi_set_last_error(err);
     }
   } else {
     size_t copied = 0;
     CHECK_JSRT_EXPECTED(
-      JsCopyString(js_value, buf, bufsize - 1, &copied),
+      JsCopyString(js_value, buf, bufsize - 1, &copied, nullptr),
       napi_string_expected);
 
     if (copied < bufsize - 1) {
@@ -2039,6 +2262,79 @@ napi_status napi_get_typedarray_info(napi_env env,
 
   if (length != nullptr) {
     *length = static_cast<size_t>(byteLength / elementSize);
+  }
+
+  if (data != nullptr) {
+    *data = static_cast<uint8_t*>(bufferData);
+  }
+
+  if (arraybuffer != nullptr) {
+    *arraybuffer = reinterpret_cast<napi_value>(jsArrayBuffer);
+  }
+
+  if (byte_offset != nullptr) {
+    *byte_offset = static_cast<size_t>(byteOffset);
+  }
+
+  return napi_ok;
+}
+
+napi_status napi_create_dataview(napi_env env,
+                                 size_t byte_length,
+                                 napi_value arraybuffer,
+                                 size_t byte_offset,
+                                 napi_value* result) {
+  CHECK_ARG(result);
+
+  JsValueRef jsArrayBuffer = reinterpret_cast<JsValueRef>(arraybuffer);
+
+  CHECK_JSRT(JsCreateDataView(
+    jsArrayBuffer,
+    static_cast<unsigned int>(byte_offset),
+    static_cast<unsigned int>(byte_length),
+    reinterpret_cast<JsValueRef*>(result)));
+
+  return napi_ok;
+}
+
+napi_status napi_is_dataview(napi_env env, napi_value value, bool* result) {
+  CHECK_ARG(result);
+
+  JsValueRef jsValue = reinterpret_cast<JsValueRef>(value);
+  JsValueType valueType;
+  CHECK_JSRT(JsGetValueType(jsValue, &valueType));
+
+  *result = (valueType == JsDataView);
+  return napi_ok;
+}
+
+napi_status napi_get_dataview_info(napi_env env,
+                                   napi_value dataview,
+                                   size_t* byte_length,
+                                   void** data,
+                                   napi_value* arraybuffer,
+                                   size_t* byte_offset) {
+  JsValueRef jsArrayBuffer = JS_INVALID_REFERENCE;
+  unsigned int byteOffset = 0;
+  unsigned int byteLength = 0;
+  ChakraBytePtr bufferData = nullptr;
+  unsigned int bufferLength = 0;
+
+  JsValueRef jsDataView = reinterpret_cast<JsValueRef>(dataview);
+
+  CHECK_JSRT(JsGetDataViewInfo(
+    jsDataView,
+    &jsArrayBuffer,
+    &byteOffset,
+    &byteLength));
+
+  CHECK_JSRT(JsGetDataViewStorage(
+    jsDataView,
+    &bufferData,
+    &bufferLength));
+
+  if (byte_length != nullptr) {
+    *byte_length = static_cast<size_t>(byteLength);
   }
 
   if (data != nullptr) {

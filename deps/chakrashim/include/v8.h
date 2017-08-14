@@ -2902,7 +2902,7 @@ bool PersistentBase<T>::IsNearDeath() const {
 
 template <class T>
 bool PersistentBase<T>::IsWeak() const {
-  return static_cast<bool>(_weakWrapper);
+  return _weakWrapper != nullptr;
 }
 
 template <class T>

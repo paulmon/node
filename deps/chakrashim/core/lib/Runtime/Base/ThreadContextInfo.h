@@ -5,6 +5,16 @@
 
 #pragma once
 
+// Keep in sync with WellKnownType in scriptdirect.idl
+
+typedef enum WellKnownHostType
+{
+    WellKnownHostType_HTMLAllCollection = 0,
+    WellKnownHostType_Response = 1,
+    WellKnownHostType_Last = WellKnownHostType_Response,
+    WellKnownHostType_Invalid = WellKnownHostType_Last + 1
+} WellKnownHostType;
+
 class ThreadContextInfo
 {
 public:
@@ -41,7 +51,6 @@ public:
     intptr_t GetDoubleTwoTo31Addr() const;
 
     intptr_t GetUIntConvertConstAddr() const;
-    intptr_t GetUInt64ConvertConstAddr() const;
     intptr_t GetUint8ClampedArraySetItemAddr() const;
     intptr_t GetConstructorCacheDefaultInstanceAddr() const;
     intptr_t GetJavascriptObjectNewInstanceAddr() const;
@@ -99,7 +108,7 @@ public:
 
     virtual bool IsNumericProperty(Js::PropertyId propertyId) = 0;
 
-    bool CanBeFalsy(Js::TypeId typeId) { return typeId == this->wellKnownHostTypeHTMLAllCollectionTypeId; }
+    bool CanBeFalsy(Js::TypeId typeId) { return typeId == this->wellKnownHostTypeIds[WellKnownHostType_HTMLAllCollection]; }
 
     bool IsCFGEnabled();
     bool IsClosed();
@@ -112,12 +121,18 @@ public:
     Js::DelayLoadWinCoreProcessThreads m_delayLoadWinCoreProcessThreads;
 #endif
 
-    UCrtC99MathApis* GetUCrtC99MathApis() { return &ucrtC99MathApis; }
 protected:
+    class AutoCloseHandle
+    {
+    public:
+        AutoCloseHandle(HANDLE handle) : handle(handle) { Assert(this->handle != GetCurrentProcess()); }
+        ~AutoCloseHandle() { CloseHandle(this->handle); }
+        HANDLE GetHandle() const { return this->handle; }
+    private:
+        HANDLE handle;
+    };
 
-    UCrtC99MathApis ucrtC99MathApis;
-
-    Js::TypeId wellKnownHostTypeHTMLAllCollectionTypeId;
+    Js::TypeId wellKnownHostTypeIds[WellKnownHostType_Last + 1];
 
     bool m_isAllJITCodeInPreReservedRegion;
     bool m_isClosed;

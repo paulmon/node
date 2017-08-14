@@ -2,9 +2,9 @@
 // Copyright (C) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.
 //-------------------------------------------------------------------------------------------------------
-
 #pragma once
 
+#ifdef ENABLE_WASM
 #include "../WasmReader/WasmParseTree.h"
 
 namespace Wasm
@@ -24,6 +24,10 @@ namespace Js
 {
 class WebAssemblyModule : public DynamicObject
 {
+protected:
+    DEFINE_VTABLE_CTOR(WebAssemblyModule, DynamicObject);
+    DEFINE_MARSHAL_OBJECT_TO_SCRIPT_CONTEXT(WebAssemblyModule);
+
 public:
 
     class EntryInfo
@@ -45,16 +49,17 @@ public:
 
     static WebAssemblyModule * CreateModule(
         ScriptContext* scriptContext,
-        const byte* buffer,
-        const uint lengthBytes);
+        class WebAssemblySource* src);
 
     static bool ValidateModule(
         ScriptContext* scriptContext,
-        const byte* buffer,
-        const uint lengthBytes);
+        class WebAssemblySource* src);
 
 public:
     WebAssemblyModule(Js::ScriptContext* scriptContext, const byte* binaryBuffer, uint binaryBufferLength, DynamicType * type);
+
+    const byte* GetBinaryBuffer() const { return m_binaryBuffer; }
+    uint GetBinaryBufferLength() const { return m_binaryBufferLength; }
 
     // The index used by those methods is the function index as describe by the WebAssembly design, ie: imports first then wasm functions
     uint32 GetMaxFunctionIndex() const;
@@ -78,11 +83,16 @@ public:
     WebAssemblyTable * CreateTable() const;
     bool HasTable() const { return m_hasTable; }
     bool HasTableImport() const { return m_tableImport != nullptr; }
-    bool IsValidTableImport(const WebAssemblyTable * table) const;
+    uint32 GetTableInitSize() const { return m_tableInitSize; }
+    uint32 GetTableMaxSize() const { return m_tableMaxSize; }
 
     uint GetWasmFunctionCount() const;
     Wasm::WasmFunctionInfo* AddWasmFunctionInfo(Wasm::WasmSignature* funsig);
     Wasm::WasmFunctionInfo* GetWasmFunctionInfo(uint index) const;
+    void SwapWasmFunctionInfo(uint i1, uint i2);
+#if ENABLE_DEBUG_CONFIG_OPTIONS
+    void AttachCustomInOutTracingReader(Wasm::WasmFunctionInfo* func, uint callIndex);
+#endif
 
     void AllocateFunctionExports(uint32 entries);
     uint GetExportCount() const { return m_exportCount; }
@@ -95,8 +105,6 @@ public:
     void AddGlobalImport(const char16* modName, uint32 modNameLen, const char16* importName, uint32 importNameLen);
     void AddMemoryImport(const char16* modName, uint32 modNameLen, const char16* importName, uint32 importNameLen);
     void AddTableImport(const char16* modName, uint32 modNameLen, const char16* importName, uint32 importNameLen);
-    Wasm::WasmImport * GetMemoryImport() const { return m_memImport; }
-    Wasm::WasmImport * GetTableImport() const { return m_tableImport; }
     uint32 GetImportedFunctionCount() const { return m_importedFunctionCount; }
 
     uint GetOffsetFromInit(const Wasm::WasmNode& initExpr, const class WebAssemblyEnvironment* env) const;
@@ -150,6 +158,7 @@ private:
     Field(bool) m_hasMemory;
     // The binary buffer is recycler allocated, tied the lifetime of the buffer to the module
     Field(const byte*) m_binaryBuffer;
+    Field(uint) m_binaryBufferLength;
     Field(uint32) m_memoryInitSize;
     Field(uint32) m_memoryMaxSize;
     Field(uint32) m_tableInitSize;
@@ -182,7 +191,8 @@ private:
 
     Field(uint32) m_startFuncIndex;
 
-    FieldNoBarrier(ArenaAllocator) m_alloc;
+    FieldNoBarrier(ArenaAllocator*) m_alloc;
 };
 
 } // namespace Js
+#endif

@@ -65,8 +65,7 @@ namespace Js
         }
     }
 
-    __declspec(naked)
-        Var WasmLibrary::WasmDeferredParseInternalThunk(RecyclableObject* function, CallInfo callInfo, ...)
+    __declspec(naked) Var WasmLibrary::WasmDeferredParseInternalThunk(RecyclableObject* function, CallInfo callInfo, ...)
     {
         // Register functions
         __asm
@@ -110,33 +109,23 @@ Js::JavascriptMethod Js::WasmLibrary::WasmDeferredParseEntryPoint(Js::AsmJsScrip
     Wasm::WasmReaderInfo* readerInfo = info->GetWasmReaderInfo();
     if (readerInfo)
     {
-        info->SetWasmReaderInfo(nullptr);
         try
         {
             Wasm::WasmBytecodeGenerator::GenerateFunctionBytecode(scriptContext, readerInfo);
             func->GetDynamicType()->SetEntryPoint(Js::AsmJsExternalEntryPoint);
             entrypointInfo->jsMethod = AsmJsDefaultEntryThunk;
-            // Do MTJRC/MAIC:0 check
-#if ENABLE_DEBUG_CONFIG_OPTIONS
-            if (CONFIG_FLAG(ForceNative) || CONFIG_FLAG(MaxAsmJsInterpreterRunCount) == 0)
-            {
-                GenerateFunction(scriptContext->GetNativeCodeGenerator(), body, func);
-                body->SetIsAsmJsFullJitScheduled(true);
-            }
-#endif
+            WAsmJs::JitFunctionIfReady(func);
         }
         catch (Wasm::WasmCompilationException& ex)
         {
             char16* originalMessage = ex.ReleaseErrorMessage();
-            intptr_t offset = readerInfo->m_module->GetReader()->GetCurrentOffset();
-            intptr_t start = readerInfo->m_funcInfo->m_readerInfo.startOffset;
-            uint32 size = readerInfo->m_funcInfo->m_readerInfo.size;
+            Wasm::BinaryLocation location = readerInfo->m_module->GetReader()->GetCurrentLocation();
 
-            Wasm::WasmCompilationException newEx = Wasm::WasmCompilationException(
-                _u("function %s at offset %d/%d: %s"),
+            Wasm::WasmCompilationException newEx(
+                _u("function %s at offset %u/%u (0x%x/0x%x): %s"),
                 body->GetDisplayName(),
-                offset - start,
-                size,
+                location.offset, location.size,
+                location.offset, location.size,
                 originalMessage
             );
             SysFreeString(originalMessage);
@@ -144,11 +133,13 @@ Js::JavascriptMethod Js::WasmLibrary::WasmDeferredParseEntryPoint(Js::AsmJsScrip
             JavascriptLibrary *library = scriptContext->GetLibrary();
             JavascriptError *pError = library->CreateWebAssemblyCompileError();
             JavascriptError::SetErrorMessage(pError, WASMERR_WasmCompileError, msg, scriptContext);
+            SysFreeString(msg);
 
             func->GetDynamicType()->SetEntryPoint(WasmLazyTrapCallback);
             entrypointInfo->jsMethod = WasmLazyTrapCallback;
             info->SetLazyError(pError);
         }
+        info->SetWasmReaderInfo(nullptr);
     }
     else
     {

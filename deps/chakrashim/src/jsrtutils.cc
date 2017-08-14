@@ -21,6 +21,10 @@
 #include <stdarg.h>
 #include "jsrtutils.h"
 #include <string>
+#if !defined(_WIN32) && !defined(__APPLE__)
+#include <limits.h>  // UINT_MAX
+#endif
+#include "pal/pal.h"
 
 namespace jsrt {
 
@@ -282,11 +286,20 @@ JsErrorCode CloneObject(JsValueRef source,
 JsErrorCode HasOwnProperty(JsValueRef object,
                            JsValueRef prop,
                            JsValueRef *result) {
-  JsValueRef hasOwnPropertyFunction =
-    ContextShim::GetCurrent()->GetHasOwnPropertyFunction();
+  if (result == nullptr) {
+    return JsErrorInvalidArgument;
+  }
 
-  JsValueRef args[] = { object, prop };
-  return JsCallFunction(hasOwnPropertyFunction, args, _countof(args), result);
+  *result = JS_INVALID_REFERENCE;
+
+  JsPropertyIdRef propId = JS_INVALID_REFERENCE;
+  IfJsErrorRet(GetPropertyIdFromValue(prop, &propId));
+
+  bool hasOwnProperty = false;
+  IfJsErrorRet(JsHasOwnProperty(object, propId, &hasOwnProperty));
+  IfJsErrorRet(JsBoolToBoolean(hasOwnProperty, result));
+
+  return JsNoError;
 }
 
 JsErrorCode GetOwnPropertyDescriptor(JsValueRef ref,
@@ -899,22 +912,34 @@ JsValueRef CHAKRA_CALLBACK CollectGarbage(
 
 void IdleGC(uv_timer_t *timerHandler) {
 #ifndef NODE_ENGINE_CHAKRA
-  unsigned int nextIdleTicks;
-  CHAKRA_VERIFY(JsIdle(&nextIdleTicks) == JsNoError);
+  static unsigned int prevIdleTicks = 0;
+  static DWORD prevTicks = 0;
+
+  unsigned int currentIdleTicks = 0;
+  unsigned int diffIdleTicks = 0, diffTicks = 0;
+
+  CHAKRA_VERIFY(JsIdle(&currentIdleTicks) == JsNoError);
   DWORD currentTicks = GetTickCount();
+
+  diffIdleTicks = currentIdleTicks - prevIdleTicks;
+  prevIdleTicks = currentIdleTicks;
+
+  diffTicks = currentTicks - prevTicks;
+  prevTicks = currentTicks;
 
   // If idleGc completed, we don't need to schedule anything.
   // simply reset the script execution flag so that idleGC
   // is retriggered only when scripts are executed.
-  if (nextIdleTicks == UINT_MAX) {
+  if (currentIdleTicks == UINT_MAX) {
     IsolateShim::GetCurrent()->ResetScriptExecuted();
     IsolateShim::GetCurrent()->ResetIsIdleGcScheduled();
     return;
   }
 
   // If IdleGC didn't complete, retry doing it after diff.
-  if (nextIdleTicks > currentTicks) {
-    unsigned int diff = nextIdleTicks - currentTicks;
+  if (diffIdleTicks > diffTicks) {
+    unsigned int diff = diffIdleTicks - diffTicks;
+    if (diff > 2000) diff = 2000;  // limit the difference to 2s
     ScheduleIdleGcTask(diff);
   } else {
     IsolateShim::GetCurrent()->ResetIsIdleGcScheduled();
@@ -957,26 +982,54 @@ StringUtf8::~StringUtf8() {
   }
 }
 
+char* StringUtf8::Detach() {
+  char* str = _str;
+  _str = nullptr;
+  _length = 0;
+  return str;
+}
+
+JsErrorCode StringUtf8::LengthFrom(JsValueRef strRef) {
+  CHAKRA_ASSERT(_length == 0);
+
+  size_t len = 0;
+  IfJsErrorRet(JsCopyString(strRef, nullptr, 0, nullptr, &len));
+
+  _length = len;
+  return JsNoError;
+}
+
 JsErrorCode StringUtf8::From(JsValueRef strRef) {
   CHAKRA_ASSERT(!_str);
 
-  size_t len = 0;
-  IfJsErrorRet(JsCopyString(strRef, nullptr, 0, &len));
+  int strLength = 0;
+  IfJsErrorRet(JsGetStringLength(strRef, &strLength));
 
-  char* buffer = reinterpret_cast<char*>(malloc(len+1));
-  CHAKRA_VERIFY(buffer != nullptr);
+  // assume string contains ascii characters only
+  _str = reinterpret_cast<char*>(malloc(strLength + 1));
+  CHAKRA_VERIFY(_str != nullptr);
 
   size_t written = 0;
-  JsErrorCode errorCode = JsCopyString(strRef, buffer, len, &written);
+  size_t actualLength = 0;
+  IfJsErrorRet(JsCopyString(strRef, _str, strLength, &written, &actualLength));
 
-  if (errorCode == JsNoError) {
-    CHAKRA_ASSERT(len == written);
-    buffer[len] = '\0';
-    _str = buffer;
-    _length = static_cast<int>(len);
+  // if string contains unicode characters, take slow path
+  if (actualLength != written) {
+    // free previously allocated buffer
+    free(_str);
+
+    _str = reinterpret_cast<char*>(malloc(actualLength + 1));
+    CHAKRA_VERIFY(_str != nullptr);
+
+    IfJsErrorRet(JsCopyString(strRef, _str, actualLength, &written, nullptr));
+    CHAKRA_ASSERT(actualLength == written);
+  } else {
+    CHAKRA_ASSERT(strLength == written);
   }
 
-  return errorCode;
+  _str[written] = '\0';
+  _length = written;
+  return JsNoError;
 }
 
 }  // namespace jsrt

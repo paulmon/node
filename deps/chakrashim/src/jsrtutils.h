@@ -104,6 +104,12 @@ class StringUtf8 {
   operator const char *() const { return _str; }
   int length() const { return static_cast<int>(_length); }
   JsErrorCode From(JsValueRef strRef);
+  // This just initializes length field. _str will remain uninitialized.
+  // Use `From()` to initialize _str and _length
+  JsErrorCode LengthFrom(JsValueRef strRef);
+  // Detach the underlying `_str`. The caller is responsible to free this
+  // buffer
+  char* Detach();
 
  private:
   // Disallow copying and assigning

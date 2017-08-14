@@ -64,8 +64,9 @@ public:
         , m_ldSlots(nullptr)
         , m_loopCounterSym(nullptr)
         , callTreeHasSomeProfileInfo(false)
+        , finallyBlockLevel(0)
         , m_saveLoopImplicitCallFlags(nullptr)
-        , catchOffsetStack(nullptr)
+        , handlerOffsetStack(nullptr)
         , m_switchAdapter(this)
         , m_switchBuilder(&m_switchAdapter)
         , m_stackFuncPtrSym(nullptr)
@@ -224,7 +225,9 @@ private:
         AssertMsg(this->RegIsTemp(reg), "Processing non-temp reg as a temp?");
         AssertMsg(this->tempMap, "Processing non-temp reg without a temp map?");
 
-        return this->tempMap[reg - this->firstTemp];
+        Js::RegSlot tempIndex = reg - this->firstTemp;
+        AssertOrFailFast(tempIndex < m_func->GetJITFunctionBody()->GetTempCount());
+        return this->tempMap[tempIndex];
     }
 
     void                SetMappedTemp(Js::RegSlot reg, SymID tempId)
@@ -232,7 +235,9 @@ private:
         AssertMsg(this->RegIsTemp(reg), "Processing non-temp reg as a temp?");
         AssertMsg(this->tempMap, "Processing non-temp reg without a temp map?");
 
-        this->tempMap[reg - this->firstTemp] = tempId;
+        Js::RegSlot tempIndex = reg - this->firstTemp;
+        AssertOrFailFast(tempIndex < m_func->GetJITFunctionBody()->GetTempCount());
+        this->tempMap[tempIndex] = tempId;
     }
 
     BOOL                GetTempUsed(Js::RegSlot reg)
@@ -240,7 +245,9 @@ private:
         AssertMsg(this->RegIsTemp(reg), "Processing non-temp reg as a temp?");
         AssertMsg(this->fbvTempUsed, "Processing non-temp reg without a used BV?");
 
-        return this->fbvTempUsed->Test(reg - this->firstTemp);
+        Js::RegSlot tempIndex = reg - this->firstTemp;
+        AssertOrFailFast(tempIndex < m_func->GetJITFunctionBody()->GetTempCount());
+        return this->fbvTempUsed->Test(tempIndex);
     }
 
     void                SetTempUsed(Js::RegSlot reg, BOOL used)
@@ -248,13 +255,15 @@ private:
         AssertMsg(this->RegIsTemp(reg), "Processing non-temp reg as a temp?");
         AssertMsg(this->fbvTempUsed, "Processing non-temp reg without a used BV?");
 
+        Js::RegSlot tempIndex = reg - this->firstTemp;
+        AssertOrFailFast(tempIndex < m_func->GetJITFunctionBody()->GetTempCount());
         if (used)
         {
-            this->fbvTempUsed->Set(reg - this->firstTemp);
+            this->fbvTempUsed->Set(tempIndex);
         }
         else
         {
-            this->fbvTempUsed->Clear(reg - this->firstTemp);
+            this->fbvTempUsed->Clear(tempIndex);
         }
     }
 
@@ -323,7 +332,8 @@ private:
     Js::StatementReader<Js::FunctionBody::ArenaStatementMapList> m_statementReader;
     SList<IR::Instr *> *m_argStack;
     SList<BranchReloc*> *branchRelocList;
-    SList<uint>         *catchOffsetStack;
+    typedef Pair<uint, bool> handlerStackElementType;
+    SList<handlerStackElementType>         *handlerOffsetStack;
     SymID *             tempMap;
     BVFixed *           fbvTempUsed;
     Js::RegSlot         firstTemp;
@@ -339,6 +349,7 @@ private:
     StackSym*           m_loopCounterSym;
     StackSym *          m_stackFuncPtrSym;
     bool                callTreeHasSomeProfileInfo;
+    uint                finallyBlockLevel;
 
     // Keep track of how many args we have on the stack whenever
     // we make a call so that the max stack used over all calls can be

@@ -116,7 +116,8 @@ namespace Js
 
         static bool Is(void* instance)
         {
-            return VirtualTableInfo<Js::ConsoleScopeActivationObject>::HasVirtualTable(instance);
+            return VirtualTableInfo<ConsoleScopeActivationObject>::HasVirtualTable(instance)
+                || VirtualTableInfo<CrossSiteObject<ConsoleScopeActivationObject>>::HasVirtualTable(instance);
         }
 
 #if ENABLE_TTD
@@ -149,9 +150,9 @@ namespace Js
             }
         }
 
-        virtual BOOL GetProperty(Var originalInstance, PropertyId propertyId, Var *value, PropertyValueInfo *info, ScriptContext *requestContext) override;
-        virtual BOOL GetProperty(Var originalInstance, JavascriptString* propertyNameString, Var *value, PropertyValueInfo *info, ScriptContext *requestContext) override;
-        virtual BOOL GetPropertyReference(Var originalInstance, PropertyId propertyId, Var *value, PropertyValueInfo *info, ScriptContext *requestContext) override;
+        virtual PropertyQueryFlags GetPropertyQuery(Var originalInstance, PropertyId propertyId, Var *value, PropertyValueInfo *info, ScriptContext *requestContext) override;
+        virtual PropertyQueryFlags GetPropertyQuery(Var originalInstance, JavascriptString* propertyNameString, Var *value, PropertyValueInfo *info, ScriptContext *requestContext) override;
+        virtual PropertyQueryFlags GetPropertyReferenceQuery(Var originalInstance, PropertyId propertyId, Var *value, PropertyValueInfo *info, ScriptContext *requestContext) override;
         virtual void InvalidateCachedScope() override sealed;
 
         bool IsCommitted() const { return committed; }
@@ -183,21 +184,25 @@ namespace Js
 
         static PropertyId GetCachedFuncCount(const PropertyIdArray *propIds)
         {
+            AssertOrFailFast(propIds->extraSlots > 0);
             return ActivationObjectEx::GetCachedScopeInfo(propIds)[0];
         }
 
         static PropertyId GetFirstFuncSlot(const PropertyIdArray *propIds)
         {
+            AssertOrFailFast(propIds->extraSlots > 1);
             return ActivationObjectEx::GetCachedScopeInfo(propIds)[1];
         }
 
         static PropertyId GetFirstVarSlot(const PropertyIdArray *propIds)
         {
+            AssertOrFailFast(propIds->extraSlots > 2);
             return ActivationObjectEx::GetCachedScopeInfo(propIds)[2];
         }
 
         static PropertyId GetLiteralObjectRef(const PropertyIdArray *propIds)
         {
+            AssertOrFailFast(propIds->extraSlots > 3);
             return ActivationObjectEx::GetCachedScopeInfo(propIds)[3];
         }
 
@@ -206,6 +211,12 @@ namespace Js
         static bool Is(void* instance)
         {
             return VirtualTableInfo<Js::ActivationObjectEx>::HasVirtualTable(instance);
+        }
+
+        static ActivationObjectEx * FromVar(Var instance)
+        {
+            AssertOrFailFast(Is(instance));
+            return reinterpret_cast<ActivationObjectEx *>(instance);
         }
 
     private:

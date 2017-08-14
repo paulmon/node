@@ -119,6 +119,7 @@
         'src/base/platform/platform.h',
         'src/codexassert.cpp',
         'src/iotstub.cc',
+        'src/pal/pal.cc',
         'src/jsrtcachedpropertyidref.inc',
         'src/jsrtcontextcachedobj.inc',
         'src/jsrtcontextshim.cc',

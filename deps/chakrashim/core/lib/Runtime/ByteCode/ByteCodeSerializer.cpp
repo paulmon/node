@@ -39,12 +39,12 @@ namespace Js
     const int magicEndOfCacheIdToPropIdMap = *(int*)"]cid";
     const int magicStartOfReferencedPropIdMap = *(int*)"rid[";
     const int magicEndOfReferencedPropIdMap = *(int*)"]rid";
-    const int magicStartOfPropertyIdsForScopeSlotArray = *(int*)"scope[";
-    const int magicEndOfPropertyIdsForScopeSlotArray = *(int*)"]scope";
-    const int magicStartOfDebuggerScopes = *(int*)"dbgscope[";
-    const int magicEndOfDebuggerScopes = *(int*)"]dbgscope";
-    const int magicStartOfDebuggerScopeProperties = *(int*)"dbgscopeprop[";
-    const int magicEndOfDebuggerScopeProperties = *(int*)"]dbgscopeprop";
+    const int magicStartOfPropertyIdsForScopeSlotArray = *(int*)"scp[";
+    const int magicEndOfPropertyIdsForScopeSlotArray = *(int*)"]scp";
+    const int magicStartOfDebuggerScopes = *(int*)"dsc[";
+    const int magicEndOfDebuggerScopes = *(int*)"]dsc";
+    const int magicStartOfDebuggerScopeProperties = *(int*)"dsp[";
+    const int magicEndOfDebuggerScopeProperties = *(int*)"]dsp";
     const int magicStartOfAux = *(int*)"aux[";
     const int magicEndOfAux = *(int*)"]aux";
     const int magicStartOfAuxVarArray = *(int*)"ava[";
@@ -57,12 +57,14 @@ namespace Js
     const int magicEndOfAuxPropIdArray = *(int*)"]api";
     const int magicStartOfAuxFuncInfoArray = *(int*)"afi[";
     const int magicEndOfAuxFuncInfoArray = *(int*)"]afi";
-    const int magicStartOfAsmJsFuncInfo = *(int*)"asmfuncinfo[";
-    const int magicEndOfAsmJsFuncInfo = *(int*)"]asmfuncinfo";
-    const int magicStartOfAsmJsModuleInfo = *(int*)"asmmodinfo[";
-    const int magicEndOfAsmJsModuleInfo = *(int*)"]asmmodinfo";
-    const int magicStartOfPropIdsOfFormals = *(int*)"propIdOfFormals[";
-    const int magicEndOfPropIdsOfFormals = *(int*)"]propIdOfFormals";
+    const int magicStartOfAsmJsFuncInfo = *(int*)"aFI[";
+    const int magicEndOfAsmJsFuncInfo = *(int*)"]aFI";
+    const int magicStartOfAsmJsModuleInfo = *(int*)"ami[";
+    const int magicEndOfAsmJsModuleInfo = *(int*)"]ami";
+    const int magicStartOfPropIdsOfFormals = *(int*)"pif[";
+    const int magicEndOfPropIdsOfFormals = *(int*)"]pif";
+    const int magicStartOfSlotIdToNestedIndexArray = *(int*)"sni[";
+    const int magicEndOfSlotIdToNestedIndexArray = *(int*)"]sni"
 #endif
 
     // Serialized files are architecture specific
@@ -129,6 +131,7 @@ struct SerializedFieldList {
     bool has_m_lineNumber: 1;
     bool has_m_columnNumber: 1;
     bool has_m_nestedCount: 1;
+    bool has_slotIdInCachedScopeToNestedIndexArray : 1;
 };
 
 C_ASSERT(sizeof(GUID)==sizeof(DWORD)*4);
@@ -1372,6 +1375,7 @@ public:
 #ifdef BYTE_CODE_MAGIC_CONSTANTS
         size += PrependInt32(builder, _u("Start String Constant"), magicStartStringConstant);
 #endif
+        size += PrependBool(builder, _u("Is Property String"), VirtualTableInfo<Js::PropertyString>::HasVirtualTable(str));
 
         auto bb = Anew(alloc, ByteBuffer, (str->GetLength() + 1) * sizeof(char16), (void*)str->GetSz());
         size += PrependByteBuffer(builder, _u("String Constant 16 Value"), bb);
@@ -1562,6 +1566,27 @@ public:
         size += PrependInt32(builder, _u("End PropertyIdsForScopeSlotsArray"), magicEndOfPropertyIdsForScopeSlotArray);
 #endif
 
+        return size;
+    }
+
+    uint32 AddSlotIdInCachedScopeToNestedIndexArray(BufferBuilderList& builder, FunctionBody * functionBody)
+    {
+        uint32 size = 0;
+
+#ifdef BYTE_CODE_MAGIC_CONSTANTS
+        size += PrependInt32(builder, _u("Start SlotIdInCachedScopeToNestedIndexArray"), magicStartOfSlotIdToNestedIndexArray);
+#endif
+
+        Js::AuxArray<uint32> * slotIdToNestedIndexArray = functionBody->GetSlotIdInCachedScopeToNestedIndexArray();
+        size += PrependInt32(builder, _u("SlotIdInCachedScopeToNestedIndexArray count"), slotIdToNestedIndexArray->count);
+        for (uint i = 0; i < slotIdToNestedIndexArray->count; i++)
+        {
+            size += PrependInt32(builder, _u("Nested function index for slot id in cached scope"), slotIdToNestedIndexArray->elements[i]);
+        }
+
+#ifdef BYTE_CODE_MAGIC_CONSTANTS
+        size += PrependInt32(builder, _u("End magicStartOfSlotIdToNestedIndexArray"), magicEndOfSlotIdToNestedIndexArray);
+#endif
         return size;
     }
 
@@ -1820,7 +1845,6 @@ public:
         size += PrependInt16(builder, _u("ArgSizeArrayLength"), funcInfo->GetArgSizeArrayLength());
         size += PrependUInt32Array(builder, funcInfo->GetArgSizeArrayLength(), funcInfo->GetArgsSizesArray());
         size += PrependByteArray(builder, funcInfo->GetArgCount(), (byte*)funcInfo->GetArgTypeArray());
-        size += PrependByte(builder, _u("IsHeapBufferConst"), funcInfo->IsHeapBufferConst());
         size += PrependByte(builder, _u("UsesHeapBuffer"), funcInfo->UsesHeapBuffer());
         for (int i = WAsmJs::LIMIT - 1; i >= 0; --i)
         {
@@ -1934,8 +1958,6 @@ public:
         size += PrependStruct(builder, _u("SIMDBuiltinBV"), &moduleInfo->GetAsmSimdBuiltinUsed());
 
         size += PrependInt32(builder, _u("MaxHeapAccess"), moduleInfo->GetMaxHeapAccess());
-        size += PrependByte(builder, _u("UsesChangeHeap"), moduleInfo->GetUsesChangeHeap());
-
 
 #ifdef BYTE_CODE_MAGIC_CONSTANTS
         size += PrependInt32(builder, _u("End Asm.js Module Info"), magicEndOfAsmJsModuleInfo);
@@ -2132,6 +2154,16 @@ public:
 
             AddPropertyIdsForScopeSlotArray(builder, function);
 
+            if (function->GetSlotIdInCachedScopeToNestedIndexArray() == nullptr)
+            {
+                definedFields.has_slotIdInCachedScopeToNestedIndexArray = false;
+            }
+            else
+            {
+                definedFields.has_slotIdInCachedScopeToNestedIndexArray = true;
+                AddSlotIdInCachedScopeToNestedIndexArray(builder, function);
+            }
+
             uint debuggerScopeSlotArraySize = GetDebuggerScopeSlotArrayCount(function);
             PrependInt32(builder, _u("Debugger Scope Slot Array Size"), debuggerScopeSlotArraySize);
             AddSlotArrayDebuggerScopes(builder, function, debuggerScopeSlotArraySize);
@@ -2269,7 +2301,7 @@ public:
         return ReadFunctionBodyFlags(buffer, remainingBytes, value);
     }
 
-    const byte* ReadBool(const byte * buffer, bool * value)
+    const byte* ReadBool(const byte * buffer, _Out_ bool * value)
     {
         auto remainingBytes = (raw + totalSize) - buffer;
         Assert(remainingBytes >= sizeof(bool));
@@ -2723,21 +2755,22 @@ public:
         return S_OK;
     }
 
-    const byte* ReadStringConstant(const byte* current, FunctionBody* function, LPCWSTR& string, uint32& len)
+    const byte* ReadStringConstant(const byte* current, FunctionBody* function, _Out_ LPCWSTR * string, _Out_ uint32 * len, _Out_ bool * isPropertyString)
     {
 #ifdef BYTE_CODE_MAGIC_CONSTANTS
         int constant;
         current = ReadInt32(current, &constant);
         Assert(constant == magicStartStringConstant);
 #endif
+        current = ReadBool(current, isPropertyString);
         int stringId;
         current = ReadInt32(current, &stringId);
 #ifdef BYTE_CODE_MAGIC_CONSTANTS
         current = ReadInt32(current, &constant);
         Assert(constant == magicEndStringConstant);
 #endif
-        string = GetString16ById(stringId);
-        len = GetString16LengthById(stringId);
+        *string = GetString16ById(stringId);
+        *len = GetString16LengthById(stringId);
 
         return current;
     }
@@ -2754,13 +2787,23 @@ public:
 
         LPCWSTR string;
         uint32 len;
+        bool isPropertyString = false;
         uint32 rawlen = 0;
 
         for (int i = 0; i < arrayLength; i++)
         {
-            current = ReadStringConstant(current, function, string, len);
-
-            JavascriptString* str = JavascriptString::NewCopyBuffer(string, len, scriptContext);
+            current = ReadStringConstant(current, function, &string, &len, &isPropertyString);
+            JavascriptString* str = nullptr;
+            if (isPropertyString)
+            {
+                PropertyRecord const * propertyRecord;
+                scriptContext->GetOrAddPropertyRecord(string, len, &propertyRecord);
+                str = scriptContext->GetPropertyString(propertyRecord->GetPropertyId());
+            }
+            else
+            {
+                str = JavascriptString::NewCopyBuffer(string, len, scriptContext);
+            }
             callsite->SetItemWithAttributes(i, str, PropertyEnumerable);
         }
 
@@ -2768,10 +2811,20 @@ public:
 
         for (int i = 0; i < arrayLength; i++)
         {
-            current = ReadStringConstant(current, function, string, len);
+            current = ReadStringConstant(current, function, &string, &len, &isPropertyString);
             rawlen += len;
 
-            JavascriptString* str = JavascriptString::NewCopyBuffer(string, len, scriptContext);
+            JavascriptString* str = nullptr;
+            if (isPropertyString)
+            {
+                PropertyRecord const * propertyRecord;
+                scriptContext->GetOrAddPropertyRecord(string, len, &propertyRecord);
+                str = scriptContext->GetPropertyString(propertyRecord->GetPropertyId());
+            }
+            else
+            {
+                str = JavascriptString::NewCopyBuffer(string, len, scriptContext);
+            }
             rawArray->SetItemWithAttributes(i, str, PropertyEnumerable);
         }
 
@@ -2876,14 +2929,15 @@ public:
                 {
                     LPCWSTR string;
                     uint32 len;
-                    current = ReadStringConstant(current, function, string, len);
+                    bool isPropertyString = false;
+                    current = ReadStringConstant(current, function, &string, &len, &isPropertyString);
 
-                    function->RecordStrConstant(reg, string, len);
+                    function->RecordStrConstant(reg, string, len, isPropertyString);
                     break;
                 }
             case ctStringTemplateCallsite:
                 {
-                    Var callsite;
+                    Var callsite = nullptr;
                     current = ReadStringTemplateCallsiteConstant(current, function, callsite);
 
                     function->RecordConstant(reg, callsite);
@@ -2964,6 +3018,33 @@ public:
 
         return current;
     }
+
+    const byte * ReadSlotIdInCachedScopeToNestedIndexArray(const byte * current, FunctionBody * functionBody)
+    {
+#ifdef BYTE_CODE_MAGIC_CONSTANTS
+        int constant;
+        current = ReadInt32(current, &constant);
+        Assert(constant == magicStartOfSlotIdToNestedIndexArray);
+#endif
+        uint32 count;
+        current = ReadUInt32(current, &count);
+
+        Js::AuxArray<uint32> * slotIdInCachedScopeToNestedIndexArray = functionBody->AllocateSlotIdInCachedScopeToNestedIndexArray(count);
+            
+        uint32 value;
+        for (uint i = 0; i < count; i++)
+        {
+            current = ReadUInt32(current, &value);
+            slotIdInCachedScopeToNestedIndexArray->elements[i] = value;
+        }
+#ifdef BYTE_CODE_MAGIC_CONSTANTS
+        current = ReadInt32(current, &constant);
+        Assert(constant == magicEndOfSlotIdToNestedIndexArray);
+#endif
+
+        return current;
+    }
+
 
     const byte * ReadSlotArrayDebuggerScopeProperties(const byte * current, FunctionBody* function, DebuggerScope* debuggerScope, uint propertyCount)
     {
@@ -3294,8 +3375,6 @@ public:
 
         bool boolVal;
         current = ReadBool(current, &boolVal);
-        funcInfo->SetIsHeapBufferConst(boolVal);
-        current = ReadBool(current, &boolVal);
         funcInfo->SetUsesHeapBuffer(boolVal);
 
         for (int i = WAsmJs::LIMIT - 1; i >= 0; --i)
@@ -3475,10 +3554,6 @@ public:
         uint maxAccess;
         current = ReadUInt32(current, &maxAccess);
         moduleInfo->SetMaxHeapAccess(maxAccess);
-
-        bool usesChangeHeap;
-        current = ReadBool(current, &usesChangeHeap);
-        moduleInfo->SetUsesChangeHeap(usesChangeHeap);
 
 #ifdef BYTE_CODE_MAGIC_CONSTANTS
         current = ReadInt32(current, &constant);
@@ -3752,6 +3827,11 @@ public:
 
             current = ReadPropertyIdsForScopeSlotArray(current, *functionBody);
 
+            if (definedFields->has_slotIdInCachedScopeToNestedIndexArray)
+            {
+                current = ReadSlotIdInCachedScopeToNestedIndexArray(current, *functionBody);
+            }
+
             uint debuggerScopeCount = 0;
             current = ReadUInt32(current, &debuggerScopeCount);
             current = ReadSlotArrayDebuggerScopes(current, *functionBody, debuggerScopeCount);
@@ -3793,7 +3873,7 @@ public:
         {
             for(auto i = 0; i<nestedCount; ++i)
             {
-                const byte * nestedFunctionBytes;
+                const byte * nestedFunctionBytes = nullptr;
                 current = ReadOffsetAsPointer(current, &nestedFunctionBytes);
                 if (nestedFunctionBytes == nullptr)
                 {
@@ -3801,7 +3881,7 @@ public:
                 }
                 else
                 {
-                    FunctionProxy* nestedFunction;
+                    FunctionProxy* nestedFunction = nullptr;
 
                     // If we should deserialize nested functions, go ahead and do so
                     // If we shouldn't, and we're currently deserializing a function proxy

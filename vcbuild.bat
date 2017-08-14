@@ -47,7 +47,11 @@ set test_check_deopts=
 set engine=chakracore
 set chakracore_test_build=
 set js_test_suites=async-hooks inspector known_issues message parallel sequential
+set v8_test_options=
+set v8_build_options=
 set "common_test_suites=%js_test_suites% doctool addons addons-napi&set build_addons=1&set build_addons_napi=1"
+set http2_debug=
+set nghttp2_debug=
 
 :next-arg
 if "%1"=="" goto args-done
@@ -87,6 +91,10 @@ if /i "%1"=="test-async-hooks"  set test_args=%test_args% async-hooks&goto arg-o
 if /i "%1"=="test-all"      set test_args=%test_args% gc internet pummel %common_test_suites%&set build_testgc_addon=1&set cpplint=1&set jslint=1&goto arg-ok
 if /i "%1"=="test-node-inspect" set test_node_inspect=1&goto arg-ok
 if /i "%1"=="test-check-deopts" set test_check_deopts=1&goto arg-ok
+if /i "%1"=="test-v8"       set test_v8=1&set custom_v8_test=1&goto arg-ok
+if /i "%1"=="test-v8-intl"  set test_v8_intl=1&set custom_v8_test=1&goto arg-ok
+if /i "%1"=="test-v8-benchmarks" set test_v8_benchmarks=1&set custom_v8_test=1&goto arg-ok
+if /i "%1"=="test-v8-all"       set test_v8=1&set test_v8_intl=1&set test_v8_benchmarks=1&set custom_v8_test=1&goto arg-ok
 if /i "%1"=="jslint"        set jslint=1&goto arg-ok
 if /i "%1"=="jslint-ci"     set jslint_ci=1&goto arg-ok
 if /i "%1"=="cpplint"       set cpplint=1&goto arg-ok
@@ -110,6 +118,8 @@ if /i "%1"=="chakra"        set engine=chakra&goto arg-ok
 if /i "%1"=="sdk"           set sdk=1&goto arg-ok
 if /i "%1"=="uwp-dll"       set target_type=uwp-dll&goto arg-ok
 if /i "%1"=="no-NODE-OPTIONS"	set no_NODE_OPTIONS=1&goto arg-ok
+if /i "%1"=="debug-http2"   set debug_http2=1&goto arg-ok
+if /i "%1"=="debug-nghttp2" set debug_nghttp2=1&goto arg-ok
 
 echo Error: invalid command line option `%1`.
 exit /b 1
@@ -164,6 +174,9 @@ if defined enable_vtune_arg set configure_flags=%configure_flags% --enable-vtune
 if defined dll set configure_flags=%configure_flags% --shared
 if defined enable_static set configure_flags=%configure_flags% --enable-static
 if defined no_NODE_OPTIONS set configure_flags=%configure_flags% --without-node-options
+
+REM if defined debug_http2 set configure_flags=%configure_flags% --debug-http2
+REM if defined debug_nghttp2 set configure_flags=%configure_flags% --debug-nghttp2
 
 if "%i18n_arg%"=="full-icu" set configure_flags=%configure_flags% --with-intl=full-icu
 if "%i18n_arg%"=="small-icu" set configure_flags=%configure_flags% --with-intl=small-icu
@@ -225,6 +238,8 @@ if "_%VisualStudioVersion%_" == "_15.0_" if "_%VSCMD_ARG_TGT_ARCH%_"=="_%target_
 set "VSINSTALLDIR="
 call tools\msvs\vswhere_usability_wrapper.cmd
 if "_%VCINSTALLDIR%_" == "__" goto vs-set-2015
+@rem prevent VsDevCmd.bat from changing the current working directory
+set "VSCMD_START_DIR=%CD%"
 set vcvars_call="%VCINSTALLDIR%\Auxiliary\Build\vcvarsall.bat" %vcvarsall_arg%
 echo calling: %vcvars_call%
 call %vcvars_call%
@@ -512,8 +527,7 @@ set USE_EMBEDDED_NODE_INSPECT=1
 goto node-tests
 
 :node-tests
-echo node-tests
-if "%test_args%"=="" goto cpplint
+if "%test_args%"=="" goto test-v8
 if "%config%"=="Debug" set test_args=--mode=debug %test_args%
 if "%config%"=="Release" set test_args=--mode=release %test_args%
 echo running 'cctest %cctest_args%'
@@ -521,6 +535,12 @@ echo running 'cctest %cctest_args%'
 echo python tools\test.py %test_args%
 pause
 call :run-python tools\test.py %test_args%
+goto test-v8
+
+:test-v8
+if not defined custom_v8_test goto cpplint
+call tools/test-v8.bat
+if errorlevel 1 goto exit
 goto cpplint
 
 :cpplint
@@ -592,7 +612,7 @@ echo Failed to create vc project files.
 goto exit
 
 :help
-echo vcbuild.bat [debug/release] [msi] [test/test-ci/test-all/test-uv/test-inspector/test-internet/test-pummel/test-simple/test-message/test-async-hooks] [clean] [noprojgen] [small-icu/full-icu/without-intl] [nobuild] [sign] [x86/x64] [vs2015/vs2017] [download-all] [enable-vtune] [lint/lint-ci] [no-NODE-OPTIONS]
+echo vcbuild.bat [debug/release] [msi] [test/test-ci/test-all/test-uv/test-inspector/test-internet/test-pummel/test-simple/test-message/test-async-hooks/test-v8/test-v8-intl/test-v8-benchmarks/test-v8-all] [clean] [noprojgen] [small-icu/full-icu/without-intl] [nobuild] [sign] [x86/x64] [vs2015/vs2017] [download-all] [enable-vtune] [lint/lint-ci] [no-NODE-OPTIONS]
 echo Examples:
 echo   vcbuild.bat                : builds release build
 echo   vcbuild.bat debug          : builds debug build
@@ -605,7 +625,7 @@ goto exit
 :run-python
 call tools\msvs\find_python.cmd
 if errorlevel 1 echo Could not find python2 & goto :exit
-set cmd1=%VCBUILD_PYTHON_LOCATION% %*
+set cmd1="%VCBUILD_PYTHON_LOCATION%" %*
 echo %cmd1%
 %cmd1%
 exit /b %ERRORLEVEL%
@@ -613,6 +633,7 @@ exit /b %ERRORLEVEL%
 :exit
 exit /b %errorlevel%
 goto :EOF
+
 
 rem ***************
 rem   Subroutines
@@ -624,7 +645,7 @@ set TAG=
 set FULLVERSION=
 :: Call as subroutine for validation of python
 call :run-python tools\getnodeversion.py > nul
-for /F "tokens=*" %%i in ('%VCBUILD_PYTHON_LOCATION% tools\getnodeversion.py') do set NODE_VERSION=%%i
+for /F "tokens=*" %%i in ('"%VCBUILD_PYTHON_LOCATION%" tools\getnodeversion.py') do set NODE_VERSION=%%i
 if not defined NODE_VERSION (
   echo Cannot determine current version of Node.js
   exit /b 1

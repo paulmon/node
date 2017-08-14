@@ -39,6 +39,7 @@
       'lib/events.js',
       'lib/fs.js',
       'lib/http.js',
+      'lib/http2.js',
       'lib/_http_agent.js',
       'lib/_http_client.js',
       'lib/_http_common.js',
@@ -85,6 +86,7 @@
       'lib/internal/cluster/shared_handle.js',
       'lib/internal/cluster/utils.js',
       'lib/internal/cluster/worker.js',
+      'lib/internal/encoding.js',
       'lib/internal/errors.js',
       'lib/internal/freelist.js',
       'lib/internal/fs.js',
@@ -105,6 +107,9 @@
       'lib/internal/test/unicode.js',
       'lib/internal/url.js',
       'lib/internal/util.js',
+      'lib/internal/http2/core.js',
+      'lib/internal/http2/compat.js',
+      'lib/internal/http2/util.js',
       'lib/internal/v8_prof_polyfill.js',
       'lib/internal/v8_prof_processor.js',
       'lib/internal/streams/lazy_transform.js',
@@ -148,6 +153,7 @@
 
       'dependencies': [
         'node_js2c#host',
+        'deps/nghttp2/nghttp2.gyp:nghttp2'
       ],
 
       'includes': [
@@ -158,7 +164,8 @@
         'src',
         'tools/msvs/genfiles',
         'deps/uv/src/ares',
-        '<(SHARED_INTERMEDIATE_DIR)',
+        '<(SHARED_INTERMEDIATE_DIR)', # for node_natives.h
+        'deps/nghttp2/lib/includes'
       ],
 
       'sources': [
@@ -177,6 +184,8 @@
         'src/node_contextify.cc',
         'src/node_debug_options.cc',
         'src/node_file.cc',
+        'src/node_http2_core.cc',
+        'src/node_http2.cc',
         'src/node_http_parser.cc',
         'src/node_main.cc',
         'src/node_os.cc',
@@ -221,9 +230,12 @@
         'src/node.h',
         'src/node_api.h',
         'src/node_api_types.h',
+        'src/node_http2_core.h',
+        'src/node_http2_core-inl.h',
         'src/node_buffer.h',
         'src/node_constants.h',
         'src/node_debug_options.h',
+        'src/node_http2.h',
         'src/node_internals.h',
         'src/node_javascript.h',
         'src/node_mutex.h',
@@ -266,12 +278,21 @@
         'NODE_WANT_INTERNALS=1',
         # Warn when using deprecated V8 APIs.
         'V8_DEPRECATION_WARNINGS=1',
+        # We're using the nghttp2 static lib
+        'NGHTTP2_STATICLIB'
       ],
 
       'conditions': [
         [ 'node_engine=="chakra"', {
           'sources': [
             'src/node_api_jsrt.cc',
+          ],
+          'conditions': [
+            [ 'OS!="win" and chakracore_use_lto=="true"', {
+              'ldflags': [
+                '-flto',
+              ],
+            }],
           ],
         }, {
           'sources': [
@@ -659,16 +680,7 @@
         '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)trace_event.<(OBJ_SUFFIX)',
       ],
 
-      'defines': [
-        # gtest's ASSERT macros conflict with our own.
-        'GTEST_DONT_DEFINE_ASSERT_EQ=1',
-        'GTEST_DONT_DEFINE_ASSERT_GE=1',
-        'GTEST_DONT_DEFINE_ASSERT_GT=1',
-        'GTEST_DONT_DEFINE_ASSERT_LE=1',
-        'GTEST_DONT_DEFINE_ASSERT_LT=1',
-        'GTEST_DONT_DEFINE_ASSERT_NE=1',
-        'NODE_WANT_INTERNALS=1',
-      ],
+      'defines': [ 'NODE_WANT_INTERNALS=1' ],
 
       'sources': [
         'test/cctest/test_base64.cc',
@@ -700,7 +712,14 @@
           ],
           'sources!': [
             'test/cctest/test_environment.cc', # TODO: Enable these test for node-chakra
-          ]
+          ],
+          'conditions': [
+            [ 'OS!="win" and chakracore_use_lto=="true"', {
+              'ldflags': [
+                '-flto',
+              ],
+            }],
+          ],
         }],
         ['v8_enable_inspector==1', {
           'sources': [

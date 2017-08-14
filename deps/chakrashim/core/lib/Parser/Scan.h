@@ -304,7 +304,6 @@ public:
     bool IsFromExternalSource() { return (m_decodeOptions & utf8::doAllowThreeByteSurrogates) == 0; }
 };
 
-typedef UTF8EncodingPolicyBase<true> NullTerminatedUTF8EncodingPolicy;
 typedef UTF8EncodingPolicyBase<false> NotNullTerminatedUTF8EncodingPolicy;
 
 interface IScanner
@@ -364,9 +363,9 @@ class Scanner : public IScanner, public EncodingPolicy
     typedef typename EncodingPolicy::EncodedCharPtr EncodedCharPtr;
 
 public:
-    static Scanner * Create(Parser* parser, HashTbl *phtbl, Token *ptoken, ErrHandler *perr, Js::ScriptContext *scriptContext)
+    static Scanner * Create(Parser* parser, HashTbl *phtbl, Token *ptoken, Js::ScriptContext *scriptContext)
     {
-        return HeapNewNoThrow(Scanner, parser, phtbl, ptoken, perr, scriptContext);
+        return HeapNewNoThrow(Scanner, parser, phtbl, ptoken, scriptContext);
     }
     void Release(void)
     {
@@ -381,36 +380,42 @@ public:
 
     enum ScanState
     {
-        ScanStateNormal = 0,
-        ScanStateMultiLineComment = 1,
-        ScanStateMultiLineSingleQuoteString = 2,
-        ScanStateMultiLineDoubleQuoteString = 3,
-        ScanStateStringTemplateMiddleOrEnd = 4,
+        ScanStateNormal = 0,       
+        ScanStateStringTemplateMiddleOrEnd = 1,
     };
 
     ScanState GetScanState() { return m_scanState; }
     void SetScanState(ScanState state) { m_scanState = state; }
 
-    bool SetYieldIsKeyword(bool fYieldIsKeyword)
+    bool SetYieldIsKeywordRegion(bool fYieldIsKeywordRegion)
     {
-        bool fPrevYieldIsKeyword = m_fYieldIsKeyword;
-        m_fYieldIsKeyword = fYieldIsKeyword;
-        return fPrevYieldIsKeyword;
+        bool fPrevYieldIsKeywordRegion = m_fYieldIsKeywordRegion;
+        m_fYieldIsKeywordRegion = fYieldIsKeywordRegion;
+        return fPrevYieldIsKeywordRegion;
+    }
+    bool YieldIsKeywordRegion()
+    {
+        return m_fYieldIsKeywordRegion;
     }
     bool YieldIsKeyword()
     {
-        return m_fYieldIsKeyword;
+        return YieldIsKeywordRegion() || this->IsStrictMode();
     }
 
-    bool SetAwaitIsKeyword(bool fAwaitIsKeyword)
+    bool SetAwaitIsKeywordRegion(bool fAwaitIsKeywordRegion)
     {
-        bool fPrevAwaitIsKeyword = m_fAwaitIsKeyword;
-        m_fAwaitIsKeyword = fAwaitIsKeyword;
-        return fPrevAwaitIsKeyword;
+        bool fPrevAwaitIsKeywordRegion = m_fAwaitIsKeywordRegion;
+        m_fAwaitIsKeywordRegion = fAwaitIsKeywordRegion;
+        return fPrevAwaitIsKeywordRegion;
     }
+    bool AwaitIsKeywordRegion()
+    {
+        return m_fAwaitIsKeywordRegion;
+    }
+
     bool AwaitIsKeyword()
     {
-        return m_fAwaitIsKeyword;
+        return AwaitIsKeywordRegion() || this->m_fIsModuleCode;
     }
 
     tokens TryRescanRegExp();
@@ -677,20 +682,18 @@ private:
     EncodedCharPtr m_pchPrevLine;      // beginning of previous line
     size_t m_cMinTokMultiUnits;        // number of multi-unit characters previous to m_pchMinTok
     size_t m_cMinLineMultiUnits;       // number of multi-unit characters previous to m_pchMinLine
-    ErrHandler *m_perr;                // error handler to use
     uint16 m_fStringTemplateDepth;     // we should treat } as string template middle starting character (depth instead of flag)
     BOOL m_fHadEol;
     BOOL m_fIsModuleCode : 1;
     BOOL m_doubleQuoteOnLastTkStrCon :1;
     bool m_OctOrLeadingZeroOnLastTKNumber :1;
-    BOOL m_fSyntaxColor : 1;            // whether we're just syntax coloring
     bool m_EscapeOnLastTkStrCon:1;
     BOOL m_fNextStringTemplateIsTagged:1;   // the next string template scanned has a tag (must create raw strings)
     BYTE m_DeferredParseFlags:2;            // suppressStrPid and suppressIdPid
     charcount_t m_ichCheck;             // character at which completion is to be computed.
     bool es6UnicodeMode;                // True if ES6Unicode Extensions are enabled.
-    bool m_fYieldIsKeyword;             // Whether to treat 'yield' as an identifier or keyword
-    bool m_fAwaitIsKeyword;             // Whether to treat 'await' as an identifier or keyword
+    bool m_fYieldIsKeywordRegion;       // Whether to treat 'yield' as an identifier or keyword
+    bool m_fAwaitIsKeywordRegion;       // Whether to treat 'await' as an identifier or keyword
 
     // Temporary buffer.
     TemporaryBuffer m_tempChBuf;
@@ -711,7 +714,7 @@ private:
     tokens m_tkPrevious;
     size_t m_iecpLimTokPrevious;
 
-    Scanner(Parser* parser, HashTbl *phtbl, Token *ptoken, ErrHandler *perr, Js::ScriptContext *scriptContext);
+    Scanner(Parser* parser, HashTbl *phtbl, Token *ptoken, Js::ScriptContext *scriptContext);
     ~Scanner(void);
 
     void operator delete(void* p, size_t size)
@@ -734,11 +737,9 @@ private:
 
     __declspec(noreturn) void Error(HRESULT hr)
     {
-        Assert(FAILED(hr));
         m_pchMinTok = m_currentCharacter;
         m_cMinTokMultiUnits = this->m_cMultiUnits;
-        AssertMem(m_perr);
-        m_perr->Throw(hr);
+        throw ParseExceptionObject(hr);
     }
 
     const EncodedCharPtr PchBase(void)
@@ -824,5 +825,3 @@ private:
     }
 
 };
-
-typedef Scanner<NullTerminatedUTF8EncodingPolicy> UTF8Scanner;

@@ -21,11 +21,26 @@
 #ifndef _CHAKRACORE_H_
 #define _CHAKRACORE_H_
 
-#include "ChakraCommon.h"
+#if !defined(NTBUILD) && !defined(_CHAKRACOREBUILD)
+#define _CHAKRACOREBUILD
+#endif
 
+#include "ChakraCommon.h"
 #include "ChakraDebug.h"
 
+// Begin ChakraCore only APIs
+#ifdef _CHAKRACOREBUILD
+
 typedef void* JsModuleRecord;
+
+/// <summary>
+///     A reference to an object owned by the SharedArrayBuffer.
+/// </summary>
+/// <remarks>
+///     This represents SharedContents which is heap allocated object, it can be passed through
+///     different runtimes to share the underlying buffer.
+/// </remarks>
+typedef void *JsSharedArrayBufferContentHandle;
 
 typedef enum JsParseModuleSourceFlags
 {
@@ -38,7 +53,8 @@ typedef enum JsModuleHostInfoKind
     JsModuleHostInfo_Exception = 0x01,
     JsModuleHostInfo_HostDefined = 0x02,
     JsModuleHostInfo_NotifyModuleReadyCallback = 0x3,
-    JsModuleHostInfo_FetchImportedModuleCallback = 0x4
+    JsModuleHostInfo_FetchImportedModuleCallback = 0x4,
+    JsModuleHostInfo_FetchImportedModuleFromScriptCallback = 0x5
 } JsModuleHostInfoKind;
 
 /// <summary>
@@ -65,6 +81,21 @@ typedef JsErrorCode(CHAKRA_CALLBACK * FetchImportedModuleCallBack)(_In_ JsModule
 /// holds the exception. Otherwise the referencingModule is ready and the host should schedule execution afterwards.
 /// </remarks>
 /// <param name="referencingModule">The referencing module that have finished running ModuleDeclarationInstantiation step.</param>
+/// <param name="exceptionVar">If nullptr, the module is successfully initialized and host should queue the execution job
+///                           otherwise it's the exception object.</param>
+/// <returns>
+///     true if the operation succeeded, false otherwise.
+/// </returns>
+typedef JsErrorCode(CHAKRA_CALLBACK * FetchImportedModuleFromScriptCallBack)(_In_ JsSourceContext dwReferencingSourceContext, _In_ JsValueRef specifier, _Outptr_result_maybenull_ JsModuleRecord* dependentModuleRecord);
+
+/// <summary>
+///     User implemented callback to get notification when the module is ready.
+/// </summary>
+/// <remarks>
+/// Notify the host after ModuleDeclarationInstantiation step (15.2.1.1.6.4) is finished. If there was error in the process, exceptionVar
+/// holds the exception. Otherwise the referencingModule is ready and the host should schedule execution afterwards.
+/// </remarks>
+/// <param name="dwReferencingSourceContext">The referencing script that calls import()</param>
 /// <param name="exceptionVar">If nullptr, the module is successfully initialized and host should queue the execution job
 ///                           otherwise it's the exception object.</param>
 /// <returns>
@@ -163,7 +194,6 @@ JsGetModuleHostInfo(
     _In_ JsModuleHostInfoKind moduleHostInfo,
     _Outptr_result_maybenull_ void** hostInfo);
 
-#ifdef CHAKRACOREBUILD_
 /// <summary>
 ///     Returns metadata relating to the exception that caused the runtime of the current context
 ///     to be in the exception state and resets the exception state for that runtime. The metadata
@@ -256,13 +286,23 @@ CHAKRA_API
 ///     <para>
 ///         When size of the `buffer` is unknown,
 ///         `buffer` argument can be nullptr.
-///         In that case, `written` argument will return the length needed.
+///         In that case, `actualLength` argument will return the length needed to
+///         accomodate all the UTF8 decoded bytes present in `value`.
+///         `writtenLength` will only get populated when valid `buffer` is passed as
+///          argument.
 ///     </para>
 /// </remarks>
 /// <param name="value">JavascriptString value</param>
 /// <param name="buffer">Pointer to buffer</param>
 /// <param name="bufferSize">Buffer size</param>
-/// <param name="written">Total number of characters written</param>
+/// <param name="writtenLength">Total number of UTF8 decoded bytes written. This is only
+///                             populated when passed with non-null `buffer`,else is
+///                             set to 0.
+/// </param>
+/// <param name="actualLength">Total number of UTF8 decoded bytes present in `value`.
+///                            Useful to initialize buffer of appropriate size that
+///                            can be passed in to this API.
+/// </param>
 /// <returns>
 ///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
 /// </returns>
@@ -271,7 +311,8 @@ CHAKRA_API
         _In_ JsValueRef value,
         _Out_opt_ char* buffer,
         _In_ size_t bufferSize,
-        _Out_opt_ size_t* written);
+        _Out_opt_ size_t* writtenLength,
+        _Out_opt_ size_t* actualLength);
 
 /// <summary>
 ///     Write string value into Utf16 string buffer
@@ -583,5 +624,131 @@ CHAKRA_API
         _In_ JsWeakRef weakRef,
         _Out_ JsValueRef* value);
 
-#endif // CHAKRACOREBUILD_
+/// <summary>
+///     Creates a Javascript SharedArrayBuffer object with shared content get from JsGetSharedArrayBufferContent.
+/// </summary>
+/// <remarks>
+///     Requires an active script context.
+/// </remarks>
+/// <param name="sharedContents">
+///     The storage object of a SharedArrayBuffer which can be shared between multiple thread.
+/// </param>
+/// <param name="result">The new SharedArrayBuffer object.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+JsCreateSharedArrayBufferWithSharedContent(
+    _In_ JsSharedArrayBufferContentHandle sharedContents,
+    _Out_ JsValueRef *result);
+
+/// <summary>
+///     Get the storage object from a SharedArrayBuffer.
+/// </summary>
+/// <remarks>
+///     Requires an active script context.
+/// </remarks>
+/// <param name="sharedArrayBuffer">The SharedArrayBuffer object.</param>
+/// <param name="sharedContents">
+///     The storage object of a SharedArrayBuffer which can be shared between multiple thread.
+///     User should call JsReleaseSharedArrayBufferContentHandle after finished using it.
+/// </param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+JsGetSharedArrayBufferContent(
+    _In_ JsValueRef sharedArrayBuffer,
+    _Out_ JsSharedArrayBufferContentHandle *sharedContents);
+
+/// <summary>
+///     Decrease the reference count on a SharedArrayBuffer storage object.
+/// </summary>
+/// <remarks>
+///     Requires an active script context.
+/// </remarks>
+/// <param name="sharedContents">
+///     The storage object of a SharedArrayBuffer which can be shared between multiple thread.
+/// </param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+JsReleaseSharedArrayBufferContentHandle(
+    _In_ JsSharedArrayBufferContentHandle sharedContents);
+
+/// <summary>
+///     Determines whether an object has a non-inherited property.
+/// </summary>
+/// <remarks>
+///     Requires an active script context.
+/// </remarks>
+/// <param name="object">The object that may contain the property.</param>
+/// <param name="propertyId">The ID of the property.</param>
+/// <param name="hasOwnProperty">Whether the object has the non-inherited property.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+    JsHasOwnProperty(
+        _In_ JsValueRef object,
+        _In_ JsPropertyIdRef propertyId,
+        _Out_ bool *hasOwnProperty);
+
+/// <summary>
+///     Write JS string value into char string buffer without a null terminator
+/// </summary>
+/// <remarks>
+///     <para>
+///         When size of the `buffer` is unknown,
+///         `buffer` argument can be nullptr.
+///         In that case, `written` argument will return the length needed.
+///     </para>
+///     <para>
+///         When start is out of range or &lt; 0, returns JsErrorInvalidArgument
+///         and `written` will be equal to 0.
+///         If calculated length is 0 (It can be due to string length or `start`
+///         and length combination), then `written` will be equal to 0 and call
+///         returns JsNoError
+///     </para>
+///     <para>
+///         The JS string `value` will be converted one utf16 code point at a time,
+///         and if it has code points that do not fit in one byte, those values
+///         will be truncated.
+///     </para>
+/// </remarks>
+/// <param name="value">JavascriptString value</param>
+/// <param name="start">Start offset of buffer</param>
+/// <param name="length">Number of characters to be written</param>
+/// <param name="buffer">Pointer to buffer</param>
+/// <param name="written">Total number of characters written</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+JsCopyStringOneByte(
+    _In_ JsValueRef value,
+    _In_ int start,
+    _In_ int length,
+    _Out_opt_ char* buffer,
+    _Out_opt_ size_t* written);
+
+/// <summary>
+///     Obtains frequently used properties of a data view.
+/// </summary>
+/// <param name="dataView">The data view instance.</param>
+/// <param name="arrayBuffer">The ArrayBuffer backstore of the view.</param>
+/// <param name="byteOffset">The offset in bytes from the start of arrayBuffer referenced by the array.</param>
+/// <param name="byteLength">The number of bytes in the array.</param>
+/// <returns>
+///     The code <c>JsNoError</c> if the operation succeeded, a failure code otherwise.
+/// </returns>
+CHAKRA_API
+    JsGetDataViewInfo(
+        _In_ JsValueRef dataView,
+        _Out_opt_ JsValueRef *arrayBuffer,
+        _Out_opt_ unsigned int *byteOffset,
+        _Out_opt_ unsigned int *byteLength);
+
+#endif // _CHAKRACOREBUILD
 #endif // _CHAKRACORE_H_

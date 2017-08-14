@@ -29,6 +29,11 @@ FunctionJITTimeInfo::BuildJITTimeData(
         jitData->bodyData = AnewStructZ(alloc, FunctionBodyDataIDL);
         JITTimeFunctionBody::InitializeJITFunctionData(alloc, body, jitData->bodyData);
     }
+    else
+    {
+        // outermost function must have a body, but inlinees may not (if they are builtins)
+        Assert(isInlinee);
+    }
 
     jitData->localFuncId = codeGenData->GetFunctionInfo()->GetLocalFunctionId();
     jitData->isAggressiveInliningEnabled = codeGenData->GetIsAggressiveInliningEnabled();
@@ -109,12 +114,11 @@ FunctionJITTimeInfo::BuildJITTimeData(
             jitData->ldFldInlineeCount = jitData->bodyData->inlineCacheCount;
             jitData->ldFldInlinees = AnewArrayZ(alloc, FunctionJITTimeDataIDL*, jitData->bodyData->inlineCacheCount);
 
-            Field(Js::ObjTypeSpecFldInfo*)* objTypeSpecInfo = codeGenData->GetObjTypeSpecFldInfoArray()->GetInfoArray();
+            Field(ObjTypeSpecFldInfo*)* objTypeSpecInfo = codeGenData->GetObjTypeSpecFldInfoArray()->GetInfoArray();
             if(objTypeSpecInfo)
             {
                 jitData->objTypeSpecFldInfoCount = jitData->bodyData->inlineCacheCount;
-                jitData->objTypeSpecFldInfoArray = AnewArrayZ(alloc, ObjTypeSpecFldIDL, jitData->bodyData->inlineCacheCount);
-                JITObjTypeSpecFldInfo::BuildObjTypeSpecFldInfoArray(alloc, objTypeSpecInfo, jitData->objTypeSpecFldInfoCount, jitData->objTypeSpecFldInfoArray);
+                jitData->objTypeSpecFldInfoArray = (ObjTypeSpecFldIDL**)objTypeSpecInfo;
             }
             for (Js::InlineCacheIndex i = 0; i < jitData->bodyData->inlineCacheCount; ++i)
             {
@@ -129,12 +133,11 @@ FunctionJITTimeInfo::BuildJITTimeData(
         }
         if (!isInlinee && codeGenData->GetGlobalObjTypeSpecFldInfoCount() > 0)
         {
-            Field(Js::ObjTypeSpecFldInfo*)* globObjTypeSpecInfo = codeGenData->GetGlobalObjTypeSpecFldInfoArray();
+            Field(ObjTypeSpecFldInfo*)* globObjTypeSpecInfo = codeGenData->GetGlobalObjTypeSpecFldInfoArray();
             Assert(globObjTypeSpecInfo != nullptr);
 
             jitData->globalObjTypeSpecFldInfoCount = codeGenData->GetGlobalObjTypeSpecFldInfoCount();
-            jitData->globalObjTypeSpecFldInfoArray = AnewArrayZ(alloc, ObjTypeSpecFldIDL, jitData->globalObjTypeSpecFldInfoCount);
-            JITObjTypeSpecFldInfo::BuildObjTypeSpecFldInfoArray(alloc, globObjTypeSpecInfo, jitData->globalObjTypeSpecFldInfoCount, jitData->globalObjTypeSpecFldInfoArray);
+            jitData->globalObjTypeSpecFldInfoArray = (ObjTypeSpecFldIDL**)globObjTypeSpecInfo;
         }
         const Js::FunctionCodeGenJitTimeData * nextJITData = codeGenData->GetNext();
         if (nextJITData != nullptr)
@@ -255,7 +258,7 @@ FunctionJITTimeInfo::GetRuntimeInfo() const
     return reinterpret_cast<const FunctionJITRuntimeInfo*>(m_data.profiledRuntimeData);
 }
 
-JITObjTypeSpecFldInfo *
+ObjTypeSpecFldInfo *
 FunctionJITTimeInfo::GetObjTypeSpecFldInfo(uint index) const
 {
     Assert(index < GetBody()->GetInlineCacheCount());
@@ -263,24 +266,16 @@ FunctionJITTimeInfo::GetObjTypeSpecFldInfo(uint index) const
     {
         return nullptr;
     }
-    if (!m_data.objTypeSpecFldInfoArray[index].inUse)
-    {
-        return nullptr;
-    }
 
-    return reinterpret_cast<JITObjTypeSpecFldInfo *>(&m_data.objTypeSpecFldInfoArray[index]);
+    return reinterpret_cast<ObjTypeSpecFldInfo *>(m_data.objTypeSpecFldInfoArray[index]);
 }
 
-JITObjTypeSpecFldInfo *
+ObjTypeSpecFldInfo *
 FunctionJITTimeInfo::GetGlobalObjTypeSpecFldInfo(uint index) const
 {
     Assert(index < m_data.globalObjTypeSpecFldInfoCount);
-    if (!m_data.globalObjTypeSpecFldInfoArray[index].inUse)
-    {
-        return nullptr;
-    }
 
-    return reinterpret_cast<JITObjTypeSpecFldInfo *>(&m_data.globalObjTypeSpecFldInfoArray[index]);
+    return reinterpret_cast<ObjTypeSpecFldInfo *>(m_data.globalObjTypeSpecFldInfoArray[index]);
 }
 
 uint
