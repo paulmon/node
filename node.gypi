@@ -250,7 +250,7 @@
         }],
       ],
     }],
-    ['node_engine=="chakra"', {
+    ['node_engine=="chakracore" or node_engine=="chakra"', {
       'include_dirs': [
         'deps/chakrashim', # include/v8_platform.h
       ],
@@ -299,7 +299,7 @@
         '_UNICODE=1',
       ],
       'conditions' : [
-        [ 'node_uwp_dll!="true"', {
+        [ 'node_uwp_dll=="false"', {
           'libraries': [ '-lpsapi.lib' ],
         }],
         [ 'node_uwp_dll=="true"', {

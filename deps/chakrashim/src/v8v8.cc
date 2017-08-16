@@ -44,8 +44,6 @@ bool g_useStrict = false;
 bool g_disableIdleGc = false;
 bool g_trace_debug_json = false;
 
-ArrayBuffer::Allocator* g_arrayBufferAllocator = nullptr;
-
 HeapStatistics::HeapStatistics()
     : total_heap_size_(0),
       total_heap_size_executable_(0),
@@ -61,7 +59,7 @@ const char *V8::GetVersion() {
   static char versionStr[kMaxVersionLength] = {};
 
   if (versionStr[0] == '\0') {
-#ifndef UWP_DLL
+#if defined(_WIN32) && !defined(UWP_DLL)
     HMODULE hModule;
     if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                           TEXT(NODE_ENGINE), &hModule)) {
@@ -179,11 +177,7 @@ bool V8::Initialize() {
   if (g_disposed) {
     return false; // Can no longer Initialize if Disposed
   }
-#ifndef NODE_ENGINE_CHAKRA
-  if (g_EnableDebug && JsStartDebugging() != JsNoError) {
-    return false;
-  }
-#endif
+
   return true;
 }
 

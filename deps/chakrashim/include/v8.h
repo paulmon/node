@@ -64,12 +64,7 @@
 #endif
 
 #include <memory>
-// #ifdef NODE_ENGINE_CHAKRA
-// #include <jsrt.h>
-//#include <jsrtstub.h>
-// #else
 #include "ChakraCore.h"
-// #endif
 #include "v8-version.h"
 #include "v8config.h"
 

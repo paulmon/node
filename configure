@@ -489,8 +489,8 @@ parser.add_option('--without-inspector',
 parser.add_option('--engine',
     action='store',
     dest='engine',
-    default='chakra',
-    help='Use specified JS engine (default is Chakra)')
+    default='chakracore',
+    help='Use specified JS engine (default is ChakraCore)')
 
 parser.add_option('--chakracore-test-build',
     action='store_true',
@@ -831,7 +831,7 @@ def configure_arm(o):
   o['variables']['arm_fpu'] = options.arm_fpu or arm_fpu
 
   if flavor == 'win':
-    o['msvs_windows_sdk_version'] = 'v10.0'
+    o['msvs_windows_target_platform_version'] = 'v10.0'
 
 
 def configure_mips(o):
@@ -978,7 +978,6 @@ def configure_node(o):
     o['variables']['library_files'] = options.linked_module
 
   o['variables']['asan'] = int(options.enable_asan or 0)
-  o['variables']['v8_inspector'] = b(not options.without_inspector)
   o['variables']['debug_devtools'] = 'node'
 
   if options.use_xcode and options.use_ninja:
@@ -1384,7 +1383,7 @@ def configure_engine(o):
   o['variables']['node_engine'] = engine
   if engine != 'v8':
     o['variables']['node_use_bundled_v8'] = b(False)
-  if engine == 'chakra':
+  if engine == 'chakracore' or engine == 'chakra':
     o['variables']['chakracore_build_config'] = o['default_configuration']
     if options.chakracore_test_build:
       o['variables']['chakracore_build_config'] = 'Test'

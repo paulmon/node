@@ -13,7 +13,6 @@
     {
       'target_name': 'chakrashim',
       'type': '<(library)',
-      'msvs_disabled_warnings': [4703],
 
       'dependencies': [
         'chakra_js2c#host',
@@ -88,13 +87,13 @@
           [ 'target_arch=="arm"', {
             'defines': [ '__arm__=1' ]
           }],
-          [ 'node_uwp_dll!="true"', {
+          [ 'OS == "win" and node_uwp_dll=="false"', {
             'libraries': [
               '-lole32.lib',
               '-lversion.lib',
             ],
           }],
-          [ 'node_uwp_dll=="true"', {
+          [ 'OS == "win" and node_uwp_dll=="true"', {
             'msvs_settings': {
               'VCCLCompilerTool': {
                 'CompileAsWinRT': 'false',
@@ -117,8 +116,6 @@
         'src/base/macros.h',
         'src/base/platform/platform.cc',
         'src/base/platform/platform.h',
-        'src/codexassert.cpp',
-        'src/iotstub.cc',
         'src/pal/pal.cc',
         'src/jsrtcachedpropertyidref.inc',
         'src/jsrtcontextcachedobj.inc',
@@ -137,8 +134,6 @@
         'src/jsrtproxyutils.h',
         'src/jsrtutils.cc',
         'src/jsrtutils.h',
-        'src/utf8codex.cpp',
-        'src/utf8codex.h',
         'src/v8array.cc',
         'src/v8arraybuffer.cc',
         'src/v8boolean.cc',
@@ -192,6 +187,17 @@
         'src/v8valueserializer.cc',
         'src/v8valuedeserializer.cc',
       ],
+
+      'conditions': [
+        [ 'node_engine=="chakra"', {
+          'sources': [
+            'src/codexassert.cpp',
+            'src/iotstub.cc',
+            'src/utf8codex.cpp',
+            'src/utf8codex.h',
+          ],
+        }],
+      ]
     },  # end chakrashim
 
     {

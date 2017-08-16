@@ -502,6 +502,7 @@ namespace jsrt {
     JsErrorCode err = JsDiagGetProperties(handle, 0, MaxPropertyCount,
                                           &diagProperties);
 #ifdef NODE_ENGINE_CHAKRA
+    __debugbreak();
     return v8::Local<v8::Value>();
 #else
     if (err == JsErrorDiagInvalidHandle) {
@@ -599,6 +600,7 @@ namespace jsrt {
     CHAKRA_VERIFY(ordinal >= 0);
 
 #ifdef NODE_ENGINE_CHAKRA
+    __debugbreak();
     return v8::Local<v8::Value>();
 #else
     if (isError != nullptr) {

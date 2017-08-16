@@ -1,4 +1,4 @@
-// Copyright Joyent, Inc. and other Node contributors.
+﻿// Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the
@@ -4555,7 +4555,7 @@ void Init(int* argc,
   }
 #endif
 
-#ifdef NODE_ENGINE_CHAKRA
+#if defined(NODE_ENGINE_CHAKRACORE) || defined(NODE_ENGINE_CHAKRA)
   // CHAKRA-TODO : fix this to not do it here
   if (debug_options.inspector_enabled()) {
 #if ENABLE_TTD_NODE
@@ -4667,7 +4667,7 @@ void FreeEnvironment(Environment* env) {
   delete env;
 }
 
-#ifdef NODE_ENGINE_CHAKRA
+#if defined(NODE_ENGINE_CHAKRACORE) || defined(NODE_ENGINE_CHAKRA)
 struct ChakraShimIsolateContext {
   ChakraShimIsolateContext(uv_loop_t* event_loop, uint32_t* zero_fill_field)
       : event_loop(event_loop),
@@ -4692,7 +4692,7 @@ inline int Start(Isolate* isolate, void* isolate_context,
 
   Context::Scope context_scope(context);
 
-#ifdef NODE_ENGINE_CHAKRA
+#if defined(NODE_ENGINE_CHAKRACORE) || defined(NODE_ENGINE_CHAKRA)
   ChakraShimIsolateContext* chakra_isolate_context =
     reinterpret_cast<ChakraShimIsolateContext*>(isolate_context);
 
@@ -4833,7 +4833,7 @@ inline int Start(uv_loop_t* event_loop,
     // need to be populated before the context is created?
     void* isolate_data_ptr = nullptr;
 
-#ifndef NODE_ENGINE_CHAKRA
+#if !defined(NODE_ENGINE_CHAKRACORE) && !defined(NODE_ENGINE_CHAKRA)
     IsolateData isolate_data(isolate, event_loop, allocator.zero_fill_field());
     isolate_data_ptr = &isolate_data;
 #else
@@ -4867,7 +4867,7 @@ inline int Start_TTDReplay(Isolate* isolate, void* isolate_context,
 
   Context::Scope context_scope(context);
 
-#ifdef NODE_ENGINE_CHAKRACORE
+#if defined(NODE_ENGINE_CHAKRACORE) || defined(NODE_ENGINE_CHAKRA)
   ChakraShimIsolateContext* chakra_isolate_context =
     reinterpret_cast<ChakraShimIsolateContext*>(isolate_context);
 

@@ -114,11 +114,13 @@ CHAKRA_API
     return result;
 }
 #else
-CHAKRA_API JsCopyString(
+CHAKRA_API
+JsCopyString(
     _In_ JsValueRef value,
     _Out_opt_ char* buffer,
     _In_ size_t bufferSize,
-    _Out_opt_ size_t* length)
+    _Out_opt_ size_t* writtenLength,
+    _Out_opt_ size_t* actualLength)
 {
     PARAM_NOT_NULL(value);
     VALIDATE_JSREF(value);
@@ -134,9 +136,9 @@ CHAKRA_API JsCopyString(
     utf8::WideToNarrow utf8Str(str, strLength);
     if (!buffer)
     {
-        if (length)
+        if (actualLength)
         {
-            *length = utf8Str.Length();
+            *actualLength = utf8Str.Length();
         }
     }
     else
@@ -150,9 +152,9 @@ CHAKRA_API JsCopyString(
             (LPCUTF8)(const char*)utf8Str, utf8Str.Length(), maxFitChars);
 
         memmove(buffer, utf8Str, sizeof(char) * count);
-        if (length)
+        if (writtenLength)
         {
-            *length = count;
+            *writtenLength = count;
         }
     }
 
@@ -245,6 +247,7 @@ CHAKRA_API JsCopyStringUtf16(
 }
 #endif
 
+#if 0
 CHAKRA_API
     JsCreateString(
         _In_ const char *content,
@@ -265,6 +268,23 @@ CHAKRA_API
     }
     return JsErrorOutOfMemory;
 }
+#else
+CHAKRA_API JsCreateString(
+    _In_ const char *content,
+    _In_ size_t length,
+    _Out_ JsValueRef *value)
+{
+    PARAM_NOT_NULL(content);
+
+    utf8::NarrowToWide wstr(content, length);
+    if (!wstr)
+    {
+        return JsErrorOutOfMemory;
+    }
+
+    return JsPointerToString(wstr, wstr.Length(), value);
+}
+#endif
 
 CHAKRA_API
     JsCreateStringUtf16(
@@ -333,25 +353,26 @@ CHAKRA_API
     size_t len = 0;
     size_t copied = 0;
     size_t written = 0;
+    size_t actualLength = 0;
 
-    IfJsErrorRet(JsCopyString(script, nullptr, 0, &len));
+    IfJsErrorRet(JsCopyString(script, nullptr, 0, nullptr, &actualLength));
 
     char* strScript = reinterpret_cast<char*>(malloc(len + 1));
     CHAKRA_VERIFY(strScript != nullptr);
 
-    JsErrorCode errorCode = JsCopyString(script, strScript, len, &written);
+    JsErrorCode errorCode = JsCopyString(script, strScript, len, &written, nullptr);
 
     wchar_t* wstrScript = new wchar_t[len + 1];
     CHAKRA_VERIFY(wstrScript != nullptr);
 
     errno_t err = mbstowcs_s(&copied, wstrScript, len + 1, strScript, len);
 
-    IfJsErrorRet(JsCopyString(sourceUrl, nullptr, 0, &len));
+    IfJsErrorRet(JsCopyString(sourceUrl, nullptr, 0, nullptr, &actualLength));
 
     char* strUrl = reinterpret_cast<char*>(malloc(len + 1));
     CHAKRA_VERIFY(strUrl != nullptr);
 
-    errorCode = JsCopyString(sourceUrl, strUrl, len, &written);
+    errorCode = JsCopyString(sourceUrl, strUrl, len, &written, nullptr);
 
     wchar_t* wstrUrl = new wchar_t[len + 1];
     CHAKRA_VERIFY(wstrUrl != nullptr);
@@ -779,6 +800,39 @@ CHAKRA_API
             _In_ int64_t eventTime)
 {
     fprintf(stderr, "ERROR: Not Implemented: JsTTDMoveToTopLevelEvent\r\n");
+    return JsErrorNotImplemented;
+}
+
+CHAKRA_API
+JsHasOwnProperty(
+    _In_ JsValueRef object,
+    _In_ JsPropertyIdRef propertyId,
+    _Out_ bool *hasOwnProperty)
+{
+    fprintf(stderr, "ERROR: Not Implemented: JsHasOwnProperty\r\n");
+    return JsErrorNotImplemented;
+}
+
+CHAKRA_API
+JsGetDataViewInfo(
+    _In_ JsValueRef dataView,
+    _Out_opt_ JsValueRef *arrayBuffer,
+    _Out_opt_ unsigned int *byteOffset,
+    _Out_opt_ unsigned int *byteLength)
+{
+    fprintf(stderr, "ERROR: Not Implemented: JsGetDataViewInfo\r\n");
+    return JsErrorNotImplemented;
+}
+
+CHAKRA_API
+JsCopyStringOneByte(
+    _In_ JsValueRef value,
+    _In_ int start,
+    _In_ int length,
+    _Out_opt_ char* buffer,
+    _Out_opt_ size_t* written)
+{
+    fprintf(stderr, "ERROR: Not Implemented: JsCopyStringOneByte\r\n");
     return JsErrorNotImplemented;
 }
 

@@ -3,17 +3,17 @@
     {
       'target_name': 'logger',
       'type': 'static_library',
-      'include_dirs': [ 
+      'include_dirs': [
         './include',
         '../../src',
         '../chakrashim/include',
       ],
-      'sources': [ 
+      'sources': [
         'include/ILogger.h',
         'include/logger_wrap.h',
         'include/node_logger.h',
-        'src/logger_wrap.cpp', 
-        'src/node_logger.cpp', 
+        'src/logger_wrap.cpp',
+        'src/node_logger.cpp',
       ],
       'conditions': [
         ['node_engine=="chakra"', {
@@ -23,8 +23,8 @@
         }],
         [ 'node_uwp_dll=="true"', {
           'msvs_settings': {
-            'VCCLCompilerTool': {		
-              'CompileAsWinRT': 'false',		
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
             }
           },
         }],

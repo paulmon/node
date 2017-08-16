@@ -70,8 +70,8 @@
         }],
         [ 'node_uwp_dll=="true"', {
           'msvs_settings': {
-            'VCCLCompilerTool': {		
-              'CompileAsWinRT': 'false',		
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
             }
           },
         }],

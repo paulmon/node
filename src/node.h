@@ -100,7 +100,7 @@
 // Forward-declare libuv loop
 struct uv_loop_s;
 
-#if defined(NODE_ENGINE_CHAKRACORE) || defined(NODE_ENGINE_CHAKRA)
+#if defined(NODE_ENGINE_CHAKRACORE) // || defined(NODE_ENGINE_CHAKRA)
 #define ENABLE_TTD_NODE 1
 #else
 #define ENABLE_TTD_NODE 0
