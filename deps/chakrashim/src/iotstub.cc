@@ -39,48 +39,49 @@
         return JsErrorInvalidArgument; \
     } \
 
-CHAKRA_API JsTTDNotifyLongLivedReferenceAdd(_In_ JsValueRef value)  
-{ 
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDNotifyLongLivedReferenceAdd\r\n");
+inline JsErrorCode __NotImplemented(char* method)
+{
+    fprintf(stderr, "ERROR: Not Implemented: %s\r\n", method);
+#ifdef DEBUG
+    __debugbreak();
+#endif
     return JsErrorNotImplemented;
+}
+CHAKRA_API JsTTDNotifyLongLivedReferenceAdd(_In_ JsValueRef value)
+{
+    return __NotImplemented("JsTTDNotifyLongLivedReferenceAdd");
 }
 
 CHAKRA_API JsTTDCheckAndAssertIfTTDRunning(_In_ const char* msg)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDCheckAndAssertIfTTDRunning\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDCheckAndAssertIfTTDRunning");
 }
 
 CHAKRA_API JsTTDHostExit(_In_ int statusCode)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDHostExit\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDHostExit");
 }
 
 CHAKRA_API JsTTDStart()
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDStart\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDStart");
 }
 
 CHAKRA_API JsTTDStop()
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDStop\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDStop");
 }
 
 CHAKRA_API JsTTDNotifyYield()
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDNotifyYield\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDNotifyYield");
 }
 
 CHAKRA_API JsCreateWeakReference(
         _In_ JsValueRef value,
         _Out_ JsWeakRef* weakRef)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsCreateWeakReference\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsCreateWeakReference");
 }
 
 #if 0
@@ -171,8 +172,7 @@ CHAKRA_API
         _Out_opt_ uint16_t* buffer,
         _Out_opt_ size_t* written)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsCopyStringUtf16\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsCopyStringUtf16");
 }
 #else
 template <class CopyFunc>
@@ -302,18 +302,7 @@ CHAKRA_API
         _In_ size_t length,
         _Out_ JsPropertyIdRef *propertyId)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsCreatePropertyId\r\n");
-    return JsErrorNotImplemented;
-    //wchar_t* wname = new wchar_t[length+1];
-    //if (wname)
-    //{
-    //    size_t newLen = 0;
-    //    mbstowcs_s(&newLen, wname, length + 1, name, length);
-    //    JsErrorCode result = JsGetPropertyIdFromName(wname, propertyId);
-    //    delete[] wname;
-    //    return result;
-    //}
-    //return JsErrorOutOfMemory;
+    return __NotImplemented("JsCreatePropertyId");
 }
 #else
 CHAKRA_API JsCreatePropertyId(
@@ -337,8 +326,7 @@ CHAKRA_API
         _In_ JsWeakRef weakRef,
         _Out_ JsValueRef* value)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsGetWeakReferenceValue\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsGetWeakReferenceValue");
 }
 
 #if 1
@@ -473,8 +461,7 @@ CHAKRA_API
         JsDiagGetBreakpoints(
             _Out_ JsValueRef *breakpoints)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagGetBreakpoints\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagGetBreakpoints");
 }
 
 CHAKRA_API
@@ -482,8 +469,7 @@ CHAKRA_API
             _In_ JsValueRef function,
             _Out_ JsValueRef *functionPosition)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagGetFunctionPosition\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagGetFunctionPosition");
 }
 
 CHAKRA_API
@@ -492,38 +478,33 @@ CHAKRA_API
             _In_ JsDiagDebugEventCallback debugEventCallback,
             _In_opt_ void* callbackState)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagStartDebugging\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagStartDebugging");
 }
 
 CHAKRA_API
         JsDiagRemoveBreakpoint(
             _In_ unsigned int breakpointId)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagRemoveBreakpoint\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagRemoveBreakpoint");
 }
 
 CHAKRA_API
         JsTTDPauseTimeTravelBeforeRuntimeOperation()
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDPauseTimeTravelBeforeRuntimeOperation\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDPauseTimeTravelBeforeRuntimeOperation");
 }
 
 CHAKRA_API
         JsTTDReStartTimeTravelAfterRuntimeOperation()
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDReStartTimeTravelAfterRuntimeOperation\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDReStartTimeTravelAfterRuntimeOperation");
 }
 
 CHAKRA_API
         JsDiagRequestAsyncBreak(
             _In_ JsRuntimeHandle runtimeHandle)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagRequestAsyncBreak\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagRequestAsyncBreak");
 }
 
 CHAKRA_API
@@ -531,8 +512,7 @@ CHAKRA_API
             _In_ unsigned int objectHandle,
             _Out_ JsValueRef *handleObject)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagGetObjectFromHandle\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagGetObjectFromHandle");
 }
 
 CHAKRA_API
@@ -540,8 +520,7 @@ CHAKRA_API
             _In_ unsigned int scriptId,
             _Out_ JsValueRef *source)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagGetSource\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagGetSource");
 }
 
 CHAKRA_API
@@ -549,8 +528,7 @@ CHAKRA_API
             _In_ unsigned int stackFrameIndex,
             _Out_ JsValueRef *properties)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagGetStackProperties\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagGetStackProperties");
 }
 
 CHAKRA_API
@@ -560,8 +538,7 @@ CHAKRA_API
             _In_ unsigned int totalCount,
             _Out_ JsValueRef *propertiesObject)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsDiagGetProperties\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsDiagGetProperties");
 }
 
 CHAKRA_API JsTTDGetSnapShotBoundInterval(
@@ -570,8 +547,7 @@ CHAKRA_API JsTTDGetSnapShotBoundInterval(
         _Out_ int64_t* startSnapTime,
         _Out_ int64_t* endSnapTime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDGetSnapShotBoundInterval\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDGetSnapShotBoundInterval");
 }
 
     CHAKRA_API JsTTDGetPreviousSnapshotInterval(
@@ -579,15 +555,13 @@ CHAKRA_API JsTTDGetSnapShotBoundInterval(
         _In_ int64_t currentSnapStartTime,
         _Out_ int64_t* previousSnapTime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDGetPreviousSnapshotInterval\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDGetPreviousSnapshotInterval");
 }
 
 CHAKRA_API JsTTDNotifyContextDestroy(
         _In_ JsContextRef context)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDNotifyContextDestroy\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDNotifyContextDestroy");
 }
 
 CHAKRA_API
@@ -601,8 +575,7 @@ CHAKRA_API
             _In_opt_ JsThreadServiceCallback threadService,
             _Out_ JsRuntimeHandle *runtime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDCreateRecordRuntime\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDCreateRecordRuntime");
 }
 
 
@@ -618,8 +591,7 @@ CHAKRA_API
             _In_opt_ JsThreadServiceCallback threadService,
             _Out_ JsRuntimeHandle *runtime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDCreateReplayRuntime\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDCreateReplayRuntime");
 }
 
 CHAKRA_API JsTTDGetSnapTimeTopLevelEventMove(
@@ -630,8 +602,7 @@ CHAKRA_API JsTTDGetSnapTimeTopLevelEventMove(
         _Out_ int64_t* targetStartSnapTime,
         _Out_opt_ int64_t* targetEndSnapTime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDGetSnapTimeTopLevelEventMove\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDGetSnapTimeTopLevelEventMove");
 }
 
 CHAKRA_API JsTTDPreExecuteSnapShotInterval(
@@ -641,8 +612,7 @@ CHAKRA_API JsTTDPreExecuteSnapShotInterval(
         _In_ JsTTDMoveMode moveMode,
         _Out_ int64_t* newTargetEventTime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDPreExecuteSnapShotInterval\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDPreExecuteSnapShotInterval");
 }
 
 CHAKRA_API
@@ -650,8 +620,7 @@ CHAKRA_API
             _Inout_ JsTTDMoveMode* moveMode,
             _Out_ int64_t* rootEventTime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDReplayExecution\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDReplayExecution");
 }
 
 CHAKRA_API
@@ -662,8 +631,7 @@ CHAKRA_API
             _In_ size_t srcIndex,
             _In_ size_t count)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDRawBufferCopySyncIndirect\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDRawBufferCopySyncIndirect");
 }
 
 CHAKRA_API
@@ -672,16 +640,14 @@ CHAKRA_API
             _In_ size_t index,
             _In_ size_t count)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDRawBufferModifySyncIndirect\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDRawBufferModifySyncIndirect");
 }
 
 CHAKRA_API
         JsTTDRawBufferAsyncModifyComplete(
             _In_ byte* finalModPos)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDRawBufferAsyncModifyComplete\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDRawBufferAsyncModifyComplete");
 }
 
 CHAKRA_API
@@ -689,8 +655,7 @@ CHAKRA_API
             _In_ JsValueRef instance,
             _In_ byte* initialModPos)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDRawBufferAsyncModificationRegister\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDRawBufferAsyncModificationRegister");
 }
 
 #if 1
@@ -698,8 +663,7 @@ CHAKRA_API
 JsGetAndClearExceptionWithMetadata(
     _Out_ JsValueRef *metadata)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsGetAndClearExceptionWithMetadata\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsGetAndClearExceptionWithMetadata");
 }
 #else
 CHAKRA_API JsGetAndClearExceptionWithMetadata(_Out_ JsValueRef *metadata)
@@ -799,8 +763,7 @@ CHAKRA_API
             _In_ int64_t snapshotTime,
             _In_ int64_t eventTime)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsTTDMoveToTopLevelEvent\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsTTDMoveToTopLevelEvent");
 }
 
 CHAKRA_API
@@ -809,8 +772,7 @@ JsHasOwnProperty(
     _In_ JsPropertyIdRef propertyId,
     _Out_ bool *hasOwnProperty)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsHasOwnProperty\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsHasOwnProperty");
 }
 
 CHAKRA_API
@@ -820,8 +782,7 @@ JsGetDataViewInfo(
     _Out_opt_ unsigned int *byteOffset,
     _Out_opt_ unsigned int *byteLength)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsGetDataViewInfo\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsGetDataViewInfo");
 }
 
 CHAKRA_API
@@ -832,8 +793,7 @@ JsCopyStringOneByte(
     _Out_opt_ char* buffer,
     _Out_opt_ size_t* written)
 {
-    fprintf(stderr, "ERROR: Not Implemented: JsCopyStringOneByte\r\n");
-    return JsErrorNotImplemented;
+    return __NotImplemented("JsCopyStringOneByte");
 }
 
 #endif // NODE_ENGINE_CHAKRA

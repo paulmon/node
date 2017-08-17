@@ -21,6 +21,10 @@
 #include "v8chakra.h"
 #include <algorithm>
 #include <memory>
+#ifdef NODE_ENGINE_CHAKRA
+#include <chakra_natives.h>
+#include <stdlib.h>
+#endif
 
 namespace v8 {
   extern bool g_trace_debug_json;
@@ -450,6 +454,20 @@ bool ContextShim::ExposeGc() {
 bool ContextShim::ExecuteChakraShimJS() {
   JsValueRef getInitFunction;
   JsValueRef url;
+#ifdef NODE_ENGINE_CHAKRA
+  wchar_t buffer[_countof(raw_chakra_shim_value) + 1];
+  size_t newLen;
+  mbstowcs_s(&newLen, buffer, _countof(raw_chakra_shim_value) + 1, reinterpret_cast<const char*>(raw_chakra_shim_value), _countof(raw_chakra_shim_value));
+  // Ensure the buffer is null terminated
+  buffer[_countof(raw_chakra_shim_value)] = L'\0';
+
+  if (JsParseScript(buffer,
+      JS_SOURCE_CONTEXT_NONE,
+      L"chakra_shim.js",
+      &getInitFunction) != JsNoError) {
+      return false;
+  }
+#else
   jsrt::CreateString("chakra_shim.js", &url);
   if (JsParse(GetIsolateShim()->GetChakraShimJsArrayBuffer(),
                     v8::currentContext++,
@@ -458,6 +476,7 @@ bool ContextShim::ExecuteChakraShimJS() {
                     &getInitFunction) != JsNoError) {
     return false;
   }
+#endif
   JsValueRef initFunction;
   if (CallFunction(getInitFunction, &initFunction) != JsNoError) {
     return false;

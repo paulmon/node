@@ -831,7 +831,7 @@ def configure_arm(o):
   o['variables']['arm_fpu'] = options.arm_fpu or arm_fpu
 
   if flavor == 'win':
-    o['msvs_windows_target_platform_version'] = 'v10.0'
+    o['msvs_windows_sdk_version'] = 'v10.0'
 
 
 def configure_mips(o):

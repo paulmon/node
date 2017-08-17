@@ -23,9 +23,6 @@
 #include "v8chakra.h"
 #include "jsrtutils.h"
 #include "v8-debug.h"
-#ifdef UWP_DLL
-#include "..\..\src\node_version.h"
-#endif
 #include "libplatform/libplatform.h"
 #include "libplatform/v8-tracing.h"
 #include "jsrtplatform.h"
@@ -86,11 +83,9 @@ const char *V8::GetVersion() {
       }
     }
 #else
-    sprintf_s(versionStr, "%d.%d.%d.%d",
-	    NODE_MAJOR_VERSION,
-	    NODE_MINOR_VERSION,
-	    NODE_PATCH_VERSION,
-	    NODE_TAG);
+  snprintf(versionStr, kMaxVersionLength, "%d.%d.%d.%d",
+           CHAKRA_CORE_MAJOR_VERSION, CHAKRA_CORE_MINOR_VERSION,
+           CHAKRA_CORE_VERSION_RELEASE, CHAKRA_CORE_VERSION_RELEASE_QFE);
 #endif
   }
 
