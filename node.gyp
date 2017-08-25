@@ -604,173 +604,178 @@
     },
     {
       'target_name': 'cctest',
-      'type': 'executable',
+      'conditions': [
+        [ 'node_uwp_dll=="false"', {
+          'type': 'executable',
 
-      'dependencies': [
-        '<(node_core_target_name)',
-        'deps/gtest/gtest.gyp:gtest',
-        'node_js2c#host',
-        'node_dtrace_header',
-        'node_dtrace_ustack',
-        'node_dtrace_provider',
-      ],
+          'dependencies': [
+            '<(node_core_target_name)',
+            'deps/gtest/gtest.gyp:gtest',
+            'node_js2c#host',
+            'node_dtrace_header',
+            'node_dtrace_ustack',
+            'node_dtrace_provider',
+          ],
 
-      'variables': {
-        'OBJ_PATH': '<(OBJ_DIR)/node/src',
-        'OBJ_GEN_PATH': '<(OBJ_DIR)/node/gen',
-        'OBJ_TRACING_PATH': '<(OBJ_DIR)/node/src/tracing',
-        'OBJ_SUFFIX': 'o',
-        'OBJ_SEPARATOR': '/',
-        'conditions': [
-          ['OS=="win"', {
-            'OBJ_SUFFIX': 'obj',
-          }],
-          ['GENERATOR=="ninja"', {
-            'OBJ_PATH': '<(OBJ_DIR)/src',
-            'OBJ_GEN_PATH': '<(OBJ_DIR)/gen',
-            'OBJ_TRACING_PATH': '<(OBJ_DIR)/src/tracing',
-            'OBJ_SEPARATOR': '/node.',
-          }, {
+          'variables': {
+            'OBJ_PATH': '<(OBJ_DIR)/node/src',
+            'OBJ_GEN_PATH': '<(OBJ_DIR)/node/gen',
+            'OBJ_TRACING_PATH': '<(OBJ_DIR)/node/src/tracing',
+            'OBJ_SUFFIX': 'o',
+            'OBJ_SEPARATOR': '/',
             'conditions': [
               ['OS=="win"', {
-                'OBJ_PATH': '<(OBJ_DIR)/node',
-                'OBJ_GEN_PATH': '<(OBJ_DIR)/node',
-                'OBJ_TRACING_PATH': '<(OBJ_DIR)/node',
+                'OBJ_SUFFIX': 'obj',
               }],
-              ['OS=="aix"', {
-                'OBJ_PATH': '<(OBJ_DIR)/node_base/src',
-                'OBJ_GEN_PATH': '<(OBJ_DIR)/node_base/gen',
-                'OBJ_TRACING_PATH': '<(OBJ_DIR)/node_base/src/tracing',
-              }],
-            ]}
-          ]
-        ],
-       },
+              ['GENERATOR=="ninja"', {
+                'OBJ_PATH': '<(OBJ_DIR)/src',
+                'OBJ_GEN_PATH': '<(OBJ_DIR)/gen',
+                'OBJ_TRACING_PATH': '<(OBJ_DIR)/src/tracing',
+                'OBJ_SEPARATOR': '/node.',
+              }, {
+                'conditions': [
+                  ['OS=="win"', {
+                    'OBJ_PATH': '<(OBJ_DIR)/node',
+                    'OBJ_GEN_PATH': '<(OBJ_DIR)/node',
+                    'OBJ_TRACING_PATH': '<(OBJ_DIR)/node',
+                  }],
+                  ['OS=="aix"', {
+                    'OBJ_PATH': '<(OBJ_DIR)/node_base/src',
+                    'OBJ_GEN_PATH': '<(OBJ_DIR)/node_base/gen',
+                    'OBJ_TRACING_PATH': '<(OBJ_DIR)/node_base/src/tracing',
+                  }],
+                ]}
+              ]
+            ],
+          },
 
-      'includes': [
-        'node.gypi'
-      ],
+          'includes': [
+            'node.gypi'
+          ],
 
-      'include_dirs': [
-        'src',
-        'tools/msvs/genfiles',
-        'deps/cares/include',
-        'deps/uv/include',
-        '<(SHARED_INTERMEDIATE_DIR)', # for node_natives.h
-      ],
-
-      'libraries': [
-        '<(OBJ_GEN_PATH)<(OBJ_SEPARATOR)node_javascript.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)node_debug_options.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)async-wrap.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)env.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)node.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)node_buffer.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)node_i18n.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)node_url.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)util.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)string_bytes.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)string_search.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)stream_base.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)node_constants.<(OBJ_SUFFIX)',
-        '<(OBJ_PATH)<(OBJ_SEPARATOR)node_revert.<(OBJ_SUFFIX)',
-        '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)agent.<(OBJ_SUFFIX)',
-        '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)node_trace_buffer.<(OBJ_SUFFIX)',
-        '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)node_trace_writer.<(OBJ_SUFFIX)',
-        '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)trace_event.<(OBJ_SUFFIX)',
-      ],
-
-      'defines': [ 'NODE_WANT_INTERNALS=1' ],
-
-      'sources': [
-        'test/cctest/test_base64.cc',
-        'test/cctest/test_environment.cc',
-        'test/cctest/test_util.cc',
-        'test/cctest/test_url.cc'
-      ],
-
-      'sources!': [
-        'src/node_main.cc'
-      ],
-
-      'conditions': [
-        [ 'node_engine=="v8"', {
           'include_dirs': [
-            'deps/v8/include'
+            'src',
+            'tools/msvs/genfiles',
+            'deps/cares/include',
+            'deps/uv/include',
+            '<(SHARED_INTERMEDIATE_DIR)', # for node_natives.h
           ],
-          'conditions' : [
-            ['node_use_v8_platform=="true"', {
-              'dependencies': [
-                'deps/v8/src/v8.gyp:v8_libplatform',
-              ],
-            }],
-          ]
-        }],
-        ['node_engine=="chakracore"', {
-          'include_dirs': [
-            'deps/chakrashim/include'
+
+          'libraries': [
+            '<(OBJ_GEN_PATH)<(OBJ_SEPARATOR)node_javascript.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)node_debug_options.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)async-wrap.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)env.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)node.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)node_buffer.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)node_i18n.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)node_url.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)util.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)string_bytes.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)string_search.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)stream_base.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)node_constants.<(OBJ_SUFFIX)',
+            '<(OBJ_PATH)<(OBJ_SEPARATOR)node_revert.<(OBJ_SUFFIX)',
+            '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)agent.<(OBJ_SUFFIX)',
+            '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)node_trace_buffer.<(OBJ_SUFFIX)',
+            '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)node_trace_writer.<(OBJ_SUFFIX)',
+            '<(OBJ_TRACING_PATH)<(OBJ_SEPARATOR)trace_event.<(OBJ_SUFFIX)',
           ],
-          'sources!': [
-            'test/cctest/test_environment.cc', # TODO: Enable these test for node-chakracore
-          ],
-          'conditions': [
-            [ 'OS!="win" and chakracore_use_lto=="true"', {
-              'ldflags': [
-                '-flto',
-              ],
-            }],
-          ],
-        }],
-        ['v8_enable_inspector==1', {
+
+          'defines': [ 'NODE_WANT_INTERNALS=1' ],
+
           'sources': [
-            'test/cctest/test_inspector_socket.cc',
-            'test/cctest/test_inspector_socket_server.cc'
+            'test/cctest/test_base64.cc',
+            'test/cctest/test_environment.cc',
+            'test/cctest/test_util.cc',
+            'test/cctest/test_url.cc'
           ],
+
+          'sources!': [
+            'src/node_main.cc'
+          ],
+
           'conditions': [
-            [ 'node_shared_zlib=="false"', {
-              'dependencies': [
-                'deps/zlib/zlib.gyp:zlib',
+            [ 'node_engine=="v8"', {
+              'include_dirs': [
+                'deps/v8/include'
+              ],
+              'conditions' : [
+                ['node_use_v8_platform=="true"', {
+                  'dependencies': [
+                    'deps/v8/src/v8.gyp:v8_libplatform',
+                  ],
+                }],
               ]
             }],
-            [ 'node_shared_openssl=="false" and node_shared=="false" and node_uwp_dll!="true"', {
-              'dependencies': [
-                'deps/openssl/openssl.gyp:openssl'
+            ['node_engine=="chakracore"', {
+              'include_dirs': [
+                'deps/chakrashim/include'
+              ],
+              'sources!': [
+                'test/cctest/test_environment.cc', # TODO: Enable these test for node-chakracore
+              ],
+              'conditions': [
+                [ 'OS!="win" and chakracore_use_lto=="true"', {
+                  'ldflags': [
+                    '-flto',
+                  ],
+                }],
+              ],
+            }],
+            ['v8_enable_inspector==1', {
+              'sources': [
+                'test/cctest/test_inspector_socket.cc',
+                'test/cctest/test_inspector_socket_server.cc'
+              ],
+              'conditions': [
+                [ 'node_shared_zlib=="false"', {
+                  'dependencies': [
+                    'deps/zlib/zlib.gyp:zlib',
+                  ]
+                }],
+                [ 'node_shared_openssl=="false" and node_shared=="false"', {
+                  'dependencies': [
+                    'deps/openssl/openssl.gyp:openssl'
+                  ]
+                }],
+                [ 'node_shared_http_parser=="false"', {
+                  'dependencies': [
+                    'deps/http_parser/http_parser.gyp:http_parser'
+                  ]
+                }],
+                [ 'node_shared_libuv=="false"', {
+                  'dependencies': [
+                    'deps/uv/uv.gyp:libuv'
+                  ]
+                }]
               ]
             }],
-            [ 'node_shared_http_parser=="false"', {
-              'dependencies': [
-                'deps/http_parser/http_parser.gyp:http_parser'
-              ]
+            [ 'node_use_dtrace=="true" and OS!="mac" and OS!="linux"', {
+              'copies': [{
+                'destination': '<(OBJ_DIR)/cctest/src',
+                'files': [
+                  '<(OBJ_PATH)<(OBJ_SEPARATOR)node_dtrace_ustack.<(OBJ_SUFFIX)',
+                  '<(OBJ_PATH)<(OBJ_SEPARATOR)node_dtrace_provider.<(OBJ_SUFFIX)',
+                  '<(OBJ_PATH)<(OBJ_SEPARATOR)node_dtrace.<(OBJ_SUFFIX)',
+                ]},
+              ],
             }],
-            [ 'node_shared_libuv=="false"', {
-              'dependencies': [
-                'deps/uv/uv.gyp:libuv'
-              ]
-            }]
-          ]
-        }],
-        [ 'node_use_dtrace=="true" and OS!="mac" and OS!="linux"', {
-          'copies': [{
-            'destination': '<(OBJ_DIR)/cctest/src',
-            'files': [
-              '<(OBJ_PATH)<(OBJ_SEPARATOR)node_dtrace_ustack.<(OBJ_SUFFIX)',
-              '<(OBJ_PATH)<(OBJ_SEPARATOR)node_dtrace_provider.<(OBJ_SUFFIX)',
-              '<(OBJ_PATH)<(OBJ_SEPARATOR)node_dtrace.<(OBJ_SUFFIX)',
-            ]},
+            ['OS=="solaris"', {
+              'ldflags': [ '-I<(SHARED_INTERMEDIATE_DIR)' ]
+            }],
           ],
+          'msvs_settings': {
+            'VCLinkerTool': {
+              'SubSystem': 1, # /subsystem:console
+            },
+          },
         }],
-        ['OS=="solaris"', {
-          'ldflags': [ '-I<(SHARED_INTERMEDIATE_DIR)' ]
+        [ 'node_uwp_dll=="true"', {
+          'type': 'none',
         }],
       ],
-      'msvs_settings': {
-        'VCLinkerTool': {
-          'SubSystem': 1, # /subsystem:console
-        },
-      },
-
-
-    }
+    },
   ], # end targets
 
   'conditions': [
