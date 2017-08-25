@@ -3595,6 +3595,19 @@ void ByteCodeGenerator::EmitOneFunction(ParseNode *pnode)
     }
 #endif
 
+    if (!byteCodeFunction->GetSourceContextInfo()->IsDynamic() && byteCodeFunction->GetIsTopLevel() && !(this->flags & fscrEvalCode))
+    {
+        // Add the top level of nested functions to the tracking dictionary. Wait until this point so that all nested functions have gone
+        // through the Emit API so source info, etc., is initialized, and these are not orphaned functions left behind by an unfinished pass.
+        byteCodeFunction->ForEachNestedFunc([&](Js::FunctionProxy * nestedFunc, uint32 i)
+        {
+            if (nestedFunc && nestedFunc->IsDeferredParseFunction() && nestedFunc->GetParseableFunctionInfo()->GetIsDeclaration())
+            {
+                byteCodeFunction->GetUtf8SourceInfo()->TrackDeferredFunction(nestedFunc->GetLocalFunctionId(), nestedFunc->GetParseableFunctionInfo());
+            }
+            return true;
+        });
+    }
 
     byteCodeFunction->SetInitialDefaultEntryPoint();
     byteCodeFunction->SetCompileCount(UInt32Math::Add(byteCodeFunction->GetCompileCount(), 1));
@@ -6132,6 +6145,8 @@ unsigned int CountArguments(ParseNode *pnode, BOOL *pSideEffect = nullptr)
         }
     }
 
+    AssertOrFailFastMsg(argCount < Js::Constants::UShortMaxValue, "Number of allowed arguments are already capped at parser level");
+
     return argCount;
 }
 
@@ -7106,15 +7121,16 @@ void EmitAssignment(
         // PutValue(x, "y", rhs)
         Js::PropertyId propertyId = lhs->sxBin.pnode2->sxPid.PropertyIdFromNameNode();
 
-        uint cacheId = funcInfo->FindOrAddInlineCacheId(lhs->sxBin.pnode1->location, propertyId, false, true);
         EmitSuperMethodBegin(lhs, byteCodeGenerator, funcInfo);
         if (lhs->sxBin.pnode1->nop == knopSuper)
         {
             Js::RegSlot tmpReg = byteCodeGenerator->EmitLdObjProto(Js::OpCode::LdHomeObjProto, funcInfo->superRegister, funcInfo);
+            uint cacheId = funcInfo->FindOrAddInlineCacheId(tmpReg, propertyId, false, true);
             byteCodeGenerator->Writer()->PatchablePropertyWithThisPtr(Js::OpCode::StSuperFld, rhsLocation, tmpReg, funcInfo->thisPointerRegister, cacheId);
         }
         else
         {
+            uint cacheId = funcInfo->FindOrAddInlineCacheId(lhs->sxBin.pnode1->location, propertyId, false, true);
             byteCodeGenerator->Writer()->PatchableProperty(
                 ByteCodeGenerator::GetStFldOpCode(funcInfo, false, false, false, false), rhsLocation, lhs->sxBin.pnode1->location, cacheId);
         }
@@ -7353,15 +7369,10 @@ Js::ArgSlot EmitArgListEnd(
     BOOL fIsEval = (evalLocation != Js::Constants::NoRegister);
     BOOL fHasNewTarget = (newTargetLocation != Js::Constants::NoRegister);
 
+    static const size_t maxExtraArgSlot = 4;  // max(extraEvalArg, extraArg), where extraEvalArg==2 (moduleRoot,env), extraArg==4 (this, eval, evalInModule, newTarget)
+    AssertOrFailFastMsg(argIndex < Js::Constants::UShortMaxValue - maxExtraArgSlot, "Number of allowed arguments are already capped at parser level");
+
     Js::ArgSlot argSlotIndex = (Js::ArgSlot) argIndex;
-    static const Js::ArgSlot maxExtraArgSlot = 4;  // max(extraEvalArg, extraArg), where extraEvalArg==2 (moduleRoot,env), extraArg==4 (this, eval, evalInModule, newTarget)
-
-    // check for integer overflow with margin for increments below to calculate argument count
-    if ((size_t)argSlotIndex != argIndex || argSlotIndex + maxExtraArgSlot < argSlotIndex)
-    {
-        Js::Throw::OutOfMemory();
-    }
-
     Js::ArgSlot evalIndex;
 
     if (fIsPut)
@@ -8208,12 +8219,7 @@ void EmitNew(ParseNode* pnode, ByteCodeGenerator* byteCodeGenerator, FuncInfo* f
 
     BOOL fSideEffectArgs = FALSE;
     unsigned int tmpCount = CountArguments(pnode->sxCall.pnodeArgs, &fSideEffectArgs);
-    Assert(argCount == tmpCount);
-
-    if (argCount != (Js::ArgSlot)argCount)
-    {
-        Js::Throw::OutOfMemory();
-    }
+    AssertOrFailFastMsg(argCount == tmpCount, "argCount cannot overflow as max args capped at parser level");
 
     byteCodeGenerator->StartStatement(pnode);
 
@@ -10906,16 +10912,17 @@ void Emit(ParseNode *pnode, ByteCodeGenerator *byteCodeGenerator, FuncInfo *func
         Js::RegSlot protoLocation = callObjLocation;
         EmitSuperMethodBegin(pnode, byteCodeGenerator, funcInfo);
 
-        uint cacheId = funcInfo->FindOrAddInlineCacheId(callObjLocation, propertyId, false, false);
         if (pnode->IsCallApplyTargetLoad())
         {
             if (pnode->sxBin.pnode1->nop == knopSuper)
             {
                 Js::RegSlot tmpReg = byteCodeGenerator->EmitLdObjProto(Js::OpCode::LdHomeObjProto, funcInfo->superRegister, funcInfo);
+                uint cacheId = funcInfo->FindOrAddInlineCacheId(tmpReg, propertyId, false, false);
                 byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::LdFldForCallApplyTarget, pnode->location, tmpReg, cacheId);
             }
             else
             {
+                uint cacheId = funcInfo->FindOrAddInlineCacheId(callObjLocation, propertyId, false, false);
                 byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::LdFldForCallApplyTarget, pnode->location, protoLocation, cacheId);
             }
         }
@@ -10924,10 +10931,12 @@ void Emit(ParseNode *pnode, ByteCodeGenerator *byteCodeGenerator, FuncInfo *func
             if (pnode->sxBin.pnode1->nop == knopSuper)
             {
                 Js::RegSlot tmpReg = byteCodeGenerator->EmitLdObjProto(Js::OpCode::LdHomeObjProto, funcInfo->superRegister, funcInfo);
+                uint cacheId = funcInfo->FindOrAddInlineCacheId(tmpReg, propertyId, false, false);
                 byteCodeGenerator->Writer()->PatchablePropertyWithThisPtr(Js::OpCode::LdSuperFld, pnode->location, tmpReg, funcInfo->thisPointerRegister, cacheId, isConstructorCall);
             }
             else
             {
+                uint cacheId = funcInfo->FindOrAddInlineCacheId(callObjLocation, propertyId, false, false);
                 byteCodeGenerator->Writer()->PatchableProperty(Js::OpCode::LdFld, pnode->location, callObjLocation, cacheId, isConstructorCall);
             }
         }

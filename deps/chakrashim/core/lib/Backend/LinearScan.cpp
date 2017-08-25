@@ -886,7 +886,6 @@ LinearScan::SetDstReg(IR::Instr *instr)
                     return;
                 }
 
-
                 if (reg == RegNOREG)
                 {
                     IR::Opnd *src = instr->GetSrc1();
@@ -908,13 +907,7 @@ LinearScan::SetDstReg(IR::Instr *instr)
             if (!lifetime->isDeadStore && !lifetime->isSecondChanceAllocated)
             {
                 // Insert a store since the lifetime is spilled
-                IR::Opnd *nextDst = instr->m_next->GetDst();
-
-                // Don't need the store however if the next instruction has the same dst
-                if (nextDst == nullptr || !nextDst->IsEqual(regOpnd))
-                {
-                    this->InsertStore(instr, regOpnd->m_sym, reg);
-                }
+                this->InsertStore(instr, regOpnd->m_sym, reg);
             }
         }
         else
@@ -3639,7 +3632,7 @@ void LinearScan::TrackInlineeArgLifetimes(IR::Instr* instr)
             Assert(this->currentBlock->inlineeStack.Count() == 0);
         }
     }
-    else if (instr->m_opcode == Js::OpCode::InlineeEnd)
+    else if (instr->m_opcode == Js::OpCode::InlineeEnd || instr->HasBailOnNoProfile())
     {
         if (instr->m_func->m_hasInlineArgsOpt)
         {

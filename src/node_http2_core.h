@@ -59,13 +59,13 @@ enum nghttp2_stream_flags {
   // Writable side has ended
   NGHTTP2_STREAM_FLAG_SHUT = 0x1,
   // Reading has started
-  NGHTTP2_STREAM_READ_START = 0x2,
+  NGHTTP2_STREAM_FLAG_READ_START = 0x2,
   // Reading is paused
-  NGHTTP2_STREAM_READ_PAUSED = 0x4,
+  NGHTTP2_STREAM_FLAG_READ_PAUSED = 0x4,
   // Stream is closed
-  NGHTTP2_STREAM_CLOSED = 0x8,
+  NGHTTP2_STREAM_FLAG_CLOSED = 0x8,
   // Stream is destroyed
-  NGHTTP2_STREAM_DESTROYED = 0x10
+  NGHTTP2_STREAM_FLAG_DESTROYED = 0x10
 };
 
 
@@ -166,12 +166,29 @@ class Nghttp2Session {
                             int error_code) {}
   virtual ssize_t GetPadding(size_t frameLength,
                              size_t maxFrameLength) { return 0; }
-  virtual void OnTrailers(Nghttp2Stream* stream,
-                          MaybeStackBuffer<nghttp2_nv>* nva) {}
   virtual void OnFreeSession() {}
   virtual void AllocateSend(size_t suggested_size, uv_buf_t* buf) = 0;
 
   virtual bool HasGetPaddingCallback() { return false; }
+
+  class SubmitTrailers {
+   public:
+    void Submit(nghttp2_nv* trailers, size_t length) const;
+
+   private:
+    inline SubmitTrailers(Nghttp2Session* handle,
+                          Nghttp2Stream* stream,
+                          uint32_t* flags);
+
+    Nghttp2Session* const handle_;
+    Nghttp2Stream* const stream_;
+    uint32_t* const flags_;
+
+    friend class Nghttp2Session;
+  };
+
+  virtual void OnTrailers(Nghttp2Stream* stream,
+                          const SubmitTrailers& submit_trailers) {}
 
  private:
   inline void SendPendingData();
@@ -301,7 +318,7 @@ class Nghttp2Stream {
 
   // Returns true if this stream has been destroyed
   inline bool IsDestroyed() const {
-    return flags_ & NGHTTP2_STREAM_DESTROYED;
+    return flags_ & NGHTTP2_STREAM_FLAG_DESTROYED;
   }
 
   // Queue outbound chunks of data to be sent on this stream
@@ -361,7 +378,7 @@ class Nghttp2Stream {
 
   // Returns true if reading is paused
   inline bool IsPaused() const {
-    return flags_ & NGHTTP2_STREAM_READ_PAUSED;
+    return flags_ & NGHTTP2_STREAM_FLAG_READ_PAUSED;
   }
 
   inline bool GetTrailers() const {
@@ -369,16 +386,16 @@ class Nghttp2Stream {
   }
 
   // Returns true if this stream is in the reading state, which occurs when
-  // the NGHTTP2_STREAM_READ_START flag has been set and the
-  // NGHTTP2_STREAM_READ_PAUSED flag is *not* set.
+  // the NGHTTP2_STREAM_FLAG_READ_START flag has been set and the
+  // NGHTTP2_STREAM_FLAG_READ_PAUSED flag is *not* set.
   inline bool IsReading() const {
-    return flags_ & NGHTTP2_STREAM_READ_START &&
-           !(flags_ & NGHTTP2_STREAM_READ_PAUSED);
+    return flags_ & NGHTTP2_STREAM_FLAG_READ_START &&
+           !(flags_ & NGHTTP2_STREAM_FLAG_READ_PAUSED);
   }
 
   inline void Close(int32_t code) {
     DEBUG_HTTP2("Nghttp2Stream %d: closing with code %d\n", id_, code);
-    flags_ |= NGHTTP2_STREAM_CLOSED;
+    flags_ |= NGHTTP2_STREAM_FLAG_CLOSED;
     code_ = code;
     session_->OnStreamClose(id_, code);
     DEBUG_HTTP2("Nghttp2Stream %d: closed\n", id_);
@@ -387,7 +404,7 @@ class Nghttp2Stream {
   // Returns true if this stream has been closed either by receiving or
   // sending an RST_STREAM frame.
   inline bool IsClosed() const {
-    return flags_ & NGHTTP2_STREAM_CLOSED;
+    return flags_ & NGHTTP2_STREAM_FLAG_CLOSED;
   }
 
   // Returns the RST_STREAM code used to close this stream

@@ -169,7 +169,7 @@ console.log('this will also print');
 
 ### console.clear()
 <!-- YAML
-added: REPLACEME
+added: v8.3.0
 -->
 
 When `stdout` is a TTY, calling `console.clear()` will attempt to clear the
@@ -183,7 +183,7 @@ binary.
 
 ### console.count([label])
 <!-- YAML
-added: REPLACEME
+added: v8.3.0
 -->
 
 * `label` {string} The display label for the counter. Defaults to `'default'`.
@@ -216,7 +216,7 @@ undefined
 
 ### console.countReset([label = 'default'])
 <!-- YAML
-added: REPLACEME
+added: v8.3.0
 -->
 
 * `label` {string} The display label for the counter. Defaults to `'default'`.
@@ -321,7 +321,7 @@ See [`util.format()`][] for more information.
 <!-- YAML
 added: v0.1.104
 -->
-* `label` {string}
+* `label` {string} Defaults to `'default'`.
 
 Starts a timer that can be used to compute the duration of an operation. Timers
 are identified by a unique `label`. Use the same `label` when calling
@@ -337,7 +337,7 @@ changes:
     description: This method no longer supports multiple calls that don’t map
                  to individual `console.time()` calls; see below for details.
 -->
-* `label` {string}
+* `label` {string} Defaults to `'default'`.
 
 Stops a timer that was previously started by calling [`console.time()`][] and
 prints the result to `stdout`:

@@ -144,7 +144,9 @@ namespace Js
 
     private:
         Field(Field(Var)*) m_moduleMemory;
+#ifdef ENABLE_WASM
         Field(Wasm::WasmSignature *) m_signature;
+#endif
     };
 
     class ScriptFunctionWithInlineCache : public ScriptFunction
@@ -181,7 +183,7 @@ namespace Js
         void ClearBorrowedInlineCacheOnFunctionObject();
         InlineCache * GetInlineCache(uint index);
         uint GetInlineCacheCount() { return inlineCacheCount; }
-        Field(void**) GetInlineCaches() { return m_inlineCaches; }
+        Field(void**) GetInlineCaches();
         bool GetHasOwnInlineCaches() { return hasOwnInlineCaches; }
         void SetInlineCachesFromFunctionBody();
         static uint32 GetOffsetOfInlineCaches() { return offsetof(ScriptFunctionWithInlineCache, m_inlineCaches); };
