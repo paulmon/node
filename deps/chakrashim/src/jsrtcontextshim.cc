@@ -453,7 +453,6 @@ bool ContextShim::ExposeGc() {
 
 bool ContextShim::ExecuteChakraShimJS() {
   JsValueRef getInitFunction;
-  JsValueRef url;
 #ifdef NODE_ENGINE_CHAKRA
   wchar_t buffer[_countof(raw_chakra_shim_value) + 1];
   size_t newLen;
@@ -468,6 +467,7 @@ bool ContextShim::ExecuteChakraShimJS() {
       return false;
   }
 #else
+  JsValueRef url;
   jsrt::CreateString("chakra_shim.js", &url);
   if (JsParse(GetIsolateShim()->GetChakraShimJsArrayBuffer(),
                     v8::currentContext++,

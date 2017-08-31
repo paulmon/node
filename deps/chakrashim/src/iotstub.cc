@@ -84,39 +84,7 @@ CHAKRA_API JsCreateWeakReference(
     return __NotImplemented("JsCreateWeakReference");
 }
 
-#if 0
-CHAKRA_API
-    JsCopyString(
-        _In_ JsValueRef value,
-        _Out_opt_ char* buffer,
-        _In_ size_t bufferSize,
-        _Out_opt_ size_t* written)
-{
-    //if (bufferSize > 26000)
-    //    __debugbreak();
-
-    size_t wBufferSize = bufferSize;
-    size_t converted = 0;
-    const wchar_t* wbuffer = nullptr;
-
-    auto result = JsStringToPointer(value, &wbuffer, &wBufferSize);
-    if (buffer != nullptr)
-    {
-        wcstombs_s(&converted, buffer, bufferSize, wbuffer, wBufferSize);
-        *written = converted;
-    }
-    else
-    {
-        if (wBufferSize == 26495) __debugbreak();
-
-        wcstombs_s(&converted, nullptr, 0, wbuffer, wBufferSize);
-        *written = converted;
-    }
-    return result;
-}
-#else
-CHAKRA_API
-JsCopyString(
+CHAKRA_API JsCopyString(
     _In_ JsValueRef value,
     _Out_opt_ char* buffer,
     _In_ size_t bufferSize,
@@ -161,20 +129,7 @@ JsCopyString(
 
     return JsNoError;
 }
-#endif
 
-#if 0
-CHAKRA_API
-    JsCopyStringUtf16(
-        _In_ JsValueRef value,
-        _In_ int start,
-        _In_ int length,
-        _Out_opt_ uint16_t* buffer,
-        _Out_opt_ size_t* written)
-{
-    return __NotImplemented("JsCopyStringUtf16");
-}
-#else
 template <class CopyFunc>
 JsErrorCode WriteStringCopy(
     JsValueRef value,
@@ -245,30 +200,7 @@ CHAKRA_API JsCopyStringUtf16(
         return JsNoError;
     });
 }
-#endif
 
-#if 0
-CHAKRA_API
-    JsCreateString(
-        _In_ const char *content,
-        _In_ size_t length,
-        _Out_ JsValueRef *value)
-{
-    if (length > 260000)
-        __debugbreak();
-
-    wchar_t* wcontent = new wchar_t[length + 1];
-    if (wcontent)
-    {
-        size_t newLen;
-        mbstowcs_s(&newLen, wcontent, length + 1, content, length);
-        JsErrorCode result = JsPointerToString(wcontent, length, value);
-        delete[] wcontent;
-        return result;
-    }
-    return JsErrorOutOfMemory;
-}
-#else
 CHAKRA_API JsCreateString(
     _In_ const char *content,
     _In_ size_t length,
@@ -284,10 +216,8 @@ CHAKRA_API JsCreateString(
 
     return JsPointerToString(wstr, wstr.Length(), value);
 }
-#endif
 
-CHAKRA_API
-    JsCreateStringUtf16(
+CHAKRA_API JsCreateStringUtf16(
         _In_ const uint16_t *content,
         _In_ size_t length,
         _Out_ JsValueRef *value)
@@ -295,16 +225,6 @@ CHAKRA_API
     return JsPointerToString(reinterpret_cast<const WCHAR*>(content), length, value);
 }
 
-#if 0
-CHAKRA_API
-    JsCreatePropertyId(
-        _In_z_ const char *name,
-        _In_ size_t length,
-        _Out_ JsPropertyIdRef *propertyId)
-{
-    return __NotImplemented("JsCreatePropertyId");
-}
-#else
 CHAKRA_API JsCreatePropertyId(
     _In_z_ const char *name,
     _In_ size_t length,
@@ -319,19 +239,15 @@ CHAKRA_API JsCreatePropertyId(
 
     return JsGetPropertyIdFromName(wname, propertyId);
 }
-#endif
 
-CHAKRA_API
-    JsGetWeakReferenceValue(
+CHAKRA_API JsGetWeakReferenceValue(
         _In_ JsWeakRef weakRef,
         _Out_ JsValueRef* value)
 {
     return __NotImplemented("JsGetWeakReferenceValue");
 }
 
-#if 1
-CHAKRA_API
-    JsParse(
+CHAKRA_API JsParse(
         _In_ JsValueRef script,
         _In_ JsSourceContext sourceContext,
         _In_ JsValueRef sourceUrl,
@@ -373,107 +289,21 @@ CHAKRA_API
 
     return errorCode;
 }
-#else
-#define _ALWAYSINLINE __forceinline
-_ALWAYSINLINE JsErrorCode CompileRun(
-    JsValueRef scriptVal,
-    JsSourceContext sourceContext,
-    JsValueRef sourceUrl,
-    JsParseScriptAttributes parseAttributes,
-    _Out_ JsValueRef *result,
-    bool parseOnly)
-{
-    PARAM_NOT_NULL(scriptVal);
-    VALIDATE_JSREF(scriptVal);
-    PARAM_NOT_NULL(sourceUrl);
 
-    bool isExternalArray = Js::ExternalArrayBuffer::Is(scriptVal),
-        isString = false;
-    bool isUtf8 = !(parseAttributes & JsParseScriptAttributeArrayBufferIsUtf16Encoded);
-
-    LoadScriptFlag scriptFlag = LoadScriptFlag_None;
-    const byte* script;
-    size_t cb;
-    const WCHAR *url;
-
-    if (isExternalArray)
-    {
-        script = ((Js::ExternalArrayBuffer*)(scriptVal))->GetBuffer();
-
-        cb = ((Js::ExternalArrayBuffer*)(scriptVal))->GetByteLength();
-
-        scriptFlag = (LoadScriptFlag)(isUtf8 ?
-            LoadScriptFlag_ExternalArrayBuffer | LoadScriptFlag_Utf8Source :
-            LoadScriptFlag_ExternalArrayBuffer);
-    }
-    else
-    {
-        isString = Js::JavascriptString::Is(scriptVal);
-        if (!isString)
-        {
-            return JsErrorInvalidArgument;
-        }
-    }
-
-    JsErrorCode error = GlobalAPIWrapper_NoRecord([&]() -> JsErrorCode {
-        if (isString)
-        {
-            Js::JavascriptString* jsString = Js::JavascriptString::FromVar(scriptVal);
-            script = (const byte*)jsString->GetSz();
-
-            // JavascriptString is 2 bytes (WCHAR/char16)
-            cb = jsString->GetLength() * sizeof(WCHAR);
-        }
-
-        if (!Js::JavascriptString::Is(sourceUrl))
-        {
-            return JsErrorInvalidArgument;
-        }
-
-        url = Js::JavascriptString::FromVar(sourceUrl)->GetSz();
-
-        return JsNoError;
-
-    });
-
-    if (error != JsNoError)
-    {
-        return error;
-    }
-
-    return RunScriptCore(scriptVal, script, cb, scriptFlag,
-        sourceContext, url, parseOnly, parseAttributes, false, result);
-}
-
-CHAKRA_API JsParse(
-    _In_ JsValueRef scriptVal,
-    _In_ JsSourceContext sourceContext,
-    _In_ JsValueRef sourceUrl,
-    _In_ JsParseScriptAttributes parseAttributes,
-    _Out_ JsValueRef *result)
-{
-    return CompileRun(scriptVal, sourceContext, sourceUrl, parseAttributes,
-        result, true);
-}
-#endif
-
-CHAKRA_API
-        JsDiagGetBreakpoints(
+CHAKRA_API JsDiagGetBreakpoints(
             _Out_ JsValueRef *breakpoints)
 {
     return __NotImplemented("JsDiagGetBreakpoints");
 }
 
-CHAKRA_API
-        JsDiagGetFunctionPosition(
+CHAKRA_API JsDiagGetFunctionPosition(
             _In_ JsValueRef function,
             _Out_ JsValueRef *functionPosition)
 {
     return __NotImplemented("JsDiagGetFunctionPosition");
 }
 
-CHAKRA_API
-        JsDiagStartDebugging(
+CHAKRA_API JsDiagStartDebugging(
             _In_ JsRuntimeHandle runtimeHandle,
             _In_ JsDiagDebugEventCallback debugEventCallback,
             _In_opt_ void* callbackState)
@@ -481,58 +311,50 @@ CHAKRA_API
     return __NotImplemented("JsDiagStartDebugging");
 }
 
-CHAKRA_API
-        JsDiagRemoveBreakpoint(
+CHAKRA_API JsDiagRemoveBreakpoint(
             _In_ unsigned int breakpointId)
 {
     return __NotImplemented("JsDiagRemoveBreakpoint");
 }
 
-CHAKRA_API
-        JsTTDPauseTimeTravelBeforeRuntimeOperation()
+CHAKRA_API JsTTDPauseTimeTravelBeforeRuntimeOperation()
 {
     return __NotImplemented("JsTTDPauseTimeTravelBeforeRuntimeOperation");
 }
 
-CHAKRA_API
-        JsTTDReStartTimeTravelAfterRuntimeOperation()
+CHAKRA_API JsTTDReStartTimeTravelAfterRuntimeOperation()
 {
     return __NotImplemented("JsTTDReStartTimeTravelAfterRuntimeOperation");
 }
 
-CHAKRA_API
-        JsDiagRequestAsyncBreak(
+CHAKRA_API JsDiagRequestAsyncBreak(
             _In_ JsRuntimeHandle runtimeHandle)
 {
     return __NotImplemented("JsDiagRequestAsyncBreak");
 }
 
-CHAKRA_API
-        JsDiagGetObjectFromHandle(
+CHAKRA_API JsDiagGetObjectFromHandle(
             _In_ unsigned int objectHandle,
             _Out_ JsValueRef *handleObject)
 {
     return __NotImplemented("JsDiagGetObjectFromHandle");
 }
 
-CHAKRA_API
-        JsDiagGetSource(
+CHAKRA_API JsDiagGetSource(
             _In_ unsigned int scriptId,
             _Out_ JsValueRef *source)
 {
     return __NotImplemented("JsDiagGetSource");
 }
 
-CHAKRA_API
-        JsDiagGetStackProperties(
+CHAKRA_API JsDiagGetStackProperties(
             _In_ unsigned int stackFrameIndex,
             _Out_ JsValueRef *properties)
 {
     return __NotImplemented("JsDiagGetStackProperties");
 }
 
-CHAKRA_API
-        JsDiagGetProperties(
+CHAKRA_API JsDiagGetProperties(
             _In_ unsigned int objectHandle,
             _In_ unsigned int fromCount,
             _In_ unsigned int totalCount,
@@ -550,7 +372,7 @@ CHAKRA_API JsTTDGetSnapShotBoundInterval(
     return __NotImplemented("JsTTDGetSnapShotBoundInterval");
 }
 
-    CHAKRA_API JsTTDGetPreviousSnapshotInterval(
+CHAKRA_API JsTTDGetPreviousSnapshotInterval(
         _In_ JsRuntimeHandle runtimeHandle,
         _In_ int64_t currentSnapStartTime,
         _Out_ int64_t* previousSnapTime)
@@ -564,8 +386,7 @@ CHAKRA_API JsTTDNotifyContextDestroy(
     return __NotImplemented("JsTTDNotifyContextDestroy");
 }
 
-CHAKRA_API
-        JsTTDCreateRecordRuntime(
+CHAKRA_API JsTTDCreateRecordRuntime(
             _In_ JsRuntimeAttributes attributes,
             _In_ size_t snapInterval,
             _In_ size_t snapHistoryLength,
@@ -579,8 +400,7 @@ CHAKRA_API
 }
 
 
-CHAKRA_API
-        JsTTDCreateReplayRuntime(
+CHAKRA_API JsTTDCreateReplayRuntime(
             _In_ JsRuntimeAttributes attributes,
             _In_reads_(infoUriCount) const char* infoUri,
             _In_ size_t infoUriCount,
@@ -615,16 +435,14 @@ CHAKRA_API JsTTDPreExecuteSnapShotInterval(
     return __NotImplemented("JsTTDPreExecuteSnapShotInterval");
 }
 
-CHAKRA_API
-        JsTTDReplayExecution(
+CHAKRA_API JsTTDReplayExecution(
             _Inout_ JsTTDMoveMode* moveMode,
             _Out_ int64_t* rootEventTime)
 {
     return __NotImplemented("JsTTDReplayExecution");
 }
 
-CHAKRA_API
-        JsTTDRawBufferCopySyncIndirect(
+CHAKRA_API JsTTDRawBufferCopySyncIndirect(
             _In_ JsValueRef dst,
             _In_ size_t dstIndex,
             _In_ JsValueRef src,
@@ -634,8 +452,7 @@ CHAKRA_API
     return __NotImplemented("JsTTDRawBufferCopySyncIndirect");
 }
 
-CHAKRA_API
-        JsTTDRawBufferModifySyncIndirect(
+CHAKRA_API JsTTDRawBufferModifySyncIndirect(
             _In_ JsValueRef buffer,
             _In_ size_t index,
             _In_ size_t count)
@@ -643,121 +460,26 @@ CHAKRA_API
     return __NotImplemented("JsTTDRawBufferModifySyncIndirect");
 }
 
-CHAKRA_API
-        JsTTDRawBufferAsyncModifyComplete(
+CHAKRA_API JsTTDRawBufferAsyncModifyComplete(
             _In_ byte* finalModPos)
 {
     return __NotImplemented("JsTTDRawBufferAsyncModifyComplete");
 }
 
-CHAKRA_API
-        JsTTDRawBufferAsyncModificationRegister(
+CHAKRA_API JsTTDRawBufferAsyncModificationRegister(
             _In_ JsValueRef instance,
             _In_ byte* initialModPos)
 {
     return __NotImplemented("JsTTDRawBufferAsyncModificationRegister");
 }
 
-#if 1
-CHAKRA_API
-JsGetAndClearExceptionWithMetadata(
+CHAKRA_API JsGetAndClearExceptionWithMetadata(
     _Out_ JsValueRef *metadata)
 {
     return __NotImplemented("JsGetAndClearExceptionWithMetadata");
 }
-#else
-CHAKRA_API JsGetAndClearExceptionWithMetadata(_Out_ JsValueRef *metadata)
-{
-    PARAM_NOT_NULL(metadata);
-    *metadata = nullptr;
 
-    JsrtContext *currentContext = JsrtContext::GetCurrent();
-
-    if (currentContext == nullptr)
-    {
-        return JsErrorNoCurrentContext;
-    }
-
-    Js::ScriptContext *scriptContext = currentContext->GetScriptContext();
-    Assert(scriptContext != nullptr);
-
-    if (scriptContext->GetRecycler() && scriptContext->GetRecycler()->IsHeapEnumInProgress())
-    {
-        return JsErrorHeapEnumInProgress;
-    }
-    else if (scriptContext->GetThreadContext()->IsInThreadServiceCallback())
-    {
-        return JsErrorInThreadServiceCallback;
-    }
-
-    if (scriptContext->GetThreadContext()->IsExecutionDisabled())
-    {
-        return JsErrorInDisabledState;
-    }
-
-    HRESULT hr = S_OK;
-    Js::JavascriptExceptionObject *recordedException = nullptr;
-
-    BEGIN_TRANSLATE_OOM_TO_HRESULT
-        if (scriptContext->HasRecordedException())
-        {
-            recordedException = scriptContext->GetAndClearRecordedException();
-        }
-    END_TRANSLATE_OOM_TO_HRESULT(hr)
-
-        if (hr == E_OUTOFMEMORY)
-        {
-            recordedException = scriptContext->GetThreadContext()->GetRecordedException();
-        }
-    if (recordedException == nullptr)
-    {
-        return JsErrorInvalidArgument;
-    }
-
-    Js::Var exception = recordedException->GetThrownObject(nullptr);
-
-    if (exception == nullptr)
-    {
-        // TODO: How does this early bailout impact TTD?
-        return JsErrorInvalidArgument;
-    }
-
-    return ContextAPIWrapper<false>([&](Js::ScriptContext* scriptContext, TTDRecorder& _actionEntryPopper) -> JsErrorCode {
-        Js::Var exceptionMetadata = Js::JavascriptExceptionMetadata::CreateMetadataVar(scriptContext);
-        Js::JavascriptOperators::OP_SetProperty(exceptionMetadata, Js::PropertyIds::exception, exception, scriptContext);
-
-        Js::FunctionBody *functionBody = recordedException->GetFunctionBody();
-        if (functionBody == nullptr)
-        {
-            // This is probably a parse error. We can get the error location metadata from the thrown object.
-            Js::JavascriptExceptionMetadata::PopulateMetadataFromCompileException(exceptionMetadata, exception, scriptContext);
-        }
-        else
-        {
-            if (!Js::JavascriptExceptionMetadata::PopulateMetadataFromException(exceptionMetadata, recordedException, scriptContext))
-            {
-                return JsErrorInvalidArgument;
-            }
-        }
-
-        *metadata = exceptionMetadata;
-
-#if ENABLE_TTD
-        if (hr != E_OUTOFMEMORY)
-        {
-            PERFORM_JSRT_TTD_RECORD_ACTION(scriptContext, RecordJsRTGetAndClearExceptionWithMetadata);
-            PERFORM_JSRT_TTD_RECORD_ACTION_RESULT(scriptContext, metadata);
-        }
-#endif
-
-
-        return JsNoError;
-    });
-}
-#endif
-
-CHAKRA_API
-        JsTTDMoveToTopLevelEvent(
+CHAKRA_API JsTTDMoveToTopLevelEvent(
             _In_ JsRuntimeHandle runtimeHandle,
             _In_ JsTTDMoveMode moveMode,
             _In_ int64_t snapshotTime,
@@ -766,8 +488,7 @@ CHAKRA_API
     return __NotImplemented("JsTTDMoveToTopLevelEvent");
 }
 
-CHAKRA_API
-JsHasOwnProperty(
+CHAKRA_API JsHasOwnProperty(
     _In_ JsValueRef object,
     _In_ JsPropertyIdRef propertyId,
     _Out_ bool *hasOwnProperty)
@@ -775,8 +496,7 @@ JsHasOwnProperty(
     return __NotImplemented("JsHasOwnProperty");
 }
 
-CHAKRA_API
-JsGetDataViewInfo(
+CHAKRA_API JsGetDataViewInfo(
     _In_ JsValueRef dataView,
     _Out_opt_ JsValueRef *arrayBuffer,
     _Out_opt_ unsigned int *byteOffset,
@@ -785,8 +505,7 @@ JsGetDataViewInfo(
     return __NotImplemented("JsGetDataViewInfo");
 }
 
-CHAKRA_API
-JsCopyStringOneByte(
+CHAKRA_API JsCopyStringOneByte(
     _In_ JsValueRef value,
     _In_ int start,
     _In_ int length,

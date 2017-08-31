@@ -63,8 +63,14 @@
 #endif
 #endif
 
+#ifdef NODE_ENGINE_CHAKRA
+#include <jsrt.h>
+#include "IotChakraCore.h"
+#endif // NODE_ENGINE_CHAKRA
 #include <memory>
+#ifdef NODE_ENGINE_CHAKRACORE
 #include "ChakraCore.h"
+#endif // NODE_ENGINE_CHAKRA
 #include "v8-version.h"
 #include "v8config.h"
 
