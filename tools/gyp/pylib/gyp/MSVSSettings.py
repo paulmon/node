@@ -930,7 +930,6 @@ _Same(_rc, 'ShowProgress', _boolean)  # /v
 _Same(_rc, 'SuppressStartupBanner', _boolean)  # /nologo
 _Same(_rc, 'UndefinePreprocessorDefinitions', _string_list)  # /u
 
-
 # MSBuild options not found in MSVS.
 _MSBuildOnly(_rc, 'NullTerminateStrings', _boolean)  # /n
 _MSBuildOnly(_rc, 'TrackerLogDirectory', _folder_name)

@@ -27,7 +27,7 @@
 #include "libplatform/v8-tracing.h"
 #include "jsrtplatform.h"
 
-#ifndef _WIN32
+#if !defined(_WIN32) || defined(UWP_DLL)
 #include "ChakraCoreVersion.h"
 #endif
 
@@ -56,7 +56,11 @@ const char *V8::GetVersion() {
   static char versionStr[kMaxVersionLength] = {};
 
   if (versionStr[0] == '\0') {
-#if defined(_WIN32) && !defined(UWP_DLL)
+#ifdef UWP_DLL
+    sprintf_s(versionStr, "%d.%d.%d.%d",
+	            CHAKRA_CORE_MAJOR_VERSION, CHAKRA_CORE_MINOR_VERSION,
+              CHAKRA_CORE_VERSION_RELEASE, CHAKRA_CORE_VERSION_RELEASE_QFE);
+#elif defined(_WIN32)
     HMODULE hModule;
     if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                           TEXT(NODE_ENGINE), &hModule)) {
@@ -170,7 +174,7 @@ void V8::SetFlagsFromCommandLine(int *argc, char **argv, bool remove_flags) {
 
 bool V8::Initialize() {
   if (g_disposed) {
-    return false; // Can no longer Initialize if Disposed
+    return false;  // Can no longer Initialize if Disposed
   }
 
   return true;

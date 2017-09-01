@@ -534,7 +534,11 @@ int WSAAPI uv_msafd_poll(SOCKET socket, AFD_POLL_INFO* info_in,
     /* If this is a blocking operation, wait for the event to become */
     /* signaled, and then grab the real status from the io status block. */
     if (status == STATUS_PENDING) {
+#ifdef UWP_DLL
       DWORD r = WaitForSingleObjectEx(event, INFINITE, FALSE);
+#else
+      DWORD r = WaitForSingleObject(event, INFINITE);
+#endif
 
       if (r == WAIT_FAILED) {
         DWORD saved_error = GetLastError();

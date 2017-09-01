@@ -203,11 +203,11 @@ void init_etw() {
 
 
 void shutdown_etw() {
-  if (
-#ifndef UWP_DLL
-      advapi &&
+#ifdef UWP_DLL
+  if (event_unregister && node_provider) {
+#else
+  if (advapi && event_unregister && node_provider) {
 #endif
-      event_unregister && node_provider) {
     event_unregister(node_provider);
     node_provider = 0;
   }

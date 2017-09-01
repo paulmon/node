@@ -55,7 +55,7 @@ sGetFinalPathNameByHandleW pGetFinalPathNameByHandleW;
 sPowerRegisterSuspendResumeNotification pPowerRegisterSuspendResumeNotification;
 #endif
 
-void uv_winapi_init() {
+void uv_winapi_init(void) {
 
 #ifdef UWP_DLL
     pGetQueuedCompletionStatusEx = &GetQueuedCompletionStatusEx;

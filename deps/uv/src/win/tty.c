@@ -334,8 +334,13 @@ int uv_tty_set_mode(uv_tty_t* tty, uv_tty_mode_t mode) {
 
   DWORD flags;
   unsigned char was_reading;
+#ifdef UWP_DLL
   uv_alloc_cb alloc_cb = NULL;
   uv_read_cb read_cb = NULL;
+#else
+  uv_alloc_cb alloc_cb;
+  uv_read_cb read_cb;
+#endif
   int err;
 
   if (!(tty->flags & UV_HANDLE_TTY_READABLE)) {

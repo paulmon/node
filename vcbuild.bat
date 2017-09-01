@@ -115,6 +115,7 @@ if /i "%1"=="dll"           set dll=1&goto arg-ok
 if /i "%1"=="static"           set enable_static=1&goto arg-ok
 if /i "%1"=="v8"            set engine=v8&goto arg-ok
 if /i "%1"=="chakra"        set engine=chakra&goto arg-ok
+if /i "%1"=="chakracore"    set engine=chakracore&goto arg-ok
 if /i "%1"=="sdk"           set sdk=1&goto arg-ok
 if /i "%1"=="uwp-dll"       set target_type=uwp-dll&goto arg-ok
 if /i "%1"=="no-NODE-OPTIONS"	set no_NODE_OPTIONS=1&goto arg-ok
@@ -182,6 +183,12 @@ if "%i18n_arg%"=="full-icu" set configure_flags=%configure_flags% --with-intl=fu
 if "%i18n_arg%"=="small-icu" set configure_flags=%configure_flags% --with-intl=small-icu
 if "%i18n_arg%"=="intl-none" set configure_flags=%configure_flags% --with-intl=none
 if "%i18n_arg%"=="without-intl" set configure_flags=%configure_flags% --without-intl
+
+if "%engine%"=="chakracore" (
+  set configure_flags=%configure_flags% --without-bundled-v8
+  set chakra_jslint=deps\chakrashim\lib
+  set chakra_cpplint=deps\chakrashim\src\*.cc deps\chakrashim\src\*.h deps\chakrashim\include\v8.h
+)
 
 if "%engine%"=="chakra" (
   set configure_flags=%configure_flags% --without-intl --without-inspector --without-v8-platform --without-bundled-v8 --without-perfctr

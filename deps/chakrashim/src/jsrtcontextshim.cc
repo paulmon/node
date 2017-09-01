@@ -23,7 +23,6 @@
 #include <memory>
 #ifdef NODE_ENGINE_CHAKRA
 #include <chakra_natives.h>
-#include <stdlib.h>
 #endif
 
 namespace v8 {

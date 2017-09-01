@@ -424,6 +424,14 @@
             },
           },
         }],
+        ['node_uwp_dll=="true"']
+        {
+          'msvs_settings': {
+            'VCCLCompilerTool': {
+              'CompileAsWinRT': 'false',
+            }
+          },
+        }
         ['v8_target_arch=="ppc" or v8_target_arch=="ppc64" \
           or v8_target_arch=="arm" or v8_target_arch=="arm64" \
           or v8_target_arch=="s390" or v8_target_arch=="s390x" \

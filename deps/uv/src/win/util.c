@@ -59,8 +59,10 @@
 /* The number of nanoseconds in one second. */
 #define UV__NANOSEC 1000000000
 
+#ifdef UWP_DLL
 #ifndef IF_TYPE_SOFTWARE_LOOPBACK
 #define IF_TYPE_SOFTWARE_LOOPBACK 24
+#endif
 #endif
 
 /* Max user name length, from iphlpapi.h */
@@ -148,7 +150,11 @@ int uv_exepath(char* buffer, size_t* size_ptr) {
                                  utf16_buffer,
                                  -1,
                                  buffer,
+#ifdef UWP_DLL
                                  *size_ptr > INT_MAX ? INT_MAX : (int) *size_ptr,
+#else
+                                 (int) *size_ptr,
+#endif
                                  NULL,
                                  NULL);
   if (utf8_len == 0) {
@@ -344,7 +350,7 @@ uint64_t uv_get_total_memory(void) {
 
 
 #ifndef UWP_DLL
-int uv_parent_pid() {
+int uv_parent_pid(void) {
   int parent_pid = -1;
   HANDLE handle;
   PROCESSENTRY32 pe;
@@ -435,41 +441,22 @@ done:
 }
 
 
-static int uv__get_process_title() {
+static int uv__get_process_title(void) {
 #ifdef UWP_DLL
     return -1;
 #else
   WCHAR title_w[MAX_TITLE_LENGTH];
-  int length;
 
   if (!GetConsoleTitleW(title_w, sizeof(title_w) / sizeof(WCHAR))) {
     return -1;
   }
 
   /* Find out what the size of the buffer is that we need */
-  length = WideCharToMultiByte(CP_UTF8, 0, title_w, -1, NULL, 0, NULL, NULL);
-  if (!length) {
-    return -1;
-  }
-
-  assert(!process_title);
-  process_title = (char*)uv__malloc(length);
-  if (!process_title) {
-    uv_fatal_error(ERROR_OUTOFMEMORY, "uv__malloc");
-  }
+  if (uv__convert_utf16_to_utf8(title_w, -1, &process_title) != 0)
 
   /* Do utf16 -> utf8 conversion here */
-  if (!WideCharToMultiByte(CP_UTF8,
-                           0,
-                           title_w,
-                           -1,
-                           process_title,
-                           length,
-                           NULL,
-                           NULL)) {
-    uv__free(process_title);
     return -1;
-  }
+
 #endif
   return 0;
 }
@@ -771,43 +758,9 @@ int uv_cpu_info(uv_cpu_info_t** cpu_infos_ptr, int* cpu_count_ptr) {
     cpu_info->cpu_times.irq = sppi[i].InterruptTime.QuadPart / 10000;
     cpu_info->cpu_times.nice = 0;
 
-
-    len = WideCharToMultiByte(CP_UTF8,
-                              0,
-                              cpu_brand,
+    uv__convert_utf16_to_utf8(cpu_brand,
                               cpu_brand_size / sizeof(WCHAR),
-                              NULL,
-                              0,
-                              NULL,
-                              NULL);
-    if (len == 0) {
-      err = GetLastError();
-      goto error;
-    }
-
-    assert(len > 0);
-
-    /* Allocate 1 extra byte for the null terminator. */
-    cpu_info->model = uv__malloc(len + 1);
-    if (cpu_info->model == NULL) {
-      err = ERROR_OUTOFMEMORY;
-      goto error;
-    }
-
-    if (WideCharToMultiByte(CP_UTF8,
-                            0,
-                            cpu_brand,
-                            cpu_brand_size / sizeof(WCHAR),
-                            cpu_info->model,
-                            len,
-                            NULL,
-                            NULL) == 0) {
-      err = GetLastError();
-      goto error;
-    }
-
-    /* Ensure that cpu_info->model is null terminated. */
-    cpu_info->model[len] = '\0';
+                              &(cpu_info->model));
   }
 
   uv__free(sppi);

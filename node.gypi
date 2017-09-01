@@ -299,7 +299,7 @@
         '_UNICODE=1',
       ],
       'conditions' : [
-        [ 'node_uwp_dll=="false"', {
+        [ 'node_uwp_dll!="true"', {
           'libraries': [ '-lpsapi.lib' ],
         }],
         [ 'node_uwp_dll=="true"', {

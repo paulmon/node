@@ -51,7 +51,7 @@ JsErrorCode TemplateData::CopyPropertiesTo(JsValueRef newInstance) {
   unsigned int length;
   IfJsErrorRet(jsrt::GetArrayLength(propertyNames, &length));
 
-  JsPropertyIdRef valueIdRef = NULL;
+  JsPropertyIdRef valueIdRef = JS_INVALID_REFERENCE;
   if (length > 0) {
     valueIdRef = IsolateShim::GetCurrent()->GetCachedPropertyIdRef(
                   jsrt::CachedPropertyIdRef::value);

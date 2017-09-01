@@ -178,7 +178,6 @@ void After(uv_fs_t *req) {
   // (Feel free to increase this if you need more)
   Local<Value> argv[2];
   MaybeLocal<Value> link;
-  MaybeLocal<Value> value;
   Local<Value> error;
 
   if (req->result < 0) {
@@ -266,6 +265,8 @@ void After(uv_fs_t *req) {
 #ifdef UWP_DLL
       case UV_FS_UWPINSTALLDIR:
       case UV_FS_UWPSTORAGEDIR:
+        {
+          MaybeLocal<Value> value;
         wstr.assign(req->file.pathw);
         str.assign(wstr.begin(), wstr.end());
         value = StringBytes::Encode(env->isolate(),
@@ -273,6 +274,7 @@ void After(uv_fs_t *req) {
                                       req_wrap->encoding_,
                                       &error);
         argv[1] = value.ToLocalChecked();
+        }
         break;
 #endif
 
