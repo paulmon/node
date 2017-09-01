@@ -82,13 +82,13 @@
           [ 'target_arch=="arm"', {
             'defines': [ '__arm__=1' ]
           }],
-          [ 'node_uwp_dll!="true"', {
+          [ 'OS == "win" and node_uwp_dll=="false"', {
             'libraries': [
               '-lole32.lib',
               '-lversion.lib',
             ],
           }],
-          [ 'node_uwp_dll=="true"', {
+          [ 'OS == "win" and node_uwp_dll=="true"', {
             'msvs_settings': {
               'VCCLCompilerTool': {
                 'CompileAsWinRT': 'false',

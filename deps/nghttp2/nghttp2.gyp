@@ -29,7 +29,8 @@
               'CompileAsWinRT': 'false',
             }
           },
-        }],        ['debug_nghttp2 == 1', {
+        }],
+        ['debug_nghttp2 == 1', {
           'defines': [ 'DEBUGBUILD=1' ]
         }]
       ],

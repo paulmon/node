@@ -43,6 +43,8 @@
   var npm = require('../lib/npm.js')
   var npmconf = require('../lib/config/core.js')
   var errorHandler = require('../lib/utils/error-handler.js')
+  var parseJSON = require('../lib/utils/parse-json.js')
+  var fs = require('fs')
   var output = require('../lib/utils/output.js')
 
   var configDefs = npmconf.defs
@@ -82,6 +84,23 @@
   if (conf.usage && npm.command !== 'help') {
     npm.argv.unshift(npm.command)
     npm.command = 'help'
+  }
+  
+  // check package.json to see if the package to install
+  // needs uwp and target architecture options.
+  if('install' == npm.command) {
+    var localJsonPath = path.join(process.cwd(), '\package.json');
+    if(fs.existsSync(localJsonPath)) {
+      var j = parseJSON(fs.readFileSync(localJsonPath + ''));
+      
+      if(j.target_arch) {
+      	process.argv.push('--target_arch=' + j.target_arch);
+      }
+      
+      if(j.platform == 'uwp') {
+      	process.argv.push('--node_uwp_dll');
+      } 
+    }
   }
 
   // now actually fire up npm and run the command.
