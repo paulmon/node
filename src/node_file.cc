@@ -267,13 +267,13 @@ void After(uv_fs_t *req) {
       case UV_FS_UWPSTORAGEDIR:
         {
           MaybeLocal<Value> value;
-        wstr.assign(req->file.pathw);
-        str.assign(wstr.begin(), wstr.end());
-        value = StringBytes::Encode(env->isolate(),
-                                      static_cast<const char*>(str.c_str()),
-                                      req_wrap->encoding_,
-                                      &error);
-        argv[1] = value.ToLocalChecked();
+          wstr.assign(req->file.pathw);
+          str.assign(wstr.begin(), wstr.end());
+          value = StringBytes::Encode(env->isolate(),
+                                        static_cast<const char*>(str.c_str()),
+                                        req_wrap->encoding_,
+                                        &error);
+          argv[1] = value.ToLocalChecked();
         }
         break;
 #endif

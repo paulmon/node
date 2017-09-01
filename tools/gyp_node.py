@@ -50,6 +50,8 @@ def run_gyp(args):
   args.append('-Dlinux_use_bundled_gold=0')
   args.append('-Dlinux_use_gold_flags=0')
 
+  args.append('--check')
+
   rc = gyp.main(args)
   if rc != 0:
     print 'Error running GYP'

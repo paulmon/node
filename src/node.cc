@@ -4179,7 +4179,7 @@ static void ParseArgs(int* argc,
   *argc = static_cast<int>(new_argc);
 }
 
-// TODO - pkm verify merge
+
 static void StartInspector(Environment* env, const char* path,
                            DebugOptions debug_options) {
 #if HAVE_INSPECTOR

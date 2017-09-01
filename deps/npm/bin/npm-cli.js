@@ -57,7 +57,7 @@
   if (path.basename(process.argv[1]).slice(-1) === 'g') {
     process.argv.splice(1, 1, 'npm', '-g')
   }
-  
+
   log.verbose('cli', process.argv)
 
   var conf = nopt(types, shorthands)

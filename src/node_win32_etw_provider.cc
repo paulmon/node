@@ -225,5 +225,4 @@ void shutdown_etw() {
 #endif
 }
 
-
 }  // namespace node

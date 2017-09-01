@@ -43,6 +43,15 @@
           'dependencies': [
             'chakrartstub.gyp:chakrartstub#host',
           ],
+          'export_dependent_settings': [
+            'chakrartstub.gyp:chakrartstub#host',
+          ],
+          'sources': [
+            'src/codexassert.cpp',
+            'src/iotstub.cc',
+            'src/utf8codex.cpp',
+            'src/utf8codex.h',
+          ],
         }],
         [ 'OS in "linux"', {
           'cflags_cc': [ '-fexceptions' ],
@@ -188,16 +197,6 @@
         'src/v8valuedeserializer.cc',
       ],
 
-      'conditions': [
-        [ 'node_engine=="chakra"', {
-          'sources': [
-            'src/codexassert.cpp',
-            'src/iotstub.cc',
-            'src/utf8codex.cpp',
-            'src/utf8codex.h',
-          ],
-        }],
-      ]
     },  # end chakrashim
 
     {
