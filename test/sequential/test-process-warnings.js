@@ -33,6 +33,7 @@ execFile(node, traceWarn, function(er, stdout, stderr) {
   assert(warningMessage.test(stderr));
   assert(common.engineSpecificMessage({
     v8: /at Object\.<anonymous>\s\(.+warnings\.js:3:9\)/,
-    chakra: /at Anonymous function\s\(.+warnings\.js:3:1\)/
+    chakra: /at Anonymous function\s\(.+warnings\.js:3:1\)/,
+    chakracore: /at Anonymous function\s\(.+warnings\.js:3:1\)/
   }).test(stderr));
 });

@@ -47,6 +47,7 @@ const Script = require('vm').Script;
     script.runInNewContext();
   }, common.engineSpecificMessage({
     v8: /^ReferenceError: foo is not defined$/,
+    chakra: /^TypeError: Unable to set property 'bar' of undefined or null reference$/,
     chakracore: /^TypeError: Unable to set property 'bar' of undefined or null reference$/
   }));
 }

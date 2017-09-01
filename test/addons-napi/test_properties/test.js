@@ -3,6 +3,7 @@ const common = require('../../common');
 const assert = require('assert');
 const readonlyErrorRE = common.engineSpecificMessage({
   v8: /^TypeError: Cannot assign to read only property '.*' of object '#<Object>'$/,
+  chakra: /^TypeError: Assignment to read-only properties is not allowed in strict mode$/,
   chakracore: /^TypeError: Assignment to read-only properties is not allowed in strict mode$/
 });
 

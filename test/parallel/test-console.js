@@ -46,12 +46,14 @@ assert.throws(
   () => console.time(Symbol('test')),
   common.engineSpecificMessage({
     v8: /^TypeError: Cannot convert a Symbol value to a string$/,
+    chakra: /^TypeError: Object doesn't support property or method 'ToString'$/,
     chakracore: /^TypeError: Object doesn't support property or method 'ToString'$/
   }));
 assert.throws(
   () => console.timeEnd(Symbol('test')),
   common.engineSpecificMessage({
     v8: /^TypeError: Cannot convert a Symbol value to a string$/,
+    chakra: /^TypeError: Object doesn't support property or method 'ToString'$/,
     chakracore: /^TypeError: Object doesn't support property or method 'ToString'$/
   }));
 

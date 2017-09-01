@@ -25,6 +25,7 @@ assert.strictEqual(
 assert.throws(() => qs.escape({ toString: 5 }),
               common.engineSpecificMessage({
                 v8: /^TypeError: Cannot convert object to primitive value$/,
+                chakra: /^TypeError: String expected$/,
                 chakracore: /^TypeError: String expected$/
               }));
 
@@ -34,5 +35,6 @@ assert.strictEqual(qs.escape({ toString: 5, valueOf: () => 'test' }), 'test');
 assert.throws(() => qs.escape(Symbol('test')),
               common.engineSpecificMessage({
                 v8: /^TypeError: Cannot convert a Symbol value to a string$/,
+                chakra: /^TypeError: Object doesn't support property or method 'ToString'$/, // eslint-disable-line max-len
                 chakracore: /^TypeError: Object doesn't support property or method 'ToString'$/ // eslint-disable-line max-len
               }));

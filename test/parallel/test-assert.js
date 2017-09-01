@@ -43,6 +43,7 @@ assert.throws(
     type: TypeError,
     message: common.engineSpecificMessage({
       v8: 'expected.test is not a function',
+      chakra: 'Object doesn\'t support property or method \'test\'',
       chakracore: 'Object doesn\'t support property or method \'test\''
     })
   })

@@ -27,6 +27,7 @@ const url = require('url');
 const engineSpecificMalformedUrlError =
     common.engineSpecificMessage({
       v8: /^URIError: URI malformed$/,
+      chakra: /^URIError: The URI to be decoded is not a valid encoding$/,
       chakracore: /^URIError: The URI to be decoded is not a valid encoding$/
     });
 

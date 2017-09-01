@@ -753,7 +753,8 @@ Buffer.allocUnsafe(3.3).fill().toString();
 // throws bad argument error in commit 43cb4ec
 Buffer.alloc(common.engineSpecificMessage({
   v8: 3.3,
-  chakra: Math.trunc(3.3) // new Uint8Array(3.3) throws
+  chakra: Math.trunc(3.3),
+  chakracore: Math.trunc(3.3) // new Uint8Array(3.3) throws
 })).fill().toString();
 
 if (!common.isChakraEngine) { // Skip on chakra, new Uint8Array(NaN) throws

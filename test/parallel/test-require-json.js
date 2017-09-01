@@ -29,6 +29,8 @@ try {
 } catch (err) {
   const re = common.engineSpecificMessage({
     v8: /test[/\\]fixtures[/\\]invalid\.json: Unexpected string/,
+    chakra:
+    /test[/\\]fixtures[/\\]invalid\.json: JSON\.parse Error: Expected '}'/,
     chakracore:
     /test[/\\]fixtures[/\\]invalid\.json: JSON\.parse Error: Expected '}'/
   });

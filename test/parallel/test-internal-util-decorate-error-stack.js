@@ -28,6 +28,7 @@ assert.strictEqual(obj.stack, undefined);
 function checkStack(stack) {
   const matches = stack.match(common.engineSpecificMessage({
     v8: /var foo bar;/g,
+    chakra: /Expected ';'/g,  // chakra does not show source
     chakracore: /Expected ';'/g  // chakra does not show source
   }));
   assert.strictEqual(Array.isArray(matches), true);

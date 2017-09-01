@@ -62,6 +62,7 @@ const notFoundRE = /^Error: Cannot find module/m;
       // stderr should have a syntax error message
       assert(common.engineSpecificMessage({
         v8: syntaxErrorRE,
+        chakra: /^SyntaxError: Expected ';'$/m,
         chakracore: /^SyntaxError: Expected ';'$/m
       }).test(stderr), 'stderr incorrect');
 
@@ -124,6 +125,7 @@ syntaxArgs.forEach(function(args) {
   // stderr should have a syntax error message
   const re = common.engineSpecificMessage({
     v8: syntaxErrorRE,
+    chakra: /^SyntaxError: Expected ';'$/m,
     chakracore: /^SyntaxError: Expected ';'$/m });
   assert(re.test(c.stderr), 'stderr incorrect');
 

@@ -45,6 +45,7 @@ assert.throws(
   },
   common.engineSpecificMessage({
     v8: /RangeError/,
+    chakra: /Error: Out of stack space/,
     chakracore: /Error: Out of stack space/
   }));
 

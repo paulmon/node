@@ -33,6 +33,7 @@ function checkBadPath(err, response) {
   assert(
     common.engineSpecificMessage({
       v8: /Unexpected token/,
+      chakra: /JSON\.parse Error: Invalid character at position:1/,
       chakracore: /JSON\.parse Error: Invalid character at position:1/
     }).test(err.message),
     'Unexpected message: ' + err.message);
@@ -347,6 +348,7 @@ function testCommandLineAPI(session) {
           parentsEqual: true,
           parentId: common.engineSpecificMessage({
             v8: '<inspector console>',
+            chakra: '.',
             chakracore: '.'
           })
         });

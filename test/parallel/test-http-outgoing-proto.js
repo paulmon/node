@@ -64,6 +64,7 @@ assert.throws(() => {
   outgoingMessage.addTrailers();
 }, common.engineSpecificMessage({
   v8: /^TypeError: Cannot convert undefined or null to object$/,
+  chakra: /^TypeError: Object expected/,
   chakracore: /^TypeError: Object expected/
 }));
 

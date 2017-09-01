@@ -402,7 +402,8 @@ if (!common.isChakraEngine) {
   obj = vm.runInNewContext('fn=function(){};new Promise(fn,fn)', {});
   assert.strictEqual(util.inspect(obj), common.engineSpecificMessage({
     v8: 'Promise { <pending> }',
-    chakra: 'Promise {}'
+    chakra: 'Promise {}',
+    chakracore: 'Promise {}'
   }));
 }
 
@@ -806,14 +807,16 @@ if (typeof Symbol !== 'undefined') {
   assert.strictEqual(util.inspect(resolved),
                      common.engineSpecificMessage({
                        v8: 'Promise { 3 }',
-                       chakra: 'Promise {}'
+                       chakra: 'Promise {}',
+                       chakracore: 'Promise {}'
                      }));
 
   const rejected = Promise.reject(3);
   assert.strictEqual(util.inspect(rejected),
                      common.engineSpecificMessage({
                        v8: 'Promise { <rejected> 3 }',
-                       chakra: 'Promise {}'
+                       chakra: 'Promise {}',
+                       chakracore: 'Promise {}'
                      }));
   // squelch UnhandledPromiseRejection
   rejected.catch(() => {});
@@ -821,7 +824,8 @@ if (typeof Symbol !== 'undefined') {
   const pending = new Promise(() => {});
   assert.strictEqual(util.inspect(pending), common.engineSpecificMessage({
     v8: 'Promise { <pending> }',
-    chakra: 'Promise {}'
+    chakra: 'Promise {}',
+    chakracore: 'Promise {}'
   }));
 
   const promiseWithProperty = Promise.resolve('foo');
@@ -829,7 +833,8 @@ if (typeof Symbol !== 'undefined') {
   assert.strictEqual(util.inspect(promiseWithProperty),
                      common.engineSpecificMessage({
                        v8: 'Promise { \'foo\', bar: 42 }',
-                       chakra: 'Promise { bar: 42 }'
+                       chakra: 'Promise { bar: 42 }',
+                       chakracore: 'Promise { bar: 42 }'
                      }));
 }
 
@@ -843,7 +848,8 @@ if (typeof Symbol !== 'undefined') {
   assert.strictEqual(util.inspect(new Promise()),
                      common.engineSpecificMessage({
                        v8: '{ bar: 42 }',
-                       chakra: 'Object { undefined, bar: 42 }'
+                       chakra: 'Object { undefined, bar: 42 }',
+                       chakracore: 'Object { undefined, bar: 42 }'
                      }));
   global.Promise = oldPromise;
 }
@@ -934,7 +940,8 @@ if (!common.isChakraEngine) {
   assert.strictEqual(util.inspect(new PromiseSubclass(() => {})),
                      common.engineSpecificMessage({
                        v8: 'PromiseSubclass { <pending> }',
-                       chakra: 'PromiseSubclass {}'
+                       chakra: 'PromiseSubclass {}',
+                       chakracore: 'PromiseSubclass {}'
                      }));
 }
 

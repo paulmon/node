@@ -48,6 +48,7 @@ assert.throws(function() {
   util.format('%d', symbol);
 }, common.engineSpecificMessage({
   v8: /^TypeError: Cannot convert a Symbol value to a number$/,
+  chakra: /Error: Number expected/,
   chakracore: /Error: Number expected/
 }));
 
@@ -132,6 +133,14 @@ assert.strictEqual(
     '     [length]: 0,\n' +
     '     [name]: \'func\',\n' +
     '     [prototype]: func { [constructor]: [Circular] } } }',
+    chakra:
+    '{ foo: \'bar\',\n' +
+    '  foobar: 1,\n' +
+    '  func: \n' +
+    '   { [Function: func]\n' +
+    '     [prototype]: func { [constructor]: [Circular] },\n' +
+    '     [name]: \'func\',\n' +
+    '     [length]: 0 } }',
     chakracore:
     '{ foo: \'bar\',\n' +
     '  foobar: 1,\n' +
@@ -153,6 +162,15 @@ assert.strictEqual(
     '        [length]: 0,\n' +
     '        [name]: \'func\',\n' +
     '        [prototype]: func { [constructor]: [Circular] } } } }',
+    chakra:
+    '{ foo: \'bar\',\n' +
+    '  foobar: \n' +
+    '   { foo: \'bar\',\n' +
+    '     func: \n' +
+    '      { [Function: func]\n' +
+    '        [prototype]: func { [constructor]: [Circular] },\n' +
+    '        [name]: \'func\',\n' +
+    '        [length]: 0 } } }',
     chakracore:
     '{ foo: \'bar\',\n' +
     '  foobar: \n' +
@@ -181,6 +199,21 @@ assert.strictEqual(
     '     [length]: 0,\n' +
     '     [name]: \'func\',\n' +
     '     [prototype]: func { [constructor]: [Circular] } } }',
+    chakra:
+    '{ foo: \'bar\',\n' +
+    '  foobar: 1,\n' +
+    '  func: \n' +
+    '   { [Function: func]\n' +
+    '     [prototype]: func { [constructor]: [Circular] },\n' +
+    '     [name]: \'func\',\n' +
+    '     [length]: 0 } }' +
+    ' { foo: \'bar\',\n' +
+    '  foobar: 1,\n' +
+    '  func: \n' +
+    '   { [Function: func]\n' +
+    '     [prototype]: func { [constructor]: [Circular] },\n' +
+    '     [name]: \'func\',\n' +
+    '     [length]: 0 } }',
     chakracore:
     '{ foo: \'bar\',\n' +
     '  foobar: 1,\n' +
@@ -208,6 +241,14 @@ assert.strictEqual(
     '     [length]: 0,\n' +
     '     [name]: \'func\',\n' +
     '     [prototype]: func { [constructor]: [Circular] } } } %o',
+    chakra:
+    '{ foo: \'bar\',\n' +
+    '  foobar: 1,\n' +
+    '  func: \n' +
+    '   { [Function: func]\n' +
+    '     [prototype]: func { [constructor]: [Circular] },\n' +
+    '     [name]: \'func\',\n' +
+    '     [length]: 0 } } %o',
     chakracore:
     '{ foo: \'bar\',\n' +
     '  foobar: 1,\n' +

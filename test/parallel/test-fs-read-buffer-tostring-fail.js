@@ -26,7 +26,8 @@ const stream = fs.createWriteStream(file, {
 const size = kStringMaxLength / 200;
 const a = Buffer.alloc(common.engineSpecificMessage({
   v8: size,
-  chakra: Math.trunc(size)
+  chakra: Math.trunc(size),
+  chakracore: Math.trunc(size)
 })).fill('a');
 
 for (var i = 0; i < 201; i++) {
