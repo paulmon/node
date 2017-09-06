@@ -423,12 +423,14 @@ void fs__open(uv_fs_t* req) {
   DWORD access;
   DWORD share;
   DWORD disposition;
-  DWORD fileAttributes = 0;
-  DWORD fileFlags = 0;
-
+  DWORD attributes = 0;
   HANDLE file;
   int fd, current_umask;
+#ifdef UWP_DLL
+  DWORD flags = 0;
+#else
   int flags = req->fs.info.file_flags;
+#endif
 
   /* Obtain the active umask. umask() never fails and returns the previous */
   /* umask. */
@@ -439,8 +441,10 @@ void fs__open(uv_fs_t* req) {
   switch (flags & (_O_RDONLY | _O_WRONLY | _O_RDWR)) {
   case _O_RDONLY:
     access = FILE_GENERIC_READ;
-    fileFlags |= FILE_FLAG_BACKUP_SEMANTICS;
-  break;
+#ifdef UWP_DLL
+    flags |= FILE_FLAG_BACKUP_SEMANTICS;
+#endif
+    break;
   case _O_WRONLY:
     access = FILE_GENERIC_WRITE;
     break;
@@ -454,7 +458,9 @@ void fs__open(uv_fs_t* req) {
   if (flags & _O_APPEND) {
     access &= ~FILE_WRITE_DATA;
     access |= FILE_APPEND_DATA;
-    fileFlags &= ~FILE_FLAG_BACKUP_SEMANTICS;
+#ifdef UWP_DLL
+    flags &= ~FILE_FLAG_BACKUP_SEMANTICS;
+#endif
   }
 
   /*
@@ -488,38 +494,54 @@ void fs__open(uv_fs_t* req) {
     goto einval;
   }
 
-  fileAttributes |= FILE_ATTRIBUTE_NORMAL;
+  attributes |= FILE_ATTRIBUTE_NORMAL;
   if (flags & _O_CREAT) {
-      if (!((req->fs.info.mode & ~current_umask) & _S_IWRITE)) {
-        fileAttributes |= FILE_ATTRIBUTE_READONLY;
-      }
+    if (!((req->fs.info.mode & ~current_umask) & _S_IWRITE)) {
+      attributes |= FILE_ATTRIBUTE_READONLY;
+    }
   }
 
-  if (flags & _O_TEMPORARY) {
-    fileAttributes |= FILE_ATTRIBUTE_TEMPORARY;
-    fileFlags |= FILE_FLAG_DELETE_ON_CLOSE;
+  if (flags & _O_TEMPORARY ) {
+#ifdef UWP_DLL
+    attributes |= FILE_ATTRIBUTE_TEMPORARY;
+    flags |= FILE_FLAG_DELETE_ON_CLOSE;
+#else
+    attributes |= FILE_FLAG_DELETE_ON_CLOSE | FILE_ATTRIBUTE_TEMPORARY;
+#endif
     access |= DELETE;
   }
 
   if (flags & _O_SHORT_LIVED) {
-    fileAttributes |= FILE_ATTRIBUTE_TEMPORARY;
+    attributes |= FILE_ATTRIBUTE_TEMPORARY;
   }
 
   switch (flags & (_O_SEQUENTIAL | _O_RANDOM)) {
   case 0:
-      break;
+    break;
   case _O_SEQUENTIAL:
-      fileFlags |= FILE_FLAG_SEQUENTIAL_SCAN;
-      break;
+#ifdef UWP_DLL
+    flags |= FILE_FLAG_SEQUENTIAL_SCAN;
+#else
+    attributes |= FILE_FLAG_SEQUENTIAL_SCAN;
+#endif
+    break;
   case _O_RANDOM:
-      fileFlags |= FILE_FLAG_RANDOM_ACCESS;
-      break;
+#ifdef UWP_DLL
+    flags |= FILE_FLAG_RANDOM_ACCESS;
+#else
+    attributes |= FILE_FLAG_RANDOM_ACCESS;
+#endif
+    break;
   default:
-      goto einval;
+    goto einval;
   }
 
   /* Setting this flag makes it possible to open a directory. */
-  fileFlags |= FILE_FLAG_BACKUP_SEMANTICS;
+#ifdef UWP_DLL
+  flags |= FILE_FLAG_BACKUP_SEMANTICS;
+#else
+  attributes |= FILE_FLAG_BACKUP_SEMANTICS;
+#endif
 
 #ifdef UWP_DLL
   /* Change working directory to the local storage */
@@ -551,8 +573,8 @@ void fs__open(uv_fs_t* req) {
     access,
     share,
     disposition,
-    fileAttributes,
-    fileFlags);
+    attributes,
+    flags);
 
   if (file == INVALID_HANDLE_VALUE) {
     DWORD error = GetLastError();
@@ -777,7 +799,7 @@ void fs__unlink(uv_fs_t* req) {
   FILE_DISPOSITION_INFORMATION disposition;
   IO_STATUS_BLOCK iosb;
   NTSTATUS status;
-  
+
   handle = CreateFileW(pathw,
                        FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | DELETE,
                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -785,30 +807,30 @@ void fs__unlink(uv_fs_t* req) {
                        OPEN_EXISTING,
                        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
                        NULL);
-  
+
   if (handle == INVALID_HANDLE_VALUE) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
     return;
   }
-  
+
   if (!GetFileInformationByHandle(handle, &info)) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
     CloseHandle(handle);
     return;
   }
-  
+
   if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
     /* Do not allow deletion of directories, unless it is a symlink. When */
     /* the path refers to a non-symlink directory, report EPERM as mandated */
     /* by POSIX.1. */
-  
+
     /* Check if it is a reparse point. If it's not, it's a normal directory. */
     if (!(info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
       SET_REQ_WIN32_ERROR(req, ERROR_ACCESS_DENIED);
       CloseHandle(handle);
       return;
     }
-  
+
     /* Read the reparse point and check if it is a valid symlink. */
     /* If not, don't unlink. */
     if (fs__readlink_handle(handle, NULL, NULL) < 0) {
@@ -820,13 +842,13 @@ void fs__unlink(uv_fs_t* req) {
       return;
     }
   }
-  
+
   if (info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
     /* Remove read-only attribute */
     FILE_BASIC_INFORMATION basic = { 0 };
-  
+
     basic.FileAttributes = info.dwFileAttributes & ~(FILE_ATTRIBUTE_READONLY);
-  
+
     status = pNtSetInformationFile(handle,
                                    &iosb,
                                    &basic,
@@ -838,7 +860,7 @@ void fs__unlink(uv_fs_t* req) {
       return;
     }
   }
-  
+
   /* Try to set the delete flag. */
   disposition.DeleteFile = TRUE;
   status = pNtSetInformationFile(handle,
@@ -848,11 +870,10 @@ void fs__unlink(uv_fs_t* req) {
                                  FileDispositionInformation);
   if (NT_SUCCESS(status)) {
     SET_REQ_SUCCESS(req);
-  }
-  else {
+  } else {
     SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
   }
-  
+
   CloseHandle(handle);
 #endif
 }
@@ -943,6 +964,7 @@ void fs__scandir(uv_fs_t* req) {
 #define FILE_DIRECTORY_INFORMATION FILE_FULL_DIR_INFO
 #endif
   static const size_t dirents_initial_size = 32;
+
   HANDLE dir_handle = INVALID_HANDLE_VALUE;
 
   uv__dirent_t** dirents = NULL;
@@ -972,11 +994,11 @@ void fs__scandir(uv_fs_t* req) {
                 sizeof(FILE_DIRECTORY_INFORMATION) + 256 * sizeof(WCHAR));
 
   /* Open the directory. */
-  dir_handle = 
+  dir_handle =
       fs__win_create_file(req->file.pathw,
-                          FILE_LIST_DIRECTORY | SYNCHRONIZE,
-                          FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                          OPEN_EXISTING,
+                  FILE_LIST_DIRECTORY | SYNCHRONIZE,
+                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                  OPEN_EXISTING,
                           0,
                           FILE_FLAG_BACKUP_SEMANTICS);
   if (dir_handle == INVALID_HANDLE_VALUE)
@@ -1038,7 +1060,15 @@ void fs__scandir(uv_fs_t* req) {
       /* Compute the length of the filename in WCHARs. */
       wchar_len = info->FileNameLength / sizeof info->FileName[0];
 
-      /* Skip over '.' and '..' entries. */
+      /* Skip over '.' and '..' entries.  It has been reported that
+       * the SharePoint driver includes the terminating zero byte in
+       * the filename length.  Strip those first.
+       */
+      while (wchar_len > 0 && info->FileName[wchar_len - 1] == L'\0')
+        wchar_len -= 1;
+
+      if (wchar_len == 0)
+        continue;
       if (wchar_len == 1 && info->FileName[0] == L'.')
         continue;
       if (wchar_len == 2 && info->FileName[0] == L'.' &&
@@ -1274,24 +1304,22 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf) {
     }
   }
 
-
-  
   if (statbuf->st_mode == 0) {
 #ifdef UWP_DLL
-  } else if (file_basic_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+  if (file_basic_info.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 #else
-  } else if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+  if (file_info.BasicInformation.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 #endif
-	  statbuf->st_mode |= _S_IFDIR;
-	  statbuf->st_size = 0;
-  }
-  else {
-	  statbuf->st_mode |= _S_IFREG;
+      statbuf->st_mode |= _S_IFDIR;
+      statbuf->st_size = 0;
+    } else {
+      statbuf->st_mode |= _S_IFREG;
 #ifdef UWP_DLL
-	  statbuf->st_size = file_standard_info.EndOfFile.QuadPart;
+      statbuf->st_size = file_standard_info.EndOfFile.QuadPart;
 #else
-	  statbuf->st_size = file_info.StandardInformation.EndOfFile.QuadPart;
+      statbuf->st_size = file_info.StandardInformation.EndOfFile.QuadPart;
 #endif
+    }
   }
 
 #ifdef UWP_DLL
@@ -1324,12 +1352,12 @@ INLINE static int fs__stat_handle(HANDLE handle, uv_stat_t* statbuf) {
   FILETIME_TO_TIMESPEC(statbuf->st_birthtim, file_info.BasicInformation.CreationTime);
 
   statbuf->st_ino = file_info.InternalInformation.IndexNumber.QuadPart;
+
   /* st_blocks contains the on-disk allocation size in 512-byte units. */
   statbuf->st_blocks =
       file_info.StandardInformation.AllocationSize.QuadPart >> 9ULL;
 
   statbuf->st_nlink = file_info.StandardInformation.NumberOfLinks;
-
 #endif
 
   /* The st_blksize is supposed to be the 'optimal' number of bytes for reading
@@ -1375,18 +1403,18 @@ INLINE static void fs__stat_prepare_path(WCHAR* pathw) {
 
 
 INLINE static void fs__stat_impl(uv_fs_t* req, int do_lstat) {
-    HANDLE handle;
-    DWORD flags;
+  HANDLE handle;
+  DWORD flags;
 
   flags = FILE_FLAG_BACKUP_SEMANTICS;
   if (do_lstat) {
-      flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+    flags |= FILE_FLAG_OPEN_REPARSE_POINT;
   }
 
   handle = fs__win_create_file(req->file.pathw,
-    FILE_READ_ATTRIBUTES,
-    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-    OPEN_EXISTING,
+                       FILE_READ_ATTRIBUTES,
+                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                       OPEN_EXISTING,
     0,
     flags);
 
@@ -1490,30 +1518,29 @@ static void fs__ftruncate(uv_fs_t* req) {
 #ifdef UWP_DLL
     SET_REQ_WIN32_ERROR(req, ERROR_NOT_SUPPORTED);
 #else
-    int fd = req->file.fd;
-    HANDLE handle;
-    NTSTATUS status;
-    IO_STATUS_BLOCK io_status;
-    FILE_END_OF_FILE_INFORMATION eof_info;
+  int fd = req->file.fd;
+  HANDLE handle;
+  NTSTATUS status;
+  IO_STATUS_BLOCK io_status;
+  FILE_END_OF_FILE_INFORMATION eof_info;
 
-    VERIFY_FD(fd, req);
+  VERIFY_FD(fd, req);
 
-    handle = uv__get_osfhandle(fd);
+  handle = uv__get_osfhandle(fd);
 
-    eof_info.EndOfFile.QuadPart = req->fs.info.offset;
+  eof_info.EndOfFile.QuadPart = req->fs.info.offset;
 
-    status = pNtSetInformationFile(handle,
-        &io_status,
-        &eof_info,
-        sizeof eof_info,
-        FileEndOfFileInformation);
+  status = pNtSetInformationFile(handle,
+                                 &io_status,
+                                 &eof_info,
+                                 sizeof eof_info,
+                                 FileEndOfFileInformation);
 
-    if (NT_SUCCESS(status)) {
-        SET_REQ_RESULT(req, 0);
-    }
-    else {
-        SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
-    }
+  if (NT_SUCCESS(status)) {
+    SET_REQ_RESULT(req, 0);
+  } else {
+    SET_REQ_WIN32_ERROR(req, pRtlNtStatusToDosError(status));
+  }
 #endif
 }
 
@@ -1566,7 +1593,7 @@ static void fs__sendfile(uv_fs_t* req) {
 
 
 static void fs__access(uv_fs_t* req) {
-
+#ifdef UWP_DLL
   DWORD attr = INVALID_FILE_ATTRIBUTES;
   WIN32_FILE_ATTRIBUTE_DATA attrData;
   if (!GetFileAttributesExW(req->file.pathw, GetFileExInfoStandard, &attrData)) {
@@ -1575,6 +1602,9 @@ static void fs__access(uv_fs_t* req) {
   }
 
   attr = attrData.dwFileAttributes;
+#else
+  DWORD attr = GetFileAttributesW(req->file.pathw);
+#endif
 
   if (attr == INVALID_FILE_ATTRIBUTES) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
@@ -1686,9 +1716,9 @@ static void fs__utime(uv_fs_t* req) {
   HANDLE handle;
 
   handle = fs__win_create_file(req->file.pathw,
-    FILE_WRITE_ATTRIBUTES,
-    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-    OPEN_EXISTING,
+                       FILE_WRITE_ATTRIBUTES,
+                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                       OPEN_EXISTING,
     0,
     FILE_FLAG_BACKUP_SEMANTICS);
 
@@ -1734,7 +1764,7 @@ static void fs__link(uv_fs_t* req) {
 #ifdef UWP_DLL
     SET_REQ_WIN32_ERROR(req, ERROR_NOT_SUPPORTED);
 #else
-    DWORD r = CreateHardLinkW(req->fs.info.new_pathw, req->file.pathw, NULL);
+  DWORD r = CreateHardLinkW(req->fs.info.new_pathw, req->file.pathw, NULL);
   if (r == 0) {
     SET_REQ_WIN32_ERROR(req, GetLastError());
   } else {
@@ -1926,6 +1956,7 @@ static void fs__symlink(uv_fs_t* req) {
   int flags = req->fs.info.file_flags;
   int result;
 
+
   if (flags & UV_FS_SYMLINK_JUNCTION) {
     fs__create_junction(req, pathw, new_pathw);
   } else if (pCreateSymbolicLinkW) {
@@ -1944,12 +1975,12 @@ static void fs__symlink(uv_fs_t* req) {
 
 
 static void fs__readlink(uv_fs_t* req) {
-    HANDLE handle;
+  HANDLE handle;
 
   handle = fs__win_create_file(req->file.pathw,
-    0,
-    0,
-    OPEN_EXISTING,
+                       0,
+                       0,
+                       OPEN_EXISTING,
     0,
     FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS);
 
@@ -2167,8 +2198,12 @@ void uv_fs_req_cleanup(uv_fs_t* req) {
   if (req->flags & UV_FS_FREE_PATHS)
     uv__free(req->file.pathw);
 
-  if (req->flags & UV_FS_FREE_PTR)
-    uv__free(req->ptr);
+  if (req->flags & UV_FS_FREE_PTR) {
+    if (req->fs_type == UV_FS_SCANDIR && req->ptr != NULL)
+      uv__fs_scandir_cleanup(req);
+    else
+      uv__free(req->ptr);
+  }
 
   if (req->fs.info.bufs != req->fs.info.bufsml)
     uv__free(req->fs.info.bufs);

@@ -451,10 +451,7 @@ static int uv__get_process_title(void) {
     return -1;
   }
 
-  /* Find out what the size of the buffer is that we need */
   if (uv__convert_utf16_to_utf8(title_w, -1, &process_title) != 0)
-
-  /* Do utf16 -> utf8 conversion here */
     return -1;
 
 #endif
@@ -543,6 +540,7 @@ int uv_resident_set_memory(size_t* rss) {
   return 0;
 #endif
 }
+
 
 int uv_uptime(double* uptime) {
 #ifdef UWP_DLL
@@ -799,7 +797,6 @@ static int is_windows_version_or_greater(DWORD os_major,
                                          WORD service_pack_major,
                                          WORD service_pack_minor) {
 #ifdef UWP_DLL
-    // TODO: use proper Windows version support
     if (10 >= os_major) {
         return 1;
     }

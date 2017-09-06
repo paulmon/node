@@ -498,7 +498,7 @@ static void uv_tty_queue_read_raw(uv_loop_t* loop, uv_tty_t* handle) {
 
 
 static DWORD CALLBACK uv_tty_line_read_thread(void* data) {
-    uv_loop_t* loop;
+  uv_loop_t* loop;
   uv_tty_t* handle;
   uv_req_t* req;
   DWORD bytes, read_bytes;
@@ -527,7 +527,7 @@ static DWORD CALLBACK uv_tty_line_read_thread(void* data) {
   /* At last, unicode! */
   /* One utf-16 codeunit never takes more than 3 utf-8 codeunits to encode */
   chars = bytes / 3;
-  
+
   status = InterlockedExchange(&uv__read_console_status, IN_PROGRESS);
   if (status == TRAP_REQUESTED) {
     SET_REQ_SUCCESS(req);
@@ -1026,10 +1026,10 @@ void uv_process_tty_read_line_req(uv_loop_t* loop, uv_tty_t* handle,
 
   } else {
     if (!(handle->flags & UV_HANDLE_CANCELLATION_PENDING)) {
-    /* Read successful */
-    /* TODO: read unicode, convert to utf-8 */
-    DWORD bytes = req->u.io.overlapped.InternalHigh;
-    handle->read_cb((uv_stream_t*) handle, bytes, &buf);
+      /* Read successful */
+      /* TODO: read unicode, convert to utf-8 */
+      DWORD bytes = req->u.io.overlapped.InternalHigh;
+      handle->read_cb((uv_stream_t*) handle, bytes, &buf);
     } else {
       handle->flags &= ~UV_HANDLE_CANCELLATION_PENDING;
       handle->read_cb((uv_stream_t*) handle, 0, &buf);
@@ -1112,7 +1112,7 @@ int uv_tty_read_stop(uv_tty_t* handle) {
     return 0;
 
   if (handle->flags & UV_HANDLE_TTY_RAW) {
-  /* Cancel raw read */
+    /* Cancel raw read */
     /* Write some bullshit event to force the console wait to return. */
     memset(&record, 0, sizeof record);
     if (!WriteConsoleInputW(handle->handle, &record, 1, &written)) {
@@ -1130,7 +1130,6 @@ int uv_tty_read_stop(uv_tty_t* handle) {
   return 0;
 #endif
 }
-
 
 static int uv__cancel_read_console(uv_tty_t* handle) {
 #if defined(UWP_DLL)
@@ -1333,7 +1332,7 @@ static int uv_tty_reset(uv_tty_t* handle, DWORD* error) {
     *error = ERROR_NOT_SUPPORTED;
     return -1;
 #else
-    const COORD origin = {0, 0};
+  const COORD origin = {0, 0};
   const WORD char_attrs = uv_tty_default_text_attributes;
   CONSOLE_SCREEN_BUFFER_INFO info;
   DWORD count, written;
@@ -1399,7 +1398,7 @@ static int uv_tty_clear(uv_tty_t* handle, int dir, char entire_screen,
     return -1;
 #else
 
-    CONSOLE_SCREEN_BUFFER_INFO info;
+  CONSOLE_SCREEN_BUFFER_INFO info;
   COORD start, end;
   DWORD count, written;
 
@@ -1492,7 +1491,7 @@ static int uv_tty_set_style(uv_tty_t* handle, DWORD* error) {
     *error = ERROR_NOT_SUPPORTED;
     return -1;
 #else
-    unsigned short argc = handle->tty.wr.ansi_csi_argc;
+  unsigned short argc = handle->tty.wr.ansi_csi_argc;
   unsigned short* argv = handle->tty.wr.ansi_csi_argv;
   int i;
   CONSOLE_SCREEN_BUFFER_INFO info;

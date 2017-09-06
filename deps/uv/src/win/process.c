@@ -868,8 +868,8 @@ void uv_process_proc_exit(uv_loop_t* loop, uv_process_t* handle) {
     (loop);
     (handle);
 #else
-  DWORD status;
   int64_t exit_code;
+  DWORD status;
 
   assert(handle->exit_cb_pending);
   handle->exit_cb_pending = 0;
@@ -949,7 +949,6 @@ int uv_spawn(uv_loop_t* loop,
 #ifdef UWP_DLL
     return uv_translate_sys_error(ERROR_NOT_SUPPORTED);
 #else
-
   int i;
   int err = 0;
   WCHAR* path = NULL, *alloc_path = NULL;
@@ -1198,7 +1197,6 @@ static int uv__kill(HANDLE process_handle, int signum) {
     (process_handle);
     return UV_ENOSYS;
 #else
-
   switch (signum) {
     case SIGTERM:
     case SIGKILL:

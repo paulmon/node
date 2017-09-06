@@ -187,6 +187,7 @@ static HANDLE open_named_pipe(const WCHAR* name, DWORD* duplex_flags) {
       return pipeHandle;
     }
   }
+
   return INVALID_HANDLE_VALUE;
 #endif
 }
@@ -772,8 +773,12 @@ void uv__pipe_pause_read(uv_pipe_t* handle) {
         /* spinlock: we expect this to finish quickly,
            or we are probably about to deadlock anyways
            (in the kernel), so it doesn't matter */
+#ifdef UWP_DLL
         if (pCancelSynchronousIo)
           pCancelSynchronousIo(h);
+#else
+        pCancelSynchronousIo(h);
+#endif
         SwitchToThread(); /* yield thread control briefly */
         h = handle->pipe.conn.readfile_thread;
       }
@@ -857,8 +862,6 @@ static void uv_pipe_queue_accept(uv_loop_t* loop, uv_pipe_t* handle,
 #ifdef UWP_DLL
     return;
 #else
-
-
   assert(handle->flags & UV_HANDLE_LISTENING);
 
   if (!firstInstance) {
@@ -1302,8 +1305,6 @@ static int uv_pipe_write_impl(uv_loop_t* loop,
 #ifdef UWP_DLL
     return ERROR_NOT_SUPPORTED;
 #else
-
-
   int err;
   int result;
   uv_tcp_t* tcp_send_handle;

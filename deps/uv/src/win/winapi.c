@@ -56,7 +56,6 @@ sPowerRegisterSuspendResumeNotification pPowerRegisterSuspendResumeNotification;
 #endif
 
 void uv_winapi_init(void) {
-
 #ifdef UWP_DLL
     pGetQueuedCompletionStatusEx = &GetQueuedCompletionStatusEx;
     pSetFileCompletionNotificationModes = NULL;
@@ -168,7 +167,8 @@ void uv_winapi_init(void) {
 
   pGetFinalPathNameByHandleW = (sGetFinalPathNameByHandleW)
     GetProcAddress(kernel32_module, "GetFinalPathNameByHandleW");
-  
+
+
   powrprof_module = LoadLibraryA("powrprof.dll");
   if (powrprof_module != NULL) {
     pPowerRegisterSuspendResumeNotification = (sPowerRegisterSuspendResumeNotification)

@@ -266,6 +266,7 @@ int uv_ntstatus_to_winsock_error(NTSTATUS status) {
   }
 }
 
+
 /*
  * This function provides a workaround for a bug in the winsock implementation
  * of WSARecv. The problem is that when SetFileCompletionNotificationModes is
